@@ -28,8 +28,25 @@ describe("useLibraryStore", () => {
 
   it("removeDirectory drops by id", async () => {
     useLibraryStore.setState({ directories: [dir(1, "a")] });
-    vi.mocked(api.removeDirectory).mockResolvedValue(undefined as unknown as void);
+    vi.mocked(api.removeDirectory).mockResolvedValue();
     await useLibraryStore.getState().removeDirectory(1);
     expect(useLibraryStore.getState().directories).toHaveLength(0);
+  });
+
+  it("addDirectory does not mutate state when the API rejects", async () => {
+    vi.mocked(api.addDirectory).mockRejectedValue(new Error("fail"));
+    await expect(
+      useLibraryStore.getState().addDirectory("/p/x", false),
+    ).rejects.toThrow();
+    expect(useLibraryStore.getState().directories).toHaveLength(0);
+  });
+
+  it("removeDirectory does not mutate state when the API rejects", async () => {
+    useLibraryStore.setState({ directories: [dir(1, "a")] });
+    vi.mocked(api.removeDirectory).mockRejectedValue(new Error("fail"));
+    await expect(
+      useLibraryStore.getState().removeDirectory(1),
+    ).rejects.toThrow();
+    expect(useLibraryStore.getState().directories).toHaveLength(1);
   });
 });
