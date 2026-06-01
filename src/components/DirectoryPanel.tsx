@@ -7,9 +7,21 @@ export function DirectoryPanel() {
   const removeDirectory = useLibraryStore((s) => s.removeDirectory);
 
   const handleAdd = async () => {
-    const selected = await open({ directory: true, multiple: false });
-    if (typeof selected === "string") {
-      await addDirectory(selected, true);
+    try {
+      const selected = await open({ directory: true, multiple: false });
+      if (typeof selected === "string") {
+        await addDirectory(selected, true);
+      }
+    } catch (e) {
+      console.error("ディレクトリの追加に失敗しました:", e);
+    }
+  };
+
+  const handleRemove = async (id: number) => {
+    try {
+      await removeDirectory(id);
+    } catch (e) {
+      console.error("ディレクトリの削除に失敗しました:", e);
     }
   };
 
@@ -26,7 +38,7 @@ export function DirectoryPanel() {
               {d.label}
             </span>
             {!d.is_online && <span className="offline-badge">⦿offline</span>}
-            <button className="remove-btn" onClick={() => removeDirectory(d.id)}>
+            <button className="remove-btn" onClick={() => handleRemove(d.id)}>
               ×
             </button>
           </li>
