@@ -14,3 +14,6 @@ src-tauri/target/
 # OS
 .DS_Store
 Thumbs.db
+
+# Tauri auto-generated ACL schemas (regenerated on build)
+src-tauri/gen/schemas/
