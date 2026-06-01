@@ -1,0 +1,16 @@
+# Brainstorming companion artifacts
+.superpowers/
+
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Rust / Tauri
+target/
+src-tauri/target/
+
+# OS
+.DS_Store
+Thumbs.db
