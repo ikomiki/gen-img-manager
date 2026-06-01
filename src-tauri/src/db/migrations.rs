@@ -1,6 +1,7 @@
 use rusqlite::Connection;
 
 /// 配列の index+1 がスキーマバージョン。追記のみ・並び替え禁止。
+/// 各要素は単一または複数のSQL文。末尾セミコロンは任意（runが正規化する）。
 const MIGRATIONS: &[&str] = &[
     // v1: directories
     "CREATE TABLE directories (
@@ -19,8 +20,10 @@ pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     for (i, sql) in MIGRATIONS.iter().enumerate() {
         let version = (i + 1) as i64;
         if version > current {
+            // 各マイグレーションは末尾セミコロンの有無に関わらず安全に連結する。
+            let stmt = sql.trim().trim_end_matches(';');
             conn.execute_batch(&format!(
-                "BEGIN; {sql} PRAGMA user_version = {version}; COMMIT;"
+                "BEGIN; {stmt}; PRAGMA user_version = {version}; COMMIT;"
             ))?;
         }
     }
