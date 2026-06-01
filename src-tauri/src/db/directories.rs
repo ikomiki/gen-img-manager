@@ -1,7 +1,12 @@
 use crate::models::Directory;
 use rusqlite::{params, Connection};
 
-pub fn add(conn: &Connection, path: &str, label: &str, recursive: bool) -> rusqlite::Result<Directory> {
+pub fn add(
+    conn: &Connection,
+    path: &str,
+    label: &str,
+    recursive: bool,
+) -> rusqlite::Result<Directory> {
     conn.execute(
         "INSERT INTO directories (path, label, is_online, last_scanned_at, recursive)
          VALUES (?1, ?2, 1, NULL, ?3)",
