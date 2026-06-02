@@ -35,19 +35,38 @@ fn struct_field(field: &str) -> Option<(&'static str, FieldKind)> {
 }
 
 struct RawToken {
+    /// クォートを外した全文（例 prompt:a b）。
     text: String,
+    /// クォートが1度でも出現したか。
     quoted: bool,
+    /// 最初のクォートより前の「素の」リード部（例 prompt:"a b" なら "prompt:"）。
+    /// クォートが先頭から始まる純粋句では空になる。
+    lead: String,
 }
 
 /// 空白区切り。ダブルクォートで囲まれた部分は1トークン（クォートは外す）。
+/// lead にはクォート前の素のテキストを記録し、フィールド判定に用いる。
 fn tokenize(input: &str) -> Vec<RawToken> {
     let mut tokens = Vec::new();
-    let mut chars = input.chars().peekable();
     let mut cur = String::new();
+    let mut lead = String::new();
     let mut in_quote = false;
     let mut quoted = false;
 
-    while let Some(&c) = chars.peek() {
+    let flush = |cur: &mut String, lead: &mut String, quoted: &mut bool, tokens: &mut Vec<RawToken>| {
+        if !cur.is_empty() || *quoted {
+            tokens.push(RawToken {
+                text: std::mem::take(cur),
+                quoted: *quoted,
+                lead: std::mem::take(lead),
+            });
+            *quoted = false;
+        } else {
+            lead.clear();
+        }
+    };
+
+    for c in input.chars() {
         match c {
             '"' => {
                 if in_quote {
@@ -56,24 +75,19 @@ fn tokenize(input: &str) -> Vec<RawToken> {
                     in_quote = true;
                     quoted = true;
                 }
-                chars.next();
             }
             c if c.is_whitespace() && !in_quote => {
-                if !cur.is_empty() || quoted {
-                    tokens.push(RawToken { text: std::mem::take(&mut cur), quoted });
-                    quoted = false;
-                }
-                chars.next();
+                flush(&mut cur, &mut lead, &mut quoted, &mut tokens);
             }
             _ => {
                 cur.push(c);
-                chars.next();
+                if !quoted {
+                    lead.push(c);
+                }
             }
         }
     }
-    if !cur.is_empty() || quoted {
-        tokens.push(RawToken { text: cur, quoted });
-    }
+    flush(&mut cur, &mut lead, &mut quoted, &mut tokens);
     tokens
 }
 
@@ -162,37 +176,38 @@ pub fn parse(input: &str) -> ParsedQuery {
             continue;
         }
 
-        let (negate, body) = if !tok.quoted && tok.text.len() > 1 && tok.text.starts_with('-') {
-            (true, tok.text[1..].to_string())
-        } else {
-            (false, tok.text.clone())
-        };
+        // 先頭 '-' は除外。判定は素のリード部で行う（純粋句 "..." は lead が空なので除外記号を持てない）。
+        let negate = tok.lead.starts_with('-');
+        let body = if negate { tok.text[1..].to_string() } else { tok.text.clone() };
+        let lead = if negate { tok.lead[1..].to_string() } else { tok.lead.clone() };
         if body.is_empty() {
             continue;
         }
 
-        if !tok.quoted {
-            if let Some((field, value)) = body.split_once(':') {
-                if !value.is_empty() {
-                    if let Some((column, kind)) = struct_field(field) {
-                        let op = match kind {
-                            FieldKind::Like => Some(CondOp::Like(value.to_string())),
-                            FieldKind::Num { is_date } => parse_value_op(value, is_date),
-                        };
-                        if let Some(op) = op {
-                            conds.push(Cond { column, op, negate });
-                        }
-                        continue;
+        // フィールド検出はクォート前の lead 内のコロンで行う。
+        // lead は body の先頭と一致するため、コロン位置は body 上でも同じ。
+        if let Some(colon) = lead.find(':') {
+            let field = &lead[..colon];
+            let value = &body[colon + 1..];
+            if !value.is_empty() {
+                if let Some((column, kind)) = struct_field(field) {
+                    let op = match kind {
+                        FieldKind::Like => Some(CondOp::Like(value.to_string())),
+                        FieldKind::Num { is_date } => parse_value_op(value, is_date),
+                    };
+                    if let Some(op) = op {
+                        conds.push(Cond { column, op, negate });
                     }
-                    if let Some(col) = text_field_column(field) {
-                        let expr = format!("{} : {}", col, fts_quote(value));
-                        if negate {
-                            excludes.push(expr);
-                        } else {
-                            append_include(&mut include, &mut include_or_pending, &expr);
-                        }
-                        continue;
+                    continue;
+                }
+                if let Some(col) = text_field_column(field) {
+                    let expr = format!("{} : {}", col, fts_quote(value));
+                    if negate {
+                        excludes.push(expr);
+                    } else {
+                        append_include(&mut include, &mut include_or_pending, &expr);
                     }
+                    continue;
                 }
             }
         }
@@ -339,5 +354,27 @@ mod tests {
         assert_eq!(pq.fts_include, None);
         assert_eq!(pq.fts_exclude, None);
         assert!(pq.conds.is_empty());
+    }
+
+    #[test]
+    fn quoted_field_value_maps_to_fts_phrase() {
+        let pq = parse("prompt:\"best quality\"");
+        assert_eq!(pq.fts_include.as_deref(), Some("positive : \"best quality\""));
+        assert_eq!(pq.fts_exclude, None);
+        assert!(pq.conds.is_empty());
+    }
+
+    #[test]
+    fn quoted_colon_phrase_is_not_a_field() {
+        // クォート内のコロンはフィールド指定にしない（純粋句として扱う）。
+        let pq = parse("\"foo:bar\"");
+        assert_eq!(pq.fts_include.as_deref(), Some("\"foo:bar\""));
+    }
+
+    #[test]
+    fn negated_quoted_field_value() {
+        let pq = parse("-negative:\"low quality\"");
+        assert_eq!(pq.fts_include, None);
+        assert_eq!(pq.fts_exclude.as_deref(), Some("negative : \"low quality\""));
     }
 }
