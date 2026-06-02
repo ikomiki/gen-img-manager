@@ -18,6 +18,10 @@ pub fn run() {
             std::fs::create_dir_all(&dir)?;
             let conn = db::open(&dir.join("library.db"))?;
             app.manage(db::Db(std::sync::Arc::new(std::sync::Mutex::new(conn))));
+            // サムネイルディレクトリを作成し、asset protocol で読めるよう許可する。
+            let thumb_dir = dir.join("thumbnails");
+            std::fs::create_dir_all(&thumb_dir)?;
+            app.asset_protocol_scope().allow_directory(&thumb_dir, true)?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
