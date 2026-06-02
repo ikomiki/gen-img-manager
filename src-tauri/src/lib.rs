@@ -3,6 +3,7 @@ mod db;
 mod fs_guard;
 mod models;
 mod parser;
+mod scanner;
 mod thumbnail;
 
 use std::sync::Mutex;
