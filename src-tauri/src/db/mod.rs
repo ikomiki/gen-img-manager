@@ -1,4 +1,5 @@
 pub mod directories;
+pub mod images;
 pub mod migrations;
 
 use rusqlite::Connection;
