@@ -33,8 +33,10 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   setQuery: (q) => set({ query: q }),
   setSort: (sort, dir) => {
     set({ sort, dir });
-    void get().runQuery();
-    void prefsApi.setSetting("sort", `${sort}:${dir}`);
+    get().runQuery().catch((e) => console.error("runQuery failed:", e));
+    prefsApi
+      .setSetting("sort", `${sort}:${dir}`)
+      .catch((e) => console.error("setSetting(sort) failed:", e));
   },
   runQuery: async () => {
     const { query, sort, dir } = get();
@@ -65,7 +67,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     ]);
     if (sortRaw) {
       const [sort, dir] = sortRaw.split(":");
-      set({ sort: sort as SortKey, dir: (dir as SortDir) ?? "asc" });
+      set({ sort: sort as SortKey, dir: (dir || "asc") as SortDir });
     }
     if (showRaw !== null) {
       set({ showFilename: showRaw !== "false" });

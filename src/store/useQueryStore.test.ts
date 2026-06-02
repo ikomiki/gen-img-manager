@@ -36,6 +36,9 @@ describe("useQueryStore", () => {
   });
 
   it("setSort updates sort key and dir", () => {
+    vi.mocked(imagesApi.queryImages).mockResolvedValue([]);
+    vi.mocked(imagesApi.countQuery).mockResolvedValue(0);
+    vi.mocked(prefsApi.setSetting).mockResolvedValue(undefined as unknown as void);
     useQueryStore.getState().setSort("created", "desc");
     expect(useQueryStore.getState().sort).toBe("created");
     expect(useQueryStore.getState().dir).toBe("desc");
@@ -55,5 +58,27 @@ describe("useQueryStore", () => {
     await useQueryStore.getState().toggleShowFilename();
     expect(useQueryStore.getState().showFilename).toBe(false);
     expect(prefsApi.setSetting).toHaveBeenCalledWith("show_filename", "false");
+  });
+
+  it("loadSettings applies persisted sort and filename", async () => {
+    vi.mocked(prefsApi.getSetting).mockImplementation(async (key: string) => {
+      if (key === "sort") return "created:desc";
+      if (key === "show_filename") return "false";
+      return null;
+    });
+    await useQueryStore.getState().loadSettings();
+    expect(useQueryStore.getState().sort).toBe("created");
+    expect(useQueryStore.getState().dir).toBe("desc");
+    expect(useQueryStore.getState().showFilename).toBe(false);
+  });
+
+  it("loadSettings falls back dir to asc when missing", async () => {
+    vi.mocked(prefsApi.getSetting).mockImplementation(async (key: string) => {
+      if (key === "sort") return "filename"; // dir 欠落
+      return null;
+    });
+    await useQueryStore.getState().loadSettings();
+    expect(useQueryStore.getState().sort).toBe("filename");
+    expect(useQueryStore.getState().dir).toBe("asc");
   });
 });
