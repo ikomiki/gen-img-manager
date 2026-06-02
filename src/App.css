@@ -346,3 +346,23 @@ body,
   pointer-events: none;
   z-index: 2;
 }
+
+/* メタパネル: テキストブロックのアクション・最大化 */
+.meta-block-actions {
+  display: flex;
+  gap: 4px;
+}
+.meta-panel.maximized {
+  display: flex;
+  flex-direction: column;
+}
+.meta-block.maximized {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.meta-block.maximized .meta-text {
+  flex: 1;
+  max-height: none;
+}

@@ -1,7 +1,14 @@
+import { useState } from "react";
 import type { ImageDetail } from "../types";
 
 interface Props {
   detail: ImageDetail | null;
+}
+
+interface TextBlock {
+  key: string;
+  label: string;
+  text: string;
 }
 
 function Row({ label, value }: { label: string; value: string | number | null }) {
@@ -15,6 +22,9 @@ function Row({ label, value }: { label: string; value: string | number | null })
 }
 
 export function MetadataPanel({ detail }: Props) {
+  // どのテキストブロックをサイドバー全体に最大化表示しているか。
+  const [maximized, setMaximized] = useState<string | null>(null);
+
   if (!detail) {
     return <div className="meta-panel" />;
   }
@@ -26,6 +36,43 @@ export function MetadataPanel({ detail }: Props) {
       console.error("クリップボードへのコピーに失敗しました:", e);
     }
   };
+
+  // 表示するテキストブロック（positive があれば Prompt、無ければ Parameters）。
+  const blocks: TextBlock[] = [];
+  if (detail.positive) blocks.push({ key: "prompt", label: "Prompt", text: detail.positive });
+  if (detail.negative) blocks.push({ key: "negative", label: "Negative", text: detail.negative });
+  if (!detail.positive && detail.raw_parameters) {
+    blocks.push({ key: "params", label: "Parameters", text: detail.raw_parameters });
+  }
+
+  const renderBlock = (b: TextBlock) => {
+    const isMax = maximized === b.key;
+    return (
+      <div className={isMax ? "meta-block maximized" : "meta-block"} key={b.key}>
+        <div className="meta-block-head">
+          <span className="meta-label">{b.label}</span>
+          <span className="meta-block-actions">
+            <button onClick={() => void copyText(b.text)} aria-label={`${b.label}をコピー`}>
+              コピー
+            </button>
+            <button
+              onClick={() => setMaximized(isMax ? null : b.key)}
+              aria-label={isMax ? "元に戻す" : "最大化"}
+            >
+              {isMax ? "戻す" : "最大化"}
+            </button>
+          </span>
+        </div>
+        <pre className="meta-text">{b.text}</pre>
+      </div>
+    );
+  };
+
+  // 最大化中は対象ブロックのみをサイドバー全体に表示する。
+  const maxBlock = maximized ? blocks.find((b) => b.key === maximized) : undefined;
+  if (maxBlock) {
+    return <div className="meta-panel maximized">{renderBlock(maxBlock)}</div>;
+  }
 
   return (
     <div className="meta-panel">
@@ -40,35 +87,7 @@ export function MetadataPanel({ detail }: Props) {
       <Row label="CFG" value={detail.cfg} />
       <Row label="Seed" value={detail.seed} />
       <Row label="レーティング" value={detail.rating !== null ? `★${detail.rating}` : null} />
-
-      {detail.positive && (
-        <div className="meta-block">
-          <div className="meta-block-head">
-            <span className="meta-label">Prompt</span>
-            <button onClick={() => void copyText(detail.positive!)} aria-label="プロンプトをコピー">
-              コピー
-            </button>
-          </div>
-          <pre className="meta-text">{detail.positive}</pre>
-        </div>
-      )}
-      {detail.negative && (
-        <div className="meta-block">
-          <span className="meta-label">Negative</span>
-          <pre className="meta-text">{detail.negative}</pre>
-        </div>
-      )}
-      {!detail.positive && detail.raw_parameters && (
-        <div className="meta-block">
-          <div className="meta-block-head">
-            <span className="meta-label">Parameters</span>
-            <button onClick={() => void copyText(detail.raw_parameters!)} aria-label="パラメータをコピー">
-              コピー
-            </button>
-          </div>
-          <pre className="meta-text">{detail.raw_parameters}</pre>
-        </div>
-      )}
+      {blocks.map(renderBlock)}
     </div>
   );
 }
