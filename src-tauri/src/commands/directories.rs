@@ -35,3 +35,9 @@ pub fn remove_directory(db: State<Db>, id: i64) -> Result<(), String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     crate::db::directories::remove(&conn, id).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn set_directory_visible(db: State<Db>, id: i64, visible: bool) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    crate::db::directories::set_visible(&conn, id, visible).map_err(|e| e.to_string())
+}

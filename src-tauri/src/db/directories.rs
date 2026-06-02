@@ -17,7 +17,7 @@ pub fn add(
 
 pub fn get(conn: &Connection, id: i64) -> rusqlite::Result<Directory> {
     conn.query_row(
-        "SELECT id, path, label, is_online, last_scanned_at, recursive
+        "SELECT id, path, label, is_online, last_scanned_at, recursive, visible
          FROM directories WHERE id = ?1",
         params![id],
         row_to_dir,
@@ -26,7 +26,7 @@ pub fn get(conn: &Connection, id: i64) -> rusqlite::Result<Directory> {
 
 pub fn list(conn: &Connection) -> rusqlite::Result<Vec<Directory>> {
     let mut stmt = conn.prepare(
-        "SELECT id, path, label, is_online, last_scanned_at, recursive
+        "SELECT id, path, label, is_online, last_scanned_at, recursive, visible
          FROM directories ORDER BY label COLLATE NOCASE",
     )?;
     let rows = stmt.query_map([], row_to_dir)?;
@@ -46,6 +46,7 @@ fn row_to_dir(r: &rusqlite::Row) -> rusqlite::Result<Directory> {
         is_online: r.get::<_, i64>(3)? != 0,
         last_scanned_at: r.get(4)?,
         recursive: r.get::<_, i64>(5)? != 0,
+        visible: r.get::<_, i64>(6)? != 0,
     })
 }
 
@@ -61,6 +62,14 @@ pub fn set_last_scanned(conn: &Connection, id: i64, ts: i64) -> rusqlite::Result
     conn.execute(
         "UPDATE directories SET last_scanned_at = ?2 WHERE id = ?1",
         params![id, ts],
+    )?;
+    Ok(())
+}
+
+pub fn set_visible(conn: &Connection, id: i64, visible: bool) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE directories SET visible = ?2 WHERE id = ?1",
+        params![id, visible as i64],
     )?;
     Ok(())
 }
@@ -114,5 +123,22 @@ mod tests {
         let got = get(&c, d.id).unwrap();
         assert!(!got.is_online);
         assert_eq!(got.last_scanned_at, Some(1717000000));
+    }
+
+    #[test]
+    fn new_directory_is_visible_by_default() {
+        let c = conn();
+        let d = add(&c, "/a", "a", true).unwrap();
+        assert!(d.visible, "new directory should be visible");
+    }
+
+    #[test]
+    fn set_visible_persists() {
+        let c = conn();
+        let d = add(&c, "/a", "a", true).unwrap();
+        set_visible(&c, d.id, false).unwrap();
+        assert!(!get(&c, d.id).unwrap().visible);
+        set_visible(&c, d.id, true).unwrap();
+        assert!(get(&c, d.id).unwrap().visible);
     }
 }

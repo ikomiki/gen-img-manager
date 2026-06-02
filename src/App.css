@@ -62,8 +62,42 @@ body,
 .directory-item {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding: 4px 0;
+}
+
+.directory-item.hidden-dir {
+  opacity: 0.5;
+}
+
+.eye-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px;
+  color: #555;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.dir-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.dir-row1 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dir-row2 {
+  font-size: 11px;
+  color: #888;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .dir-label {
@@ -438,4 +472,29 @@ body,
 }
 .history-dropdown li button.active {
   background: #dde;
+}
+
+.confirm-dialog .confirm-body {
+  margin: 8px 0 4px;
+  line-height: 1.6;
+}
+
+.confirm-dialog .confirm-body code {
+  background: #eee;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.danger-btn {
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.danger-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }

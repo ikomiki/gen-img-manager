@@ -64,28 +64,24 @@ pub fn upsert(conn: &Connection, img: &NewImage) -> rusqlite::Result<i64> {
     )
 }
 
-/// 変更検出用。path から (id, size, mtime) を返す。無ければ None。
-pub fn find_meta_by_path(
-    conn: &Connection,
-    path: &str,
-) -> rusqlite::Result<Option<(i64, i64, i64)>> {
-    let mut stmt =
-        conn.prepare("SELECT id, size, mtime FROM images WHERE path = ?1")?;
-    let mut rows = stmt.query(params![path])?;
-    match rows.next()? {
-        Some(r) => Ok(Some((r.get(0)?, r.get(1)?, r.get(2)?))),
-        None => Ok(None),
-    }
-}
-
-/// ディレクトリ配下の (id, path) 一覧。missing 検出に使う。
-pub fn list_paths_in_directory(
+/// ディレクトリ配下の (path, id, size, mtime, missing) 一覧。
+/// 変更検出（事前ロードマップ）と missing 検出の両方に使う。
+pub fn list_meta_in_directory(
     conn: &Connection,
     directory_id: i64,
-) -> rusqlite::Result<Vec<(i64, String)>> {
-    let mut stmt =
-        conn.prepare("SELECT id, path FROM images WHERE directory_id = ?1")?;
-    let rows = stmt.query_map(params![directory_id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+) -> rusqlite::Result<Vec<(String, i64, i64, i64, bool)>> {
+    let mut stmt = conn.prepare(
+        "SELECT path, id, size, mtime, missing FROM images WHERE directory_id = ?1",
+    )?;
+    let rows = stmt.query_map(params![directory_id], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, i64>(1)?,
+            r.get::<_, i64>(2)?,
+            r.get::<_, i64>(3)?,
+            r.get::<_, i64>(4)? != 0,
+        ))
+    })?;
     rows.collect()
 }
 
@@ -168,14 +164,6 @@ mod tests {
     }
 
     #[test]
-    fn find_meta_by_path_roundtrip() {
-        let c = conn();
-        let id = upsert(&c, &sample("/d/a.png")).unwrap();
-        assert_eq!(find_meta_by_path(&c, "/d/a.png").unwrap(), Some((id, 100, 200)));
-        assert_eq!(find_meta_by_path(&c, "/d/none.png").unwrap(), None);
-    }
-
-    #[test]
     fn mark_missing_excludes_from_count() {
         let c = conn();
         let id = upsert(&c, &sample("/d/a.png")).unwrap();
@@ -192,5 +180,20 @@ mod tests {
         delete_by_directory(&c, 1).unwrap();
         let count: i64 = c.query_row("SELECT count(*) FROM images", [], |r| r.get(0)).unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn list_meta_in_directory_returns_all_fields() {
+        let c = conn();
+        let id = upsert(&c, &sample("/d/a.png")).unwrap();
+        mark_missing(&c, id, true).unwrap();
+        let metas = list_meta_in_directory(&c, 1).unwrap();
+        assert_eq!(metas.len(), 1);
+        let (path, got_id, size, mtime, missing) = &metas[0];
+        assert_eq!(path, "/d/a.png");
+        assert_eq!(*got_id, id);
+        assert_eq!(*size, 100);
+        assert_eq!(*mtime, 200);
+        assert!(*missing);
     }
 }

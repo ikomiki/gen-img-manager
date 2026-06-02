@@ -75,6 +75,8 @@ const MIGRATIONS: &[&str] = &[
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );",
+    // v4: directories.visible（目玉トグルの表示/非表示状態。既存は全て可視=1）
+    "ALTER TABLE directories ADD COLUMN visible INTEGER NOT NULL DEFAULT 1;",
 ];
 
 /// 未適用のマイグレーションを順に適用し PRAGMA user_version を更新する。
@@ -105,7 +107,7 @@ mod tests {
         let v: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 3);
+        assert_eq!(v, 4);
 
         let count: i64 = conn
             .query_row(
@@ -125,7 +127,7 @@ mod tests {
         let v: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 3);
+        assert_eq!(v, 4);
     }
 
     #[test]
@@ -133,7 +135,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 3);
+        assert_eq!(v, 4);
         for name in ["images", "images_fts"] {
             let c: i64 = conn
                 .query_row(
@@ -218,12 +220,29 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 3);
+        assert_eq!(v, 4);
         for name in ["filter_history", "settings"] {
             let c: i64 = conn
                 .query_row("SELECT count(*) FROM sqlite_master WHERE name = ?1", [name], |r| r.get(0))
                 .unwrap();
             assert_eq!(c, 1, "missing table: {name}");
         }
+    }
+
+    #[test]
+    fn v4_adds_visible_column_default_1() {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(v, 4);
+        conn.execute(
+            "INSERT INTO directories (path, label, recursive) VALUES ('/d', 'd', 1)",
+            [],
+        )
+        .unwrap();
+        let visible: i64 = conn
+            .query_row("SELECT visible FROM directories WHERE path = '/d'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(visible, 1, "new directories must default to visible");
     }
 }

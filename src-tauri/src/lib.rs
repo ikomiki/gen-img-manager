@@ -49,6 +49,7 @@ pub fn run() {
             commands::directories::add_directory,
             commands::directories::list_directories,
             commands::directories::remove_directory,
+            commands::directories::set_directory_visible,
             commands::scan::scan_directory,
             commands::scan::scan_all,
             commands::scan::rebuild_directory,
