@@ -42,6 +42,14 @@ fn mtime_secs(meta: &std::fs::Metadata) -> i64 {
         .unwrap_or(0)
 }
 
+fn created_secs(meta: &std::fs::Metadata, fallback: i64) -> i64 {
+    meta.created()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(fallback)
+}
+
 /// 1ディレクトリをスキャンする。`on_progress` は1ファイルごとに呼ばれる。
 /// 到達不可なら is_online=0 にして early return（解析しない）。
 ///
@@ -100,6 +108,7 @@ pub fn scan_directory<F: FnMut(ScanProgress)>(
         };
         let size = meta.len() as i64;
         let mtime = mtime_secs(&meta);
+        let created = created_secs(&meta, mtime);
 
         // 変更検出: path+size+mtime 一致ならスキップ（再処理抑制）。
         if let Ok(Some((id, prev_size, prev_mtime))) =
@@ -142,7 +151,7 @@ pub fn scan_directory<F: FnMut(ScanProgress)>(
             filename,
             size,
             mtime,
-            created_at: Some(mtime),
+            created_at: Some(created),
             modified_at: Some(mtime),
             width: parsed.width as i64,
             height: parsed.height as i64,
