@@ -111,13 +111,23 @@ fn run_scan_ids(
     failed_pre: &std::collections::HashSet<i64>,
 ) {
     let now = now_secs();
+    // 並列度（settings.scan_concurrency。未設定/不正なら既定値）。スキャン全体で1回読む。
+    let concurrency = {
+        let conn = conn_arc.lock().unwrap_or_else(|e| e.into_inner());
+        crate::db::settings::get(&conn, "scan_concurrency")
+            .ok()
+            .flatten()
+            .and_then(|s| s.parse::<usize>().ok())
+            .filter(|n| *n >= 1)
+            .unwrap_or(scanner::DEFAULT_CONCURRENCY)
+    };
     for &id in ids {
         let scan_ok = {
             let conn = conn_arc.lock().unwrap_or_else(|e| e.into_inner());
             match directories::get(&conn, id) {
                 Ok(dir) => {
                     let app_cb = app.clone();
-                    scanner::scan_directory(&conn, &dir, thumb_dir, now, |p| {
+                    scanner::scan_directory(&conn, &dir, thumb_dir, now, concurrency, move |p| {
                         let _ = app_cb.emit("scan-progress", &p);
                     })
                     .is_ok()

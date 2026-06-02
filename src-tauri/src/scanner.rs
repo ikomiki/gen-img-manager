@@ -1,10 +1,11 @@
 use crate::db::{directories, images};
 use crate::models::Directory;
 use crate::{fs_guard, parser, thumbnail};
+use rayon::prelude::*;
 use rusqlite::Connection;
 use serde::Serialize;
-use std::collections::HashSet;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 const REACH_TIMEOUT: Duration = Duration::from_secs(3);
@@ -87,19 +88,89 @@ fn created_secs(meta: &std::fs::Metadata, fallback: i64) -> i64 {
         .unwrap_or(fallback)
 }
 
-/// 1ディレクトリをスキャンする。`on_progress` は1ファイルごとに呼ばれる。
+/// 1ファイル分の並列処理の結果。DB 書き込みは呼び出し側（writer）で逐次行う。
+enum FileOutcome {
+    /// 未変更。was_missing が真なら missing フラグ解除のみ必要。
+    Unchanged { id: i64, was_missing: bool },
+    /// 新規/変更。parse + サムネ済み。
+    Upsert(Box<images::NewImage>),
+    /// stat / parse 失敗（集計しない＝現状踏襲）。
+    Failed,
+}
+
+/// 1ファイルを処理する（DB には触れない）。stat→変更検出→（必要なら）parse+サムネ。
+fn process_one(
+    file: &Path,
+    path_str: &str,
+    prev_map: &std::collections::HashMap<String, PrevMeta>,
+    thumb_dir: &Path,
+) -> FileOutcome {
+    let meta = match std::fs::metadata(file) {
+        Ok(m) => m,
+        Err(_) => return FileOutcome::Failed,
+    };
+    let size = meta.len() as i64;
+    let mtime = mtime_secs(&meta);
+    let created = created_secs(&meta, mtime);
+
+    match decide(size, mtime, prev_map.get(path_str)) {
+        Decision::Skip { id, was_missing } => FileOutcome::Unchanged { id, was_missing },
+        Decision::NeedsParse => {
+            let parsed = match parser::parse(file) {
+                Ok(p) => p,
+                Err(_) => return FileOutcome::Failed,
+            };
+            let thumb_path = thumbnail::generate_thumbnail(file, thumb_dir)
+                .ok()
+                .map(|p| p.to_string_lossy().to_string());
+            let rating = parser::xmp::read_rating_sidecar(file);
+            let filename = file
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            FileOutcome::Upsert(Box::new(images::NewImage {
+                directory_id: 0, // writer 側で dir.id を設定する
+                path: path_str.to_string(),
+                filename,
+                size,
+                mtime,
+                created_at: Some(created),
+                modified_at: Some(mtime),
+                width: parsed.width as i64,
+                height: parsed.height as i64,
+                rating,
+                format: parsed.format,
+                thumb_path,
+                raw_parameters: parsed.raw_parameters,
+                positive: parsed.positive,
+                negative: parsed.negative,
+                model: parsed.model,
+                sampler: parsed.sampler,
+                steps: parsed.steps,
+                seed: parsed.seed,
+                cfg: parsed.cfg,
+                source_tool: parsed.source_tool,
+                comfy_workflow: parsed.comfy_workflow,
+            }))
+        }
+    }
+}
+
+/// 1ディレクトリをスキャンする。`on_progress` は進捗の節目ごとに呼ばれる。
 /// 到達不可なら is_online=0 にして early return（解析しない）。
 ///
 /// 前提: `thumb_dir` は**絶対パス**であること（walkdir が返す絶対パスとの
 /// `starts_with` 比較で生成済みサムネを除外するため。相対パスだと除外が効かない）。
 /// 既知の限界: ファイルシステムが mtime を返さない場合 mtime=0 となり、
 /// サイズも不変なら変更を取りこぼしうる（大半のFSでは問題にならない）。
-pub fn scan_directory<F: FnMut(ScanProgress)>(
+pub fn scan_directory<F: Fn(ScanProgress) + Sync>(
     conn: &Connection,
     dir: &Directory,
     thumb_dir: &Path,
     now: i64,
-    mut on_progress: F,
+    concurrency: usize,
+    on_progress: F,
 ) -> rusqlite::Result<ScanSummary> {
     let root = Path::new(&dir.path);
     if !fs_guard::is_reachable(root, REACH_TIMEOUT) {
@@ -107,7 +178,7 @@ pub fn scan_directory<F: FnMut(ScanProgress)>(
         return Ok(ScanSummary { reachable: false, ..Default::default() });
     }
 
-    // 対象ファイル列挙。thumb_dir 配下は除外する（サムネ自身を誤スキャンしない）。
+    // 対象ファイル列挙（thumb_dir 配下は除外）。
     let walker = walkdir::WalkDir::new(root).max_depth(if dir.recursive { usize::MAX } else { 1 });
     let files: Vec<std::path::PathBuf> = walker
         .into_iter()
@@ -116,106 +187,77 @@ pub fn scan_directory<F: FnMut(ScanProgress)>(
             if !e.file_type().is_file() || !is_image(e.path()) {
                 return false;
             }
-            // サムネディレクトリ配下はスキップ（thumb_dir が root 内にある場合の誤スキャン防止）。
             !e.path().starts_with(thumb_dir)
         })
         .map(|e| e.path().to_path_buf())
         .collect();
     let total = files.len();
 
+    // 既存メタを一度だけ事前ロード（変更検出 + missing 検出に共用）。
+    let existing = images::list_meta_in_directory(conn, dir.id)?;
+    let prev_map: std::collections::HashMap<String, PrevMeta> = existing
+        .iter()
+        .map(|(path, id, size, mtime, missing)| {
+            (
+                path.clone(),
+                PrevMeta { id: *id, size: *size, mtime: *mtime, missing: *missing },
+            )
+        })
+        .collect();
+
+    // 並列フェーズ: stat→decide→parse+サムネ。DB には触れない。
+    let counter = AtomicUsize::new(0);
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(concurrency.max(1))
+        .build()
+        .expect("failed to build rayon pool");
+    let outcomes: Vec<FileOutcome> = pool.install(|| {
+        files
+            .par_iter()
+            .map(|file| {
+                let path_str = file.to_string_lossy().to_string();
+                let outcome = process_one(file, &path_str, &prev_map, thumb_dir);
+                let processed = counter.fetch_add(1, Ordering::Relaxed) + 1;
+                if should_emit(processed, total, EMIT_INTERVAL) {
+                    on_progress(ScanProgress {
+                        directory_id: dir.id,
+                        processed,
+                        total,
+                        current: path_str,
+                    });
+                }
+                outcome
+            })
+            .collect()
+    });
+    // 最終進捗を必ず1回（0件でも UI を進める。current は空）。
+    on_progress(ScanProgress { directory_id: dir.id, processed: total, total, current: String::new() });
+
+    // 書き込みフェーズ（逐次・単一接続）。
     let mut summary = ScanSummary { reachable: true, ..Default::default() };
-    let mut seen: HashSet<String> = HashSet::new();
-
-    for (i, file) in files.iter().enumerate() {
-        let path_str = file.to_string_lossy().to_string();
-        seen.insert(path_str.clone());
-
-        let meta = match std::fs::metadata(file) {
-            Ok(m) => m,
-            Err(_) => {
-                // 1ファイルの失敗で全体を止めない（進捗は単調に進める）
-                on_progress(ScanProgress {
-                    directory_id: dir.id,
-                    processed: i + 1,
-                    total,
-                    current: path_str,
-                });
-                continue;
-            }
-        };
-        let size = meta.len() as i64;
-        let mtime = mtime_secs(&meta);
-        let created = created_secs(&meta, mtime);
-
-        // 変更検出: path+size+mtime 一致ならスキップ（再処理抑制）。
-        if let Ok(Some((id, prev_size, prev_mtime))) =
-            images::find_meta_by_path(conn, &path_str)
-        {
-            if prev_size == size && prev_mtime == mtime {
-                images::mark_missing(conn, id, false)?;
+    for outcome in outcomes {
+        match outcome {
+            FileOutcome::Unchanged { id, was_missing } => {
+                if was_missing {
+                    images::mark_missing(conn, id, false)?;
+                }
                 summary.skipped += 1;
-                on_progress(ScanProgress { directory_id: dir.id, processed: i + 1, total, current: path_str.clone() });
-                continue;
             }
+            FileOutcome::Upsert(mut img) => {
+                img.directory_id = dir.id;
+                images::upsert(conn, &img)?;
+                summary.added_or_updated += 1;
+            }
+            FileOutcome::Failed => {}
         }
-
-        // 解析（失敗しても全体は継続。寸法だけ不明な場合はスキップ）。
-        let parsed = match parser::parse(file) {
-            Ok(p) => p,
-            Err(_) => {
-                on_progress(ScanProgress { directory_id: dir.id, processed: i + 1, total, current: path_str.clone() });
-                continue;
-            }
-        };
-
-        // サムネ生成（失敗してもメタは登録）。
-        let thumb_path = thumbnail::generate_thumbnail(file, thumb_dir)
-            .ok()
-            .map(|p| p.to_string_lossy().to_string());
-
-        // XMPサイドカーのレーティング。
-        let rating = parser::xmp::read_rating_sidecar(file);
-
-        let filename = file
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .to_string();
-
-        let new_img = images::NewImage {
-            directory_id: dir.id,
-            path: path_str.clone(),
-            filename,
-            size,
-            mtime,
-            created_at: Some(created),
-            modified_at: Some(mtime),
-            width: parsed.width as i64,
-            height: parsed.height as i64,
-            rating,
-            format: parsed.format,
-            thumb_path,
-            raw_parameters: parsed.raw_parameters,
-            positive: parsed.positive,
-            negative: parsed.negative,
-            model: parsed.model,
-            sampler: parsed.sampler,
-            steps: parsed.steps,
-            seed: parsed.seed,
-            cfg: parsed.cfg,
-            source_tool: parsed.source_tool,
-            comfy_workflow: parsed.comfy_workflow,
-        };
-        images::upsert(conn, &new_img)?;
-        summary.added_or_updated += 1;
-
-        on_progress(ScanProgress { directory_id: dir.id, processed: i + 1, total, current: path_str });
     }
 
-    // missing検出: DB上にあるが今回見つからなかったものに印を付ける（削除はしない）。
-    for (id, db_path) in images::list_paths_in_directory(conn, dir.id)? {
-        if !seen.contains(&db_path) {
-            images::mark_missing(conn, id, true)?;
+    // missing 検出: 列挙されなかった既存パスに印を付ける（事前ロード済み existing を再利用）。
+    let seen: std::collections::HashSet<String> =
+        files.iter().map(|f| f.to_string_lossy().to_string()).collect();
+    for (db_path, id, _size, _mtime, _missing) in &existing {
+        if !seen.contains(db_path) {
+            images::mark_missing(conn, *id, true)?;
             summary.missing += 1;
         }
     }
@@ -268,13 +310,13 @@ mod tests {
         write_png_with_params(&base.join("a.png"), "a cat\nSteps: 10, Seed: 1");
         write_png_with_params(&base.join("b.png"), "a dog\nSteps: 12, Seed: 2");
 
-        let s1 = scan_directory(&c, &dir, &thumb_dir, 1000, |_| {}).unwrap();
+        let s1 = scan_directory(&c, &dir, &thumb_dir, 1000, 4, |_| {}).unwrap();
         assert!(s1.reachable);
         assert_eq!(s1.added_or_updated, 2);
         assert_eq!(images::count_in_directory(&c, dir.id).unwrap(), 2);
 
         // 2回目: 変更なし → 全てスキップ。
-        let s2 = scan_directory(&c, &dir, &thumb_dir, 1001, |_| {}).unwrap();
+        let s2 = scan_directory(&c, &dir, &thumb_dir, 1001, 4, |_| {}).unwrap();
         assert_eq!(s2.added_or_updated, 0);
         assert_eq!(s2.skipped, 2);
 
@@ -293,11 +335,11 @@ mod tests {
         let thumb_dir = base.join("thumbs");
         let a = base.join("a.png");
         write_png_with_params(&a, "x\nSteps: 1, Seed: 1");
-        scan_directory(&c, &dir, &thumb_dir, 1000, |_| {}).unwrap();
+        scan_directory(&c, &dir, &thumb_dir, 1000, 4, |_| {}).unwrap();
         assert_eq!(images::count_in_directory(&c, dir.id).unwrap(), 1);
 
         std::fs::remove_file(&a).unwrap();
-        let s = scan_directory(&c, &dir, &thumb_dir, 1001, |_| {}).unwrap();
+        let s = scan_directory(&c, &dir, &thumb_dir, 1001, 4, |_| {}).unwrap();
         assert_eq!(s.missing, 1);
         // missing は count から除外（行は残る）。
         assert_eq!(images::count_in_directory(&c, dir.id).unwrap(), 0);
@@ -312,7 +354,7 @@ mod tests {
         let c = Connection::open_in_memory().unwrap();
         migrations::run(&c).unwrap();
         let dir = directories::add(&c, "/no/such/path/gim_unreachable", "x", true).unwrap();
-        let s = scan_directory(&c, &dir, Path::new("/tmp/thumbs"), 1000, |_| {}).unwrap();
+        let s = scan_directory(&c, &dir, Path::new("/tmp/thumbs"), 1000, 4, |_| {}).unwrap();
         assert!(!s.reachable);
         assert!(!directories::get(&c, dir.id).unwrap().is_online);
     }
@@ -359,5 +401,37 @@ mod tests {
         assert!(!should_emit(24, 1000, 25));
         assert!(should_emit(1000, 1000, 25)); // final item always
         assert!(should_emit(0, 0, 25)); // 0 files: processed==total==0
+    }
+
+    #[test]
+    fn parallel_scan_handles_many_files_and_skips_on_rescan() {
+        let (c, base, dir) = setup();
+        let thumb_dir = base.join("thumbs");
+        for i in 0..30 {
+            write_png_with_params(&base.join(format!("f{i}.png")), &format!("p{i}\nSteps: 1, Seed: {i}"));
+        }
+        let s1 = scan_directory(&c, &dir, &thumb_dir, 1000, 8, |_| {}).unwrap();
+        assert_eq!(s1.added_or_updated, 30);
+        assert_eq!(images::count_in_directory(&c, dir.id).unwrap(), 30);
+        let s2 = scan_directory(&c, &dir, &thumb_dir, 1001, 8, |_| {}).unwrap();
+        assert_eq!(s2.added_or_updated, 0);
+        assert_eq!(s2.skipped, 30);
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    #[test]
+    fn progress_callback_reaches_final_total() {
+        let (c, base, dir) = setup();
+        let thumb_dir = base.join("thumbs");
+        write_png_with_params(&base.join("a.png"), "x\nSteps: 1, Seed: 1");
+        write_png_with_params(&base.join("b.png"), "y\nSteps: 1, Seed: 2");
+        let max_processed = std::sync::atomic::AtomicUsize::new(0);
+        scan_directory(&c, &dir, &thumb_dir, 1000, 4, |p| {
+            assert_eq!(p.total, 2);
+            max_processed.fetch_max(p.processed, std::sync::atomic::Ordering::Relaxed);
+        })
+        .unwrap();
+        assert_eq!(max_processed.load(std::sync::atomic::Ordering::Relaxed), 2);
+        std::fs::remove_dir_all(&base).ok();
     }
 }
