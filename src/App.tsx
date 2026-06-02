@@ -18,6 +18,7 @@ function App() {
   const showFilename = useQueryStore((s) => s.showFilename);
   const toggleShowFilename = useQueryStore((s) => s.toggleShowFilename);
   const setZoomMode = useViewerStore((s) => s.setZoomMode);
+  const loadZoom = useViewerStore((s) => s.loadZoom);
 
   const [dirWidth, setDirWidth] = useState(220);
 
@@ -41,10 +42,11 @@ function App() {
     void (async () => {
       await loadDirectories();
       await loadSettings();
+      await loadZoom();
       await loadHistory();
       await runQuery();
     })();
-  }, [loadDirectories, loadSettings, loadHistory, runQuery]);
+  }, [loadDirectories, loadSettings, loadZoom, loadHistory, runQuery]);
 
   useEffect(() => {
     const un = listen<string>("menu-action", (e) => {
