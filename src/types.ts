@@ -36,3 +36,29 @@ export interface ImageRow {
 
 export type SortKey = "filename" | "created" | "modified";
 export type SortDir = "asc" | "desc";
+
+export interface ImageDetail {
+  id: number;
+  path: string;
+  filename: string;
+  width: number;
+  height: number;
+  pixels: number;
+  size: number;
+  rating: number | null;
+  created_at: number | null;
+  modified_at: number | null;
+  format: string;
+  source_tool: string;
+  raw_parameters: string | null;
+  positive: string | null;
+  negative: string | null;
+  model: string | null;
+  sampler: string | null;
+  steps: number | null;
+  seed: number | null;
+  cfg: number | null;
+  comfy_workflow: string | null;
+}
+
+export type ZoomMode = "fit" | "actual" | "fill" | "custom";
