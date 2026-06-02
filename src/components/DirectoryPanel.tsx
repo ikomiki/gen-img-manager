@@ -24,8 +24,9 @@ export function DirectoryPanel() {
       const { directory_id: id, success } = e.payload;
       clearScanProgress(id);
       if (!success) {
-        console.error("スキャンに失敗しました（directory_id):", id);
+        console.error("スキャンに失敗しました（directory_id）:", id);
       }
+      // 成否に関わらず最新のDB件数を反映する（失敗時もコミット済みの実件数を表示するため）。
       try {
         setImageCount(id, await scanApi.countImages(id));
       } catch (err) {
@@ -98,10 +99,10 @@ export function DirectoryPanel() {
               ) : (
                 <span className="image-count">{imageCounts[d.id] ?? ""}</span>
               )}
-              <button className="scan-btn" onClick={() => handleScan(d.id)}>
+              <button className="scan-btn" aria-label="スキャン" onClick={() => handleScan(d.id)}>
                 ⟳
               </button>
-              <button className="remove-btn" onClick={() => handleRemove(d.id)}>
+              <button className="remove-btn" aria-label="削除" onClick={() => handleRemove(d.id)}>
                 ×
               </button>
             </li>
