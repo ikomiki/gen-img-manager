@@ -4,10 +4,10 @@ pub mod migrations;
 
 use rusqlite::Connection;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// Tauri管理状態として保持するDBハンドル。
-pub struct Db(pub Mutex<Connection>);
+pub struct Db(pub Arc<Mutex<Connection>>);
 
 /// DBを開き、PRAGMAを設定し、マイグレーションを適用する。
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {

@@ -6,7 +6,6 @@ mod parser;
 mod scanner;
 mod thumbnail;
 
-use std::sync::Mutex;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -17,13 +16,18 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
             let conn = db::open(&dir.join("library.db"))?;
-            app.manage(db::Db(Mutex::new(conn)));
+            app.manage(db::Db(std::sync::Arc::new(std::sync::Mutex::new(conn))));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::directories::add_directory,
             commands::directories::list_directories,
             commands::directories::remove_directory,
+            commands::scan::scan_directory,
+            commands::scan::scan_all,
+            commands::scan::rebuild_directory,
+            commands::scan::rebuild_all,
+            commands::scan::count_images,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
