@@ -113,6 +113,7 @@ body,
 .thumb-cell {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .thumb-square {
   width: 100%;
@@ -135,10 +136,14 @@ body,
 }
 .thumb-name {
   font-size: 11px;
+  line-height: 1.3;
   text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-all;
 }
 
 /* 詳細ダイアログ */

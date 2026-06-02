@@ -5,6 +5,7 @@ import { useQueryStore } from "../store/useQueryStore";
 
 const MIN_CELL = 160; // セル最小幅(px)。これを基準に列数を決める。
 const GAP = 6;
+const NAME_H = 34; // ファイル名2行分の高さ(px)（line-height 1.3 × 11px × 2行 + 余白）
 
 export function ImageGridPanel() {
   const results = useQueryStore((s) => s.results);
@@ -26,7 +27,7 @@ export function ImageGridPanel() {
   const columns = Math.max(1, Math.floor((width + GAP) / (MIN_CELL + GAP)));
   const cellSize = columns > 0 ? (width - GAP * (columns - 1)) / columns : MIN_CELL;
   const rowCount = Math.ceil(results.length / columns);
-  const rowHeight = cellSize + (showFilename ? 20 : 0) + GAP;
+  const rowHeight = cellSize + (showFilename ? NAME_H : 0) + GAP;
 
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
