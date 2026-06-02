@@ -26,6 +26,7 @@ export interface DirStatusInput {
  */
 export function dirStatusLine(s: DirStatusInput): string {
   if (s.scanning) {
+    if (s.scanning.total === 0) return "スキャン中…";
     return `スキャン中 ${s.scanning.processed.toLocaleString()} / ${s.scanning.total.toLocaleString()}`;
   }
   if (!s.isOnline) return "オフライン";

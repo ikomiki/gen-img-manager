@@ -98,18 +98,28 @@ export function DirectoryPanel() {
   };
 
   const handleScan = async (id: number) => {
+    // ボタン押下と同時に「スキャン中」を表示する（最初の進捗イベントを待たない）。
+    setScanProgress({ directory_id: id, processed: 0, total: 0, current: "" });
     try {
       await scanApi.scanDirectory(id);
     } catch (e) {
       console.error("スキャンの開始に失敗しました:", e);
+      clearScanProgress(id);
     }
   };
 
   const handleScanAll = async () => {
+    // 全ディレクトリを即「スキャン中」にする（バックエンドは順次処理）。
+    for (const d of directories) {
+      setScanProgress({ directory_id: d.id, processed: 0, total: 0, current: "" });
+    }
     try {
       await scanApi.scanAll();
     } catch (e) {
       console.error("全スキャンの開始に失敗しました:", e);
+      for (const d of directories) {
+        clearScanProgress(d.id);
+      }
     }
   };
 

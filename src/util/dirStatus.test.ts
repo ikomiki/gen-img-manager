@@ -47,4 +47,10 @@ describe("dirStatusLine", () => {
     const line = dirStatusLine({ isOnline: true, count: undefined, lastScannedAt: 1717000000 });
     expect(line.startsWith("0枚 · 最終 ")).toBe(true);
   });
+
+  it("shows スキャン中… when scanning but total is still unknown (0)", () => {
+    expect(
+      dirStatusLine({ scanning: { processed: 0, total: 0 }, isOnline: true, count: undefined, lastScannedAt: null }),
+    ).toBe("スキャン中…");
+  });
 });
