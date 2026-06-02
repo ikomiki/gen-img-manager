@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import type { ZoomMode } from "../types";
 import { useQueryStore } from "./useQueryStore";
-import { syncZoomMenu } from "../api/prefs";
+import { syncZoomMenu, setSetting, getSetting } from "../api/prefs";
+import { serializeZoom, parseZoom } from "../util/zoomSetting";
 
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 10;
@@ -27,6 +28,7 @@ interface ViewerState {
   zoomBy: (factor: number) => void;
   toggleMeta: () => void;
   toggleNormalize: () => void;
+  loadZoom: () => Promise<void>;
 }
 
 function resultsLength(): number {
@@ -60,14 +62,26 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   setZoomMode: (m) => {
     set({ zoomMode: m, scale: 1 });
     syncZoomMenu(m).catch((e) => console.error("syncZoomMenu failed:", e));
+    setSetting("zoom", serializeZoom(m, 1)).catch((e) =>
+      console.error("setSetting(zoom) failed:", e),
+    );
   },
   zoomBy: (factor) => {
-    set({
-      zoomMode: "custom",
-      scale: Math.min(MAX_SCALE, Math.max(MIN_SCALE, get().scale * factor)),
-    });
+    const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, get().scale * factor));
+    set({ zoomMode: "custom", scale: next });
     syncZoomMenu("custom").catch((e) => console.error("syncZoomMenu failed:", e));
+    setSetting("zoom", serializeZoom("custom", next)).catch((e) =>
+      console.error("setSetting(zoom) failed:", e),
+    );
   },
   toggleMeta: () => set({ metaOpen: !get().metaOpen }),
   toggleNormalize: () => set({ normalizePrompt: !get().normalizePrompt }),
+  // 起動時に永続化されたズーム設定を復元する。不正値は無視してデフォルトのまま。
+  loadZoom: async () => {
+    const parsed = parseZoom(await getSetting("zoom"));
+    if (parsed) {
+      set({ zoomMode: parsed.mode, scale: parsed.scale });
+      syncZoomMenu(parsed.mode).catch((e) => console.error("syncZoomMenu failed:", e));
+    }
+  },
 }));

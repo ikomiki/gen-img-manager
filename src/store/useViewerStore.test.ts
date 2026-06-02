@@ -2,10 +2,13 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useViewerStore } from "./useViewerStore";
 import { useQueryStore } from "./useQueryStore";
 import type { ImageRow } from "../types";
+import * as prefsApi from "../api/prefs";
 
 vi.mock("../api/prefs", () => ({
   syncZoomMenu: vi.fn().mockResolvedValue(undefined),
   syncFilenameMenu: vi.fn().mockResolvedValue(undefined),
+  setSetting: vi.fn().mockResolvedValue(undefined),
+  getSetting: vi.fn().mockResolvedValue(null),
 }));
 
 const row = (id: number): ImageRow => ({
@@ -83,5 +86,32 @@ describe("useViewerStore", () => {
     expect(useViewerStore.getState().normalizePrompt).toBe(true);
     useViewerStore.getState().toggleNormalize();
     expect(useViewerStore.getState().normalizePrompt).toBe(false);
+  });
+
+  it("setZoomMode persists the zoom setting", () => {
+    useViewerStore.getState().setZoomMode("fill");
+    expect(prefsApi.setSetting).toHaveBeenCalledWith("zoom", "fill:1");
+  });
+
+  it("zoomBy persists the custom zoom setting", () => {
+    useViewerStore.setState({ zoomMode: "fit", scale: 1 });
+    useViewerStore.getState().zoomBy(2);
+    expect(useViewerStore.getState().scale).toBe(2);
+    expect(prefsApi.setSetting).toHaveBeenCalledWith("zoom", "custom:2");
+  });
+
+  it("loadZoom restores a valid persisted zoom", async () => {
+    vi.mocked(prefsApi.getSetting).mockResolvedValue("custom:2.5");
+    await useViewerStore.getState().loadZoom();
+    expect(useViewerStore.getState().zoomMode).toBe("custom");
+    expect(useViewerStore.getState().scale).toBe(2.5);
+  });
+
+  it("loadZoom ignores invalid persisted zoom", async () => {
+    useViewerStore.setState({ zoomMode: "fit", scale: 1 });
+    vi.mocked(prefsApi.getSetting).mockResolvedValue("bogus");
+    await useViewerStore.getState().loadZoom();
+    expect(useViewerStore.getState().zoomMode).toBe("fit");
+    expect(useViewerStore.getState().scale).toBe(1);
   });
 });
