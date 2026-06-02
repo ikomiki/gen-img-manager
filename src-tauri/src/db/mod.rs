@@ -1,5 +1,6 @@
 pub mod directories;
 pub mod history;
+pub mod image_query;
 pub mod images;
 pub mod migrations;
 pub mod settings;
