@@ -4,6 +4,7 @@ import { useQueryStore } from "./store/useQueryStore";
 import { DirectoryPanel } from "./components/DirectoryPanel";
 import { FilterBar } from "./components/FilterBar";
 import { ImageGridPanel } from "./components/ImageGridPanel";
+import { ImageViewer } from "./components/ImageViewer";
 import "./App.css";
 
 function App() {
@@ -39,6 +40,7 @@ function App() {
       <main className="image-grid-slot">
         <ImageGridPanel />
       </main>
+      <ImageViewer />
     </div>
   );
 }

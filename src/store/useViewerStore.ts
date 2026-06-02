@@ -29,7 +29,7 @@ function resultsLength(): number {
 export const useViewerStore = create<ViewerState>((set, get) => ({
   isOpen: false,
   index: 0,
-  selectedIndex: 0,
+  selectedIndex: -1,
   zoomMode: "fit",
   scale: 1,
   open: (index) =>

@@ -3,7 +3,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
-import { ImageViewer } from "./ImageViewer";
 
 const MIN_CELL = 160; // セル最小幅(px)。これを基準に列数を決める。
 const GAP = 6;
@@ -122,7 +121,6 @@ export function ImageGridPanel() {
           );
         })}
       </div>
-      <ImageViewer />
     </div>
   );
 }
