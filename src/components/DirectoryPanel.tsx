@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { useLibraryStore } from "../store/useLibraryStore";
 import { useQueryStore } from "../store/useQueryStore";
-import type { ScanProgress, ScanDone } from "../types";
+import type { ScanProgress, ScanDone, Directory } from "../types";
+import { ConfirmDialog } from "./ConfirmDialog";
 import * as scanApi from "../api/scan";
 import { dirStatusLine } from "../util/dirStatus";
 
@@ -38,6 +39,9 @@ export function DirectoryPanel() {
   const setImageCount = useLibraryStore((s) => s.setImageCount);
   const setDirectoryVisible = useLibraryStore((s) => s.setDirectoryVisible);
   const runQuery = useQueryStore((s) => s.runQuery);
+
+  const [pendingDelete, setPendingDelete] = useState<Directory | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // バックエンドの進捗/完了イベントを購読。
   useEffect(() => {
@@ -76,11 +80,20 @@ export function DirectoryPanel() {
     }
   };
 
-  const handleRemove = async (id: number) => {
+  const handleRemove = (d: Directory) => {
+    setPendingDelete(d);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
     try {
-      await removeDirectory(id);
+      await removeDirectory(pendingDelete.id);
+      setPendingDelete(null);
     } catch (e) {
       console.error("ディレクトリの削除に失敗しました:", e);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -146,7 +159,7 @@ export function DirectoryPanel() {
                   <button className="scan-btn" aria-label="スキャン" onClick={() => handleScan(d.id)}>
                     ⟳
                   </button>
-                  <button className="remove-btn" aria-label="削除" onClick={() => handleRemove(d.id)}>
+                  <button className="remove-btn" aria-label="削除" onClick={() => handleRemove(d)}>
                     ×
                   </button>
                 </div>
@@ -156,6 +169,26 @@ export function DirectoryPanel() {
           );
         })}
       </ul>
+      {pendingDelete && (
+        <ConfirmDialog
+          title="ディレクトリを削除しますか?"
+          confirmLabel="削除する"
+          busy={deleting}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setPendingDelete(null)}
+          body={
+            <>
+              <p>
+                <code>{pendingDelete.label}</code>（{pendingDelete.path}）をライブラリから削除します。
+              </p>
+              <p>
+                このディレクトリの画像メタデータ・サムネイルがデータベースから削除されます。
+                <strong>ディスク上の元画像ファイルは削除されません。</strong>
+              </p>
+            </>
+          }
+        />
+      )}
     </aside>
   );
 }
