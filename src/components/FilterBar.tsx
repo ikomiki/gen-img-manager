@@ -56,7 +56,10 @@ export function FilterBar() {
         className="filter-input"
         value={query}
         placeholder='例: prompt:1girl rating:>=4 -blurry'
-        onChange={(e) => setQuery(e.target.value)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setHistoryIndex(-1);
+        }}
         onKeyDown={onKeyDown}
         list="filter-history"
         aria-label="フィルタクエリ"
