@@ -3,6 +3,7 @@ import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
 import { startSlideshow } from "../api/slideshow";
 import { matchHistory } from "../util/historyMatch";
+import { historyNav } from "../util/historyNav";
 import type { SortKey } from "../types";
 import { FilterDialog } from "./FilterDialog";
 
@@ -30,13 +31,16 @@ export function FilterBar() {
   const [historyIndex, setHistoryIndex] = useState(-1);
   // 表示中のオートコンプリート候補（ナビゲーション中に揺れないよう凍結する）。
   const [acItems, setAcItems] = useState<string[]>([]);
-  const historyWrapRef = useRef<HTMLDivElement>(null);
+  // 履歴ブラウズに入る前のユーザー入力（解除/キャンセル時に復元する）。
+  const [draft, setDraft] = useState("");
+  const comboRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // ドロップダウンの外側クリックで閉じる。
   useEffect(() => {
     if (!historyOpen) return;
     const onDown = (e: MouseEvent) => {
-      if (historyWrapRef.current && !historyWrapRef.current.contains(e.target as Node)) {
+      if (comboRef.current && !comboRef.current.contains(e.target as Node)) {
         setHistoryOpen(false);
         setHistoryIndex(-1);
       }
@@ -45,11 +49,18 @@ export function FilterBar() {
     return () => document.removeEventListener("mousedown", onDown);
   }, [historyOpen]);
 
+  // 履歴項目を確定し、入力欄へフォーカスを戻す（キャレットは末尾）。
   const pickHistory = (h: string) => {
     setQuery(h);
     setHistoryOpen(false);
     setHistoryIndex(-1);
     void runQuery();
+    requestAnimationFrame(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(h.length, h.length);
+    });
   };
 
   const submit = async () => {
@@ -91,29 +102,29 @@ export function FilterBar() {
       }
     } else if (e.key === "Escape") {
       if (historyOpen) {
-        // ドロップダウンを閉じる（入力内容は保持）。
+        // ブラウズをキャンセル: 閉じてドラフトへ復元。
         e.preventDefault();
         setHistoryOpen(false);
         setHistoryIndex(-1);
+        setQuery(draft);
       }
-    } else if (e.key === "ArrowUp") {
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      // 履歴ナビゲーション（次状態は純粋関数で計算）。
       e.preventDefault();
-      // 候補が未確定なら、現在の入力に対するマッチ（空なら全履歴）で開く。
-      let items = acItems;
-      if (!historyOpen || items.length === 0) {
-        items = query.trim() === "" ? history : matchHistory(query, history);
-        setAcItems(items);
-        setHistoryOpen(items.length > 0);
-      }
-      if (items.length === 0) return;
-      const next = Math.min(historyIndex + 1, items.length - 1);
-      setHistoryIndex(next);
-      setQuery(items[next]);
-    } else if (e.key === "ArrowDown" && historyIndex > -1) {
-      e.preventDefault();
-      const next = Math.max(historyIndex - 1, -1);
-      setHistoryIndex(next);
-      setQuery(next === -1 ? "" : acItems[next]);
+      const res = historyNav({
+        key: e.key,
+        open: historyOpen,
+        index: historyIndex,
+        items: acItems,
+        query,
+        draft,
+        history,
+      });
+      setHistoryOpen(res.open);
+      setHistoryIndex(res.index);
+      setAcItems(res.items);
+      setQuery(res.query);
+      setDraft(res.draft);
     } else if (e.key === "Home") {
       // macOS の WebKit では Home が効かないため、行頭へカーソル移動（Shiftで選択）。
       e.preventDefault();
@@ -138,32 +149,57 @@ export function FilterBar() {
 
   return (
     <div className="filter-bar">
-      <input
-        className="filter-input"
-        value={query}
-        placeholder='例: prompt:1girl rating:>=4 -blurry'
-        onChange={(e) => {
-          const v = e.target.value;
-          setQuery(v);
-          setHistoryIndex(-1);
-          // 非空入力かつマッチ候補が1件以上ある間だけ自動表示する。
-          const items = v.trim() === "" ? [] : matchHistory(v, history);
-          setAcItems(items);
-          setHistoryOpen(items.length > 0);
-        }}
-        onKeyDown={onKeyDown}
-        aria-label="フィルタクエリ"
-      />
-      <div className="history-wrap" ref={historyWrapRef}>
+      <div className="filter-combo" ref={comboRef}>
+        <div className="filter-input-wrap">
+          <input
+            ref={inputRef}
+            className="filter-input"
+            value={query}
+            placeholder='例: prompt:1girl rating:>=4 -blurry'
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            autoComplete="off"
+            onChange={(e) => {
+              const v = e.target.value;
+              setQuery(v);
+              setDraft(v);
+              setHistoryIndex(-1);
+              // 非空入力かつマッチ候補が1件以上ある間だけ自動表示する。
+              const items = v.trim() === "" ? [] : matchHistory(v, history);
+              setAcItems(items);
+              setHistoryOpen(items.length > 0);
+            }}
+            onKeyDown={onKeyDown}
+            aria-label="フィルタクエリ"
+          />
+          {historyOpen && acItems.length > 0 && (
+            <ul className="history-dropdown">
+              {acItems.map((h, i) => (
+                <li key={h}>
+                  <button
+                    className={i === historyIndex ? "active" : ""}
+                    onClick={() => pickHistory(h)}
+                    title={h}
+                  >
+                    {h}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
         <button
           className="history-btn"
           onClick={() => {
             const nextOpen = !historyOpen;
             setHistoryOpen(nextOpen);
-            // 開閉いずれでもハイライト位置をリセットする（閉じた後の ArrowDown での古い index 参照を防ぐ）。
             setHistoryIndex(-1);
-            // 全件ブラウズ: 現在の入力に関係なく全履歴を表示する。
-            if (nextOpen) setAcItems(history);
+            if (nextOpen) {
+              // 全件ブラウズ: 現在の入力に関係なく全履歴を表示する。
+              setDraft(query);
+              setAcItems(history);
+            }
           }}
           disabled={history.length === 0}
           aria-label="検索履歴"
@@ -171,21 +207,6 @@ export function FilterBar() {
         >
           ▾
         </button>
-        {historyOpen && acItems.length > 0 && (
-          <ul className="history-dropdown">
-            {acItems.map((h, i) => (
-              <li key={h}>
-                <button
-                  className={i === historyIndex ? "active" : ""}
-                  onClick={() => pickHistory(h)}
-                  title={h}
-                >
-                  {h}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
       <button onClick={() => void submit()} aria-label="検索">
         検索
