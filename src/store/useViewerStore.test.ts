@@ -62,4 +62,18 @@ describe("useViewerStore", () => {
     expect(useViewerStore.getState().zoomMode).toBe("custom");
     expect(useViewerStore.getState().scale).toBe(2);
   });
+
+  it("open restores the previous zoom state (does not reset to fit)", () => {
+    useViewerStore.getState().setZoomMode("fill");
+    useViewerStore.getState().open(0);
+    expect(useViewerStore.getState().zoomMode).toBe("fill");
+  });
+
+  it("toggleMeta flips metaOpen", () => {
+    useViewerStore.setState({ metaOpen: true });
+    useViewerStore.getState().toggleMeta();
+    expect(useViewerStore.getState().metaOpen).toBe(false);
+    useViewerStore.getState().toggleMeta();
+    expect(useViewerStore.getState().metaOpen).toBe(true);
+  });
 });
