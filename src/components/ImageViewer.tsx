@@ -74,6 +74,10 @@ export function ImageViewer() {
     const onKey = (e: KeyboardEvent) => {
       switch (e.key) {
         case "Escape":
+          // オーバーレイ表示中は ESC を消費し、OS（macOSネイティブ全画面など）へ伝播させない。
+          // ベストエフォート: Web content 側の preventDefault が効かない環境では OS 挙動が優先される。
+          e.preventDefault();
+          e.stopPropagation();
           close();
           break;
         case "Enter":
@@ -158,12 +162,30 @@ export function ImageViewer() {
             {metaOpen ? "情報 ▶" : "◀ 情報"}
           </button>
         </div>
-        <div className="viewer-stage" onWheel={onWheel}>
-          <button className="viewer-nav prev" onClick={prev} aria-label="前へ">
+        <div
+          className="viewer-stage"
+          onWheel={onWheel}
+          onDoubleClick={() => {
+            // Enter と同義: 現在表示中の画像を選択して一覧へ戻る。
+            select(index);
+            close();
+          }}
+        >
+          <button
+            className="viewer-nav prev"
+            onClick={prev}
+            onDoubleClick={(e) => e.stopPropagation()}
+            aria-label="前へ"
+          >
             ‹
           </button>
           <img className={imgClass} style={imgStyle} src={src} alt={image.filename} />
-          <button className="viewer-nav next" onClick={next} aria-label="次へ">
+          <button
+            className="viewer-nav next"
+            onClick={next}
+            onDoubleClick={(e) => e.stopPropagation()}
+            aria-label="次へ"
+          >
             ›
           </button>
           {zoomIndicator && <div className="viewer-zoom-indicator">{zoomIndicator}</div>}
