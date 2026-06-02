@@ -1,0 +1,73 @@
+.ss-root {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  overflow: hidden;
+}
+.ss-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ss-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.ss-controls {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #eee;
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 2;
+}
+.ss-root:hover .ss-controls,
+.ss-controls:focus-within {
+  opacity: 1;
+}
+.ss-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ss-field input[type="number"] {
+  width: 56px;
+}
+.ss-pos {
+  font-size: 12px;
+  color: #bbb;
+  white-space: nowrap;
+}
+.ss-toast {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 3;
+}
+.ss-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+}
