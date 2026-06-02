@@ -366,3 +366,49 @@ body,
   flex: 1;
   max-height: none;
 }
+
+/* フィルタバー: 履歴ドロップダウン（固定幅ボタン） */
+.filter-bar > button,
+.history-btn {
+  flex-shrink: 0;
+}
+.history-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.history-btn {
+  width: 32px;
+}
+.history-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
+  margin: 2px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  color: #111;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  max-height: 280px;
+  overflow-y: auto;
+  min-width: 240px;
+}
+.history-dropdown li button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 4px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 360px;
+}
+.history-dropdown li button:hover {
+  background: #eef;
+}
