@@ -1,6 +1,8 @@
 pub mod directories;
+pub mod history;
 pub mod images;
 pub mod migrations;
+pub mod settings;
 
 use rusqlite::Connection;
 use std::path::Path;
