@@ -29,4 +29,5 @@ png = "0.18"
 walkdir = "2"
 kamadak-exif = "0.6"
 quick-xml = "0.39"
+thiserror = "1"
 
