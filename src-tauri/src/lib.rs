@@ -1,12 +1,14 @@
 mod commands;
 mod db;
 mod fs_guard;
+mod menu;
 mod models;
 mod parser;
 mod query;
 mod scanner;
 mod thumbnail;
 
+use tauri::Emitter;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -34,7 +36,13 @@ pub fn run() {
                     }
                 }
             }
+            let (app_menu, view_menu) = menu::build(app.handle())?;
+            app.set_menu(app_menu)?;
+            app.manage(view_menu);
             Ok(())
+        })
+        .on_menu_event(|app, event| {
+            let _ = app.emit("menu-action", event.id().0.clone());
         })
         .invoke_handler(tauri::generate_handler![
             commands::directories::add_directory,
@@ -52,6 +60,8 @@ pub fn run() {
             commands::prefs::list_filter_history,
             commands::prefs::get_setting,
             commands::prefs::set_setting,
+            commands::view_menu::sync_zoom_menu,
+            commands::view_menu::sync_filename_menu,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
