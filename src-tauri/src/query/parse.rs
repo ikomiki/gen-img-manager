@@ -1,3 +1,4 @@
+use chrono::{Local, NaiveDate, TimeZone};
 use super::{Cond, CondOp, ParsedQuery};
 
 /// クエリフィールド名 -> FTS列名（テキスト系フィールド）。
@@ -120,47 +121,23 @@ fn parse_value_op(value: &str, is_date: bool) -> Option<CondOp> {
     }
 }
 
-fn is_leap(y: i64) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
-}
-
-fn days_in_month(y: i64, m: i64) -> i64 {
-    match m {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 => if is_leap(y) { 29 } else { 28 },
-        _ => 0,
-    }
-}
-
-/// "YYYY-MM-DD" を epoch 秒へ。end_of_day=true なら同日 23:59:59。UTC基準・素朴計算。
+/// "YYYY-MM-DD" をローカルTZの epoch 秒へ。end_of_day=true なら同日 23:59:59。
+/// DST の重なり/欠落は最早の瞬間を採用する。
 fn date_to_epoch(s: &str, end_of_day: bool) -> Option<i64> {
     let parts: Vec<&str> = s.split('-').collect();
     if parts.len() != 3 {
         return None;
     }
-    let y: i64 = parts[0].parse().ok()?;
-    let m: i64 = parts[1].parse().ok()?;
-    let d: i64 = parts[2].parse().ok()?;
-    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
-        return None;
-    }
-    if d > days_in_month(y, m) {
-        return None;
-    }
-    let days = days_from_civil(y, m, d);
-    let secs = days * 86400 + if end_of_day { 86399 } else { 0 };
-    Some(secs)
-}
-
-/// 1970-01-01 からの経過日数（Howard Hinnant のアルゴリズム）。
-fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
-    let y = if m <= 2 { y - 1 } else { y };
-    let era = (if y >= 0 { y } else { y - 399 }) / 400;
-    let yoe = y - era * 400;
-    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146097 + doe - 719468
+    let y: i32 = parts[0].parse().ok()?;
+    let m: u32 = parts[1].parse().ok()?;
+    let d: u32 = parts[2].parse().ok()?;
+    let date = NaiveDate::from_ymd_opt(y, m, d)?;
+    let naive = if end_of_day {
+        date.and_hms_opt(23, 59, 59)?
+    } else {
+        date.and_hms_opt(0, 0, 0)?
+    };
+    Local.from_local_datetime(&naive).earliest().map(|dt| dt.timestamp())
 }
 
 /// クエリ文字列をパースする。
@@ -307,10 +284,21 @@ mod tests {
 
     #[test]
     fn date_range_converts_to_epoch_seconds() {
+        use chrono::{Local, NaiveDate, TimeZone};
         let pq = parse("created:2025-01-01..2025-01-02");
         assert_eq!(pq.conds.len(), 1);
         assert_eq!(pq.conds[0].column, "created_at");
-        assert_eq!(pq.conds[0].op, CondOp::Range(1735689600, 1735862399));
+        let lo = Local
+            .from_local_datetime(&NaiveDate::from_ymd_opt(2025, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap())
+            .earliest()
+            .unwrap()
+            .timestamp();
+        let hi = Local
+            .from_local_datetime(&NaiveDate::from_ymd_opt(2025, 1, 2).unwrap().and_hms_opt(23, 59, 59).unwrap())
+            .earliest()
+            .unwrap()
+            .timestamp();
+        assert_eq!(pq.conds[0].op, CondOp::Range(lo, hi));
     }
 
     #[test]
