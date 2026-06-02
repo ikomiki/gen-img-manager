@@ -9,7 +9,7 @@ const dir = (id: number, label: string): import("../types").Directory => ({
 });
 
 beforeEach(() => {
-  useLibraryStore.setState({ directories: [] });
+  useLibraryStore.setState({ directories: [], scanning: {}, imageCounts: {} });
   vi.resetAllMocks();
 });
 
@@ -48,5 +48,22 @@ describe("useLibraryStore", () => {
       useLibraryStore.getState().removeDirectory(1),
     ).rejects.toThrow();
     expect(useLibraryStore.getState().directories).toHaveLength(1);
+  });
+
+  it("setScanProgress and clearScanProgress update scanning map", () => {
+    useLibraryStore.getState().setScanProgress({
+      directory_id: 1,
+      processed: 3,
+      total: 10,
+      current: "/p/a.png",
+    });
+    expect(useLibraryStore.getState().scanning[1]?.processed).toBe(3);
+    useLibraryStore.getState().clearScanProgress(1);
+    expect(useLibraryStore.getState().scanning[1]).toBeUndefined();
+  });
+
+  it("setImageCount stores the count by directory id", () => {
+    useLibraryStore.getState().setImageCount(2, 42);
+    expect(useLibraryStore.getState().imageCounts[2]).toBe(42);
   });
 });
