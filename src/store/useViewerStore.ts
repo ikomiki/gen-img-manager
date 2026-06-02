@@ -7,7 +7,9 @@ const MAX_SCALE = 10;
 
 interface ViewerState {
   isOpen: boolean;
+  /** ビューアで現在表示中の画像（useQueryStore.results のインデックス）。 */
   index: number;
+  /** グリッドでの選択ハイライト位置（Enterでこのインデックスを open する）。 */
   selectedIndex: number;
   zoomMode: ZoomMode;
   scale: number;
@@ -33,12 +35,14 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   open: (index) =>
     set({ isOpen: true, index, selectedIndex: index, zoomMode: "fit", scale: 1 }),
   close: () => set({ isOpen: false }),
+  // ナビゲーション時はズーム状態（zoomMode/scale）を維持する。
+  // 新規に画像を開く（open）ときだけ fit にリセットする。
   next: () => {
     const last = Math.max(resultsLength() - 1, 0);
-    set({ index: Math.min(get().index + 1, last), scale: 1 });
+    set({ index: Math.min(get().index + 1, last) });
   },
   prev: () => {
-    set({ index: Math.max(get().index - 1, 0), scale: 1 });
+    set({ index: Math.max(get().index - 1, 0) });
   },
   select: (index) => set({ selectedIndex: index }),
   setZoomMode: (m) => set({ zoomMode: m, scale: 1 }),
