@@ -3,6 +3,7 @@ mod db;
 mod fs_guard;
 mod models;
 mod parser;
+mod query;
 mod scanner;
 mod thumbnail;
 

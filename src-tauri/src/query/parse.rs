@@ -1,0 +1,321 @@
+use super::{Cond, CondOp, ParsedQuery};
+
+/// クエリフィールド名 -> FTS列名（テキスト系フィールド）。
+fn text_field_column(field: &str) -> Option<&'static str> {
+    match field {
+        "prompt" => Some("positive"),
+        "negative" => Some("negative"),
+        "model" => Some("model"),
+        "filename" => Some("filename"),
+        _ => None,
+    }
+}
+
+/// 構造化フィールド -> (列名, is_date)。
+fn struct_field(field: &str) -> Option<(&'static str, bool)> {
+    match field {
+        "sampler" => Some(("sampler", false)),
+        "tool" => Some(("source_tool", false)),
+        "rating" => Some(("rating", false)),
+        "width" => Some(("width", false)),
+        "height" => Some(("height", false)),
+        "pixels" => Some(("pixels", false)),
+        "steps" => Some(("steps", false)),
+        "seed" => Some(("seed", false)),
+        "created" => Some(("created_at", true)),
+        "modified" => Some(("modified_at", true)),
+        _ => None,
+    }
+}
+
+/// 数値フィールドかどうか（Like ではなく数値比較を使うフィールド）。
+fn is_numeric_field(column: &str) -> bool {
+    matches!(
+        column,
+        "rating" | "width" | "height" | "pixels" | "steps" | "seed" | "created_at" | "modified_at"
+    )
+}
+
+struct RawToken {
+    text: String,
+    quoted: bool,
+}
+
+/// 空白区切り。ダブルクォートで囲まれた部分は1トークン（クォートは外す）。
+fn tokenize(input: &str) -> Vec<RawToken> {
+    let mut tokens = Vec::new();
+    let mut chars = input.chars().peekable();
+    let mut cur = String::new();
+    let mut in_quote = false;
+    let mut quoted = false;
+
+    while let Some(&c) = chars.peek() {
+        match c {
+            '"' => {
+                if in_quote {
+                    in_quote = false;
+                } else {
+                    in_quote = true;
+                    quoted = true;
+                }
+                chars.next();
+            }
+            c if c.is_whitespace() && !in_quote => {
+                if !cur.is_empty() || quoted {
+                    tokens.push(RawToken { text: std::mem::take(&mut cur), quoted });
+                    quoted = false;
+                }
+                chars.next();
+            }
+            _ => {
+                cur.push(c);
+                chars.next();
+            }
+        }
+    }
+    if !cur.is_empty() || quoted {
+        tokens.push(RawToken { text: cur, quoted });
+    }
+    tokens
+}
+
+/// FTS5 用に語/句をダブルクォートで囲む（特殊文字を無害化）。
+fn fts_quote(s: &str) -> String {
+    format!("\"{}\"", s.replace('"', "\"\""))
+}
+
+/// 数値/日時の値を CondOp に変換する。日時は epoch 秒へ。
+fn parse_value_op(value: &str, is_date: bool) -> Option<CondOp> {
+    let to_num = |s: &str| -> Option<i64> {
+        if is_date {
+            date_to_epoch(s, false)
+        } else {
+            s.parse::<i64>().ok()
+        }
+    };
+    if let Some(rest) = value.strip_prefix(">=") {
+        return to_num(rest).map(CondOp::Ge);
+    }
+    if let Some(rest) = value.strip_prefix("<=") {
+        return to_num(rest).map(CondOp::Le);
+    }
+    if let Some(rest) = value.strip_prefix('>') {
+        return to_num(rest).map(CondOp::Gt);
+    }
+    if let Some(rest) = value.strip_prefix('<') {
+        return to_num(rest).map(CondOp::Lt);
+    }
+    if let Some((a, b)) = value.split_once("..") {
+        let lo = if is_date { date_to_epoch(a, false) } else { a.parse().ok() };
+        let hi = if is_date { date_to_epoch(b, true) } else { b.parse().ok() };
+        return match (lo, hi) {
+            (Some(lo), Some(hi)) => Some(CondOp::Range(lo, hi)),
+            _ => None,
+        };
+    }
+    if is_date {
+        match (date_to_epoch(value, false), date_to_epoch(value, true)) {
+            (Some(lo), Some(hi)) => Some(CondOp::Range(lo, hi)),
+            _ => None,
+        }
+    } else {
+        to_num(value).map(CondOp::Eq)
+    }
+}
+
+/// "YYYY-MM-DD" を epoch 秒へ。end_of_day=true なら同日 23:59:59。UTC基準・素朴計算。
+fn date_to_epoch(s: &str, end_of_day: bool) -> Option<i64> {
+    let parts: Vec<&str> = s.split('-').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let y: i64 = parts[0].parse().ok()?;
+    let m: i64 = parts[1].parse().ok()?;
+    let d: i64 = parts[2].parse().ok()?;
+    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+        return None;
+    }
+    let days = days_from_civil(y, m, d);
+    let secs = days * 86400 + if end_of_day { 86399 } else { 0 };
+    Some(secs)
+}
+
+/// 1970-01-01 からの経過日数（Howard Hinnant のアルゴリズム）。
+fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = (if y >= 0 { y } else { y - 399 }) / 400;
+    let yoe = y - era * 400;
+    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + doe - 719468
+}
+
+/// クエリ文字列をパースする。
+pub fn parse(input: &str) -> ParsedQuery {
+    let tokens = tokenize(input);
+    let mut include = String::new();
+    let mut include_or_pending = false;
+    let mut excludes: Vec<String> = Vec::new();
+    let mut conds: Vec<Cond> = Vec::new();
+
+    let append_include = |buf: &mut String, or_pending: &mut bool, expr: &str| {
+        if !buf.is_empty() {
+            buf.push_str(if *or_pending { " OR " } else { " AND " });
+        }
+        buf.push_str(expr);
+        *or_pending = false;
+    };
+
+    for tok in tokens {
+        if !tok.quoted && tok.text.eq_ignore_ascii_case("OR") {
+            include_or_pending = true;
+            continue;
+        }
+
+        let (negate, body) = if !tok.quoted && tok.text.len() > 1 && tok.text.starts_with('-') {
+            (true, tok.text[1..].to_string())
+        } else {
+            (false, tok.text.clone())
+        };
+        if body.is_empty() {
+            continue;
+        }
+
+        if !tok.quoted {
+            if let Some((field, value)) = body.split_once(':') {
+                if !value.is_empty() {
+                    if let Some((column, is_date)) = struct_field(field) {
+                        if is_numeric_field(column) {
+                            // 数値/日時フィールド: parse_value_op で処理。失敗したら無視。
+                            if let Some(op) = parse_value_op(value, is_date) {
+                                conds.push(Cond { column, op, negate });
+                            }
+                        } else {
+                            // テキスト的構造化フィールド（sampler, tool など）: Like
+                            conds.push(Cond {
+                                column,
+                                op: CondOp::Like(value.to_string()),
+                                negate,
+                            });
+                        }
+                        continue;
+                    }
+                    if let Some(col) = text_field_column(field) {
+                        let expr = format!("{} : {}", col, fts_quote(value));
+                        if negate {
+                            excludes.push(expr);
+                        } else {
+                            append_include(&mut include, &mut include_or_pending, &expr);
+                        }
+                        continue;
+                    }
+                }
+            }
+        }
+
+        let expr = fts_quote(&body);
+        if negate {
+            excludes.push(expr);
+        } else {
+            append_include(&mut include, &mut include_or_pending, &expr);
+        }
+    }
+
+    ParsedQuery {
+        fts_include: if include.is_empty() { None } else { Some(include) },
+        fts_exclude: if excludes.is_empty() { None } else { Some(excludes.join(" OR ")) },
+        conds,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bare_terms_are_anded_and_quoted() {
+        let pq = parse("masterpiece forest");
+        assert_eq!(pq.fts_include.as_deref(), Some("\"masterpiece\" AND \"forest\""));
+        assert_eq!(pq.fts_exclude, None);
+        assert!(pq.conds.is_empty());
+    }
+
+    #[test]
+    fn or_operator() {
+        let pq = parse("forest OR mountain");
+        assert_eq!(pq.fts_include.as_deref(), Some("\"forest\" OR \"mountain\""));
+    }
+
+    #[test]
+    fn quoted_phrase() {
+        let pq = parse("\"best quality\"");
+        assert_eq!(pq.fts_include.as_deref(), Some("\"best quality\""));
+    }
+
+    #[test]
+    fn text_field_maps_to_fts_column() {
+        let pq = parse("prompt:forest");
+        assert_eq!(pq.fts_include.as_deref(), Some("positive : \"forest\""));
+    }
+
+    #[test]
+    fn exclusion_goes_to_exclude_expr() {
+        let pq = parse("forest -blurry");
+        assert_eq!(pq.fts_include.as_deref(), Some("\"forest\""));
+        assert_eq!(pq.fts_exclude.as_deref(), Some("\"blurry\""));
+    }
+
+    #[test]
+    fn field_exclusion() {
+        let pq = parse("-negative:blurry");
+        assert_eq!(pq.fts_include, None);
+        assert_eq!(pq.fts_exclude.as_deref(), Some("negative : \"blurry\""));
+    }
+
+    #[test]
+    fn numeric_comparisons_and_ranges() {
+        let pq = parse("rating:>=4 width:>=1024 steps:20..40");
+        assert_eq!(pq.fts_include, None);
+        assert_eq!(
+            pq.conds,
+            vec![
+                Cond { column: "rating", op: CondOp::Ge(4), negate: false },
+                Cond { column: "width", op: CondOp::Ge(1024), negate: false },
+                Cond { column: "steps", op: CondOp::Range(20, 40), negate: false },
+            ]
+        );
+    }
+
+    #[test]
+    fn sampler_and_tool_are_like_conds() {
+        let pq = parse("sampler:euler tool:comfyui");
+        assert_eq!(
+            pq.conds,
+            vec![
+                Cond { column: "sampler", op: CondOp::Like("euler".into()), negate: false },
+                Cond { column: "source_tool", op: CondOp::Like("comfyui".into()), negate: false },
+            ]
+        );
+    }
+
+    #[test]
+    fn date_range_converts_to_epoch_seconds() {
+        let pq = parse("created:2025-01-01..2025-01-02");
+        assert_eq!(pq.conds.len(), 1);
+        assert_eq!(pq.conds[0].column, "created_at");
+        assert_eq!(pq.conds[0].op, CondOp::Range(1735689600, 1735862399));
+    }
+
+    #[test]
+    fn invalid_field_value_is_ignored() {
+        let pq = parse("rating:abc");
+        assert!(pq.conds.is_empty());
+        assert_eq!(pq.fts_include, None);
+    }
+
+    #[test]
+    fn unknown_field_is_treated_as_bare_text() {
+        let pq = parse("foo:bar");
+        assert_eq!(pq.fts_include.as_deref(), Some("\"foo:bar\""));
+    }
+}
