@@ -1,10 +1,13 @@
 import { useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { useLibraryStore } from "./store/useLibraryStore";
 import { useQueryStore } from "./store/useQueryStore";
+import { useViewerStore } from "./store/useViewerStore";
 import { DirectoryPanel } from "./components/DirectoryPanel";
 import { FilterBar } from "./components/FilterBar";
 import { ImageGridPanel } from "./components/ImageGridPanel";
 import { ImageViewer } from "./components/ImageViewer";
+import type { ZoomMode } from "./types";
 import "./App.css";
 
 function App() {
@@ -14,6 +17,7 @@ function App() {
   const runQuery = useQueryStore((s) => s.runQuery);
   const showFilename = useQueryStore((s) => s.showFilename);
   const toggleShowFilename = useQueryStore((s) => s.toggleShowFilename);
+  const setZoomMode = useViewerStore((s) => s.setZoomMode);
 
   useEffect(() => {
     void (async () => {
@@ -23,6 +27,21 @@ function App() {
       await runQuery();
     })();
   }, [loadDirectories, loadSettings, loadHistory, runQuery]);
+
+  useEffect(() => {
+    const un = listen<string>("menu-action", (e) => {
+      const id = e.payload;
+      if (id === "toggle_filename") {
+        void toggleShowFilename();
+      } else if (id.startsWith("zoom_")) {
+        const mode = id.replace("zoom_", "") as ZoomMode;
+        setZoomMode(mode);
+      }
+    });
+    return () => {
+      un.then((f) => f());
+    };
+  }, [toggleShowFilename, setZoomMode]);
 
   return (
     <div className="app-shell">

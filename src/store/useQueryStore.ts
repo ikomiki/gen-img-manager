@@ -59,6 +59,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     const next = !get().showFilename;
     set({ showFilename: next });
     await prefsApi.setSetting("show_filename", String(next));
+    prefsApi.syncFilenameMenu(next).catch((e) => console.error("syncFilenameMenu failed:", e));
   },
   loadSettings: async () => {
     const [sortRaw, showRaw] = await Promise.all([
@@ -70,7 +71,9 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       set({ sort: sort as SortKey, dir: (dir || "asc") as SortDir });
     }
     if (showRaw !== null) {
-      set({ showFilename: showRaw !== "false" });
+      const on = showRaw !== "false";
+      set({ showFilename: on });
+      prefsApi.syncFilenameMenu(on).catch((e) => console.error("syncFilenameMenu failed:", e));
     }
   },
 }));

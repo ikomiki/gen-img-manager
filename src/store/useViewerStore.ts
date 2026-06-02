@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { ZoomMode } from "../types";
 import { useQueryStore } from "./useQueryStore";
+import { syncZoomMenu } from "../api/prefs";
 
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 10;
@@ -32,8 +33,10 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   selectedIndex: -1,
   zoomMode: "fit",
   scale: 1,
-  open: (index) =>
-    set({ isOpen: true, index, selectedIndex: index, zoomMode: "fit", scale: 1 }),
+  open: (index) => {
+    set({ isOpen: true, index, selectedIndex: index, zoomMode: "fit", scale: 1 });
+    syncZoomMenu("fit").catch((e) => console.error("syncZoomMenu failed:", e));
+  },
   close: () => set({ isOpen: false }),
   // ナビゲーション時はズーム状態（zoomMode/scale）を維持する。
   // 新規に画像を開く（open）ときだけ fit にリセットする。
@@ -45,10 +48,15 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     set({ index: Math.max(get().index - 1, 0) });
   },
   select: (index) => set({ selectedIndex: index }),
-  setZoomMode: (m) => set({ zoomMode: m, scale: 1 }),
-  zoomBy: (factor) =>
+  setZoomMode: (m) => {
+    set({ zoomMode: m, scale: 1 });
+    syncZoomMenu(m).catch((e) => console.error("syncZoomMenu failed:", e));
+  },
+  zoomBy: (factor) => {
     set({
       zoomMode: "custom",
       scale: Math.min(MAX_SCALE, Math.max(MIN_SCALE, get().scale * factor)),
-    }),
+    });
+    syncZoomMenu("custom").catch((e) => console.error("syncZoomMenu failed:", e));
+  },
 }));

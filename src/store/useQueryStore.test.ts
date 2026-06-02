@@ -19,6 +19,7 @@ beforeEach(() => {
     results: [], total: 0, history: [], showFilename: true,
   });
   vi.resetAllMocks();
+  vi.mocked(prefsApi.syncFilenameMenu).mockResolvedValue(undefined as unknown as void);
 });
 
 describe("useQueryStore", () => {

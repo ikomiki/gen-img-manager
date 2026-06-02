@@ -1,7 +1,12 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useViewerStore } from "./useViewerStore";
 import { useQueryStore } from "./useQueryStore";
 import type { ImageRow } from "../types";
+
+vi.mock("../api/prefs", () => ({
+  syncZoomMenu: vi.fn().mockResolvedValue(undefined),
+  syncFilenameMenu: vi.fn().mockResolvedValue(undefined),
+}));
 
 const row = (id: number): ImageRow => ({
   id, path: `/d/${id}.png`, filename: `${id}.png`, thumb_path: null,
