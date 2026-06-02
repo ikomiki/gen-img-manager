@@ -27,12 +27,6 @@ body,
   padding: 8px;
 }
 
-.filter-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 6px 8px;
-}
-
 .directory-panel {
   grid-area: dirs;
   overflow-y: auto;
@@ -73,7 +67,7 @@ body,
 
 .image-grid-slot {
   grid-area: grid;
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .placeholder-note {
@@ -89,6 +83,8 @@ body,
 }
 .filter-input {
   flex: 1;
+  box-sizing: border-box;
+  padding: 6px 8px;
 }
 .sort-control {
   display: flex;

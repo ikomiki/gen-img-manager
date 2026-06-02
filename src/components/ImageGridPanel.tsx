@@ -35,6 +35,14 @@ export function ImageGridPanel() {
     overscan: 4,
   });
 
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [rowHeight, rowVirtualizer]);
+
+  if (width === 0) {
+    return <div className="image-grid" ref={parentRef} />;
+  }
+
   if (results.length === 0) {
     return (
       <div className="image-grid" ref={parentRef}>
