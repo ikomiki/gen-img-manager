@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { useLibraryStore } from "../store/useLibraryStore";
+import { useQueryStore } from "../store/useQueryStore";
 import type { ScanProgress, ScanDone } from "../types";
 import * as scanApi from "../api/scan";
 
@@ -14,6 +15,7 @@ export function DirectoryPanel() {
   const setScanProgress = useLibraryStore((s) => s.setScanProgress);
   const clearScanProgress = useLibraryStore((s) => s.clearScanProgress);
   const setImageCount = useLibraryStore((s) => s.setImageCount);
+  const runQuery = useQueryStore((s) => s.runQuery);
 
   // バックエンドの進捗/完了イベントを購読。
   useEffect(() => {
@@ -32,12 +34,14 @@ export function DirectoryPanel() {
       } catch (err) {
         console.error("count_images failed:", err);
       }
+      // スキャン完了で新しい画像が入った可能性があるため一覧を更新。
+      void runQuery();
     });
     return () => {
       unlistenProgress.then((f) => f());
       unlistenDone.then((f) => f());
     };
-  }, [setScanProgress, clearScanProgress, setImageCount]);
+  }, [setScanProgress, clearScanProgress, setImageCount, runQuery]);
 
   const handleAdd = async () => {
     try {
