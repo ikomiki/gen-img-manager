@@ -58,6 +58,49 @@ export function ImageGridPanel() {
     wasViewerOpen.current = viewerOpen;
   }, [viewerOpen, selectedIndex, columns, rowVirtualizer]);
 
+  // グリッドのキーボード操作（ウィンドウレベル。コンテナのフォーカス有無に依存しない）。
+  // テキスト入力やボタン等にフォーカスがある場合、およびビューア表示中は無効化する。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (viewerOpen) return;
+      // フォーカスが body / グリッド以外（入力欄・ボタン・select 等）にある場合は委ねる。
+      const ae = document.activeElement;
+      if (ae && ae !== document.body && ae !== parentRef.current) return;
+      const len = results.length;
+      if (len === 0) return;
+      const cur = selectedIndex < 0 ? 0 : selectedIndex;
+      let nextIndex: number | null = null;
+      switch (e.key) {
+        case "ArrowRight":
+          nextIndex = Math.min(cur + 1, len - 1);
+          break;
+        case "ArrowLeft":
+          nextIndex = Math.max(cur - 1, 0);
+          break;
+        case "ArrowDown":
+          // 上下は表示行（列数分）で移動。
+          nextIndex = Math.min(cur + columns, len - 1);
+          break;
+        case "ArrowUp":
+          nextIndex = Math.max(cur - columns, 0);
+          break;
+        case "Enter":
+          // ダブルクリックと同様に、選択中（未選択なら先頭）の画像を表示する。
+          e.preventDefault();
+          openViewer(cur);
+          return;
+        default:
+          return;
+      }
+      e.preventDefault();
+      selectImage(nextIndex);
+      // 選択行を表示に追従させる。
+      rowVirtualizer.scrollToIndex(Math.floor(nextIndex / columns));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewerOpen, results, selectedIndex, columns, selectImage, openViewer, rowVirtualizer]);
+
   if (width === 0) {
     return <div className="image-grid" ref={parentRef} />;
   }
@@ -71,45 +114,7 @@ export function ImageGridPanel() {
   }
 
   return (
-    <div
-      className="image-grid"
-      ref={parentRef}
-      tabIndex={0}
-      onKeyDown={(e) => {
-        // ビューア表示中はビューア側のキーボード操作に委ねる。
-        if (viewerOpen) return;
-        const len = results.length;
-        if (len === 0) return;
-        const cur = selectedIndex < 0 ? 0 : selectedIndex;
-        let nextIndex: number | null = null;
-        switch (e.key) {
-          case "ArrowRight":
-            nextIndex = Math.min(cur + 1, len - 1);
-            break;
-          case "ArrowLeft":
-            nextIndex = Math.max(cur - 1, 0);
-            break;
-          case "ArrowDown":
-            // 上下は表示行（列数分）で移動。
-            nextIndex = Math.min(cur + columns, len - 1);
-            break;
-          case "ArrowUp":
-            nextIndex = Math.max(cur - columns, 0);
-            break;
-          case "Enter":
-            // ダブルクリックと同様に、選択中（未選択なら先頭）の画像を表示する。
-            e.preventDefault();
-            openViewer(cur);
-            return;
-          default:
-            return;
-        }
-        e.preventDefault();
-        selectImage(nextIndex);
-        // 選択行を表示に追従させる。
-        rowVirtualizer.scrollToIndex(Math.floor(nextIndex / columns));
-      }}
-    >
+    <div className="image-grid" ref={parentRef} tabIndex={0}>
       <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}>
         {rowVirtualizer.getVirtualItems().map((vrow) => {
           const start = vrow.index * columns;
