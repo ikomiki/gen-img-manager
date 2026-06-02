@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryStore } from "../store/useQueryStore";
 import type { SortKey } from "../types";
 import { FilterDialog } from "./FilterDialog";
@@ -23,6 +23,19 @@ export function FilterBar() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const historyWrapRef = useRef<HTMLDivElement>(null);
+
+  // 履歴ドロップダウンの外側クリックで閉じる。
+  useEffect(() => {
+    if (!historyOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (historyWrapRef.current && !historyWrapRef.current.contains(e.target as Node)) {
+        setHistoryOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [historyOpen]);
 
   const pickHistory = (h: string) => {
     setQuery(h);
@@ -71,7 +84,7 @@ export function FilterBar() {
         onKeyDown={onKeyDown}
         aria-label="フィルタクエリ"
       />
-      <div className="history-wrap">
+      <div className="history-wrap" ref={historyWrapRef}>
         <button
           className="history-btn"
           onClick={() => setHistoryOpen((o) => !o)}

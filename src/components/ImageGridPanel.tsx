@@ -76,6 +76,8 @@ export function ImageGridPanel() {
       ref={parentRef}
       tabIndex={0}
       onKeyDown={(e) => {
+        // ビューア表示中はビューア側のキーボード操作に委ねる。
+        if (viewerOpen) return;
         const len = results.length;
         if (len === 0) return;
         const cur = selectedIndex < 0 ? 0 : selectedIndex;

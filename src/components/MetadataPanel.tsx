@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ImageDetail } from "../types";
 
 interface Props {
@@ -24,6 +24,11 @@ function Row({ label, value }: { label: string; value: string | number | null })
 export function MetadataPanel({ detail }: Props) {
   // どのテキストブロックをサイドバー全体に最大化表示しているか。
   const [maximized, setMaximized] = useState<string | null>(null);
+
+  // 画像が切り替わったら最大化状態を解除する。
+  useEffect(() => {
+    setMaximized(null);
+  }, [detail?.id]);
 
   if (!detail) {
     return <div className="meta-panel" />;
