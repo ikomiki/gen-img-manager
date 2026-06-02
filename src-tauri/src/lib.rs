@@ -29,6 +29,12 @@ pub fn run() {
             commands::scan::rebuild_directory,
             commands::scan::rebuild_all,
             commands::scan::count_images,
+            commands::query::query_images,
+            commands::query::count_query,
+            commands::prefs::add_filter_history,
+            commands::prefs::list_filter_history,
+            commands::prefs::get_setting,
+            commands::prefs::set_setting,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
