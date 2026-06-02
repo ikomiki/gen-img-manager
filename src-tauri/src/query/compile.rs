@@ -14,6 +14,7 @@ pub fn compile(pq: &ParsedQuery) -> CompiledFilter {
     let mut clauses: Vec<String> = vec!["missing = 0".to_string()];
     let mut params: Vec<Value> = Vec::new();
 
+    // images_fts は content='images', content_rowid='id' のため rowid = images.id。
     if let Some(inc) = &pq.fts_include {
         clauses.push("id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?)".to_string());
         params.push(Value::Text(inc.clone()));
@@ -38,10 +39,14 @@ pub fn compile(pq: &ParsedQuery) -> CompiledFilter {
 fn compile_cond(cond: &Cond) -> (String, Vec<Value>) {
     let col = cond.column;
     let (frag, params) = match &cond.op {
-        CondOp::Like(v) => (
-            format!("{col} LIKE ?"),
-            vec![Value::Text(format!("%{v}%"))],
-        ),
+        CondOp::Like(v) => {
+            // LIKEのワイルドカード(%/_)と\をエスケープし、ESCAPE句で無害化する。
+            let escaped = v.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
+            (
+                format!("{col} LIKE ? ESCAPE '\\'"),
+                vec![Value::Text(format!("%{escaped}%"))],
+            )
+        }
         CondOp::Ge(n) => (format!("{col} >= ?"), vec![Value::Integer(*n)]),
         CondOp::Le(n) => (format!("{col} <= ?"), vec![Value::Integer(*n)]),
         CondOp::Gt(n) => (format!("{col} > ?"), vec![Value::Integer(*n)]),
@@ -88,8 +93,23 @@ mod tests {
     #[test]
     fn like_wraps_with_percent() {
         let cf = compile(&parse("sampler:euler"));
-        assert_eq!(cf.where_sql, "missing = 0 AND sampler LIKE ?");
+        assert_eq!(cf.where_sql, "missing = 0 AND sampler LIKE ? ESCAPE '\\'");
         assert_eq!(cf.params[0], Value::Text("%euler%".to_string()));
+    }
+
+    #[test]
+    fn negate_cond_wraps_with_not() {
+        let cf = compile(&parse("-rating:>=4"));
+        assert_eq!(cf.where_sql, "missing = 0 AND NOT (rating >= ?)");
+        assert_eq!(cf.params[0], Value::Integer(4));
+    }
+
+    #[test]
+    fn like_escapes_wildcards() {
+        let cf = compile(&parse("tool:comfy_ui"));
+        assert_eq!(cf.where_sql, "missing = 0 AND source_tool LIKE ? ESCAPE '\\'");
+        // _ がエスケープされている
+        assert_eq!(cf.params[0], Value::Text("%comfy\\_ui%".to_string()));
     }
 
     #[test]
