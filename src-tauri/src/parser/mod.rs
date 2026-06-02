@@ -21,6 +21,7 @@ pub struct ParsedMetadata {
     pub seed: Option<i64>,
     pub cfg: Option<f64>,
     pub source_tool: String,
+    /// ComfyUI PNG の workflow チャンク由来の生JSON。JPEG/WebP や A1111 では None。
     pub comfy_workflow: Option<String>,
 }
 
@@ -32,6 +33,17 @@ pub enum ParseError {
     Png(#[from] ::png::DecodingError), // `::png` = 外部クレート（`parser::png` サブモジュールと区別）
     #[error("image: {0}")]
     Image(#[from] image::ImageError),
+}
+
+/// A1111正規化結果を ParsedMetadata に反映する（parse_png/parse_raster 共通）。
+fn apply_a1111(meta: &mut ParsedMetadata, f: a1111::A1111Fields) {
+    meta.positive = f.positive;
+    meta.negative = f.negative;
+    meta.model = f.model;
+    meta.sampler = f.sampler;
+    meta.steps = f.steps;
+    meta.seed = f.seed;
+    meta.cfg = f.cfg;
 }
 
 /// 拡張子で振り分けて画像を解析する。
@@ -60,19 +72,10 @@ fn parse_png(path: &Path) -> Result<ParsedMetadata, ParseError> {
     };
 
     if let Some(params) = data.texts.get("parameters") {
-        // A1111
         meta.source_tool = "a1111".to_string();
         meta.raw_parameters = Some(params.clone());
-        let f = a1111::parse_a1111(params);
-        meta.positive = f.positive;
-        meta.negative = f.negative;
-        meta.model = f.model;
-        meta.sampler = f.sampler;
-        meta.steps = f.steps;
-        meta.seed = f.seed;
-        meta.cfg = f.cfg;
+        apply_a1111(&mut meta, a1111::parse_a1111(params));
     } else if let Some(prompt) = data.texts.get("prompt") {
-        // ComfyUI
         meta.source_tool = "comfyui".to_string();
         meta.raw_parameters = Some(prompt.clone());
         meta.positive = comfyui::extract_comfy_text(prompt).positive;
@@ -97,14 +100,7 @@ fn parse_raster(path: &Path, ext: &str) -> Result<ParsedMetadata, ParseError> {
         // WebUIのJPEG/WebP出力はUserCommentにA1111 paramsを入れる。
         meta.source_tool = "a1111".to_string();
         meta.raw_parameters = Some(uc.clone());
-        let f = a1111::parse_a1111(&uc);
-        meta.positive = f.positive;
-        meta.negative = f.negative;
-        meta.model = f.model;
-        meta.sampler = f.sampler;
-        meta.steps = f.steps;
-        meta.seed = f.seed;
-        meta.cfg = f.cfg;
+        apply_a1111(&mut meta, a1111::parse_a1111(&uc));
     }
 
     Ok(meta)
@@ -146,5 +142,48 @@ mod tests {
     #[test]
     fn unsupported_extension_errors() {
         assert!(matches!(parse(Path::new("/x/y.gif")), Err(ParseError::Unsupported)));
+    }
+
+    /// 複数のtEXtチャンクを持つ 2x2 PNG を書く。
+    fn write_png_with_texts(path: &Path, chunks: &[(&str, &str)]) {
+        let file = std::fs::File::create(path).unwrap();
+        let w = BufWriter::new(file);
+        let mut encoder = ::png::Encoder::new(w, 2, 2);
+        encoder.set_color(::png::ColorType::Rgba);
+        encoder.set_depth(::png::BitDepth::Eight);
+        for (k, v) in chunks {
+            encoder.add_text_chunk(k.to_string(), v.to_string()).unwrap();
+        }
+        let mut writer = encoder.write_header().unwrap();
+        writer.write_image_data(&[0u8; 16]).unwrap();
+    }
+
+    #[test]
+    fn parses_comfyui_png_end_to_end() {
+        let dir = std::env::temp_dir().join(format!("gim_parse_comfy_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("c.png");
+        let prompt = r#"{"6":{"class_type":"CLIPTextEncode","inputs":{"text":"neon city street"}}}"#;
+        write_png_with_texts(&p, &[("prompt", prompt), ("workflow", "{\"nodes\":[]}")]);
+
+        let meta = parse(&p).unwrap();
+        assert_eq!(meta.source_tool, "comfyui");
+        assert_eq!(meta.raw_parameters.as_deref(), Some(prompt));
+        assert!(meta.positive.as_deref().unwrap().contains("neon city street"));
+        assert_eq!(meta.comfy_workflow.as_deref(), Some("{\"nodes\":[]}"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn parses_png_without_metadata_is_unknown() {
+        let dir = std::env::temp_dir().join(format!("gim_parse_plain_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("plain.png");
+        write_png_with_texts(&p, &[]); // テキストチャンク無し
+        let meta = parse(&p).unwrap();
+        assert_eq!(meta.source_tool, "unknown");
+        assert_eq!(meta.positive, None);
+        assert_eq!(meta.raw_parameters, None);
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
