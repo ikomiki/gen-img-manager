@@ -24,12 +24,12 @@ beforeEach(() => {
 });
 
 describe("useQueryStore", () => {
-  it("runQuery loads results and total", async () => {
-    vi.mocked(imagesApi.queryImages).mockResolvedValue([row(1, "a.png")]);
-    vi.mocked(imagesApi.countQuery).mockResolvedValue(1);
+  it("runQuery loads all results and total equals length", async () => {
+    vi.mocked(imagesApi.queryImages).mockResolvedValue([row(1, "a.png"), row(2, "b.png")]);
     await useQueryStore.getState().runQuery();
-    expect(useQueryStore.getState().results).toHaveLength(1);
-    expect(useQueryStore.getState().total).toBe(1);
+    expect(imagesApi.queryImages).toHaveBeenCalledWith("", "filename", "asc", -1, 0);
+    expect(useQueryStore.getState().results).toHaveLength(2);
+    expect(useQueryStore.getState().total).toBe(2);
   });
 
   it("setQuery updates query text", () => {
@@ -39,7 +39,6 @@ describe("useQueryStore", () => {
 
   it("setSort updates sort key and dir", () => {
     vi.mocked(imagesApi.queryImages).mockResolvedValue([]);
-    vi.mocked(imagesApi.countQuery).mockResolvedValue(0);
     vi.mocked(prefsApi.setSetting).mockResolvedValue(undefined as unknown as void);
     useQueryStore.getState().setSort("created", "desc");
     expect(useQueryStore.getState().sort).toBe("created");
@@ -86,7 +85,6 @@ describe("useQueryStore", () => {
 
   it("runQuery persists the current filter query", async () => {
     vi.mocked(imagesApi.queryImages).mockResolvedValue([]);
-    vi.mocked(imagesApi.countQuery).mockResolvedValue(0);
     useQueryStore.getState().setQuery("forest");
     await useQueryStore.getState().runQuery();
     expect(prefsApi.setSetting).toHaveBeenCalledWith("filter_query", "forest");

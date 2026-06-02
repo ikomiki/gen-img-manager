@@ -3,8 +3,6 @@ import type { ImageRow, SortKey, SortDir } from "../types";
 import * as imagesApi from "../api/images";
 import * as prefsApi from "../api/prefs";
 
-const PAGE = 200;
-
 interface QueryState {
   query: string;
   sort: SortKey;
@@ -40,11 +38,9 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   },
   runQuery: async () => {
     const { query, sort, dir } = get();
-    const [results, total] = await Promise.all([
-      imagesApi.queryImages(query, sort, dir, PAGE, 0),
-      imagesApi.countQuery(query),
-    ]);
-    set({ results, total });
+    // 全件取得（LIMIT -1）。total は取得件数から導出する。
+    const results = await imagesApi.queryImages(query, sort, dir, -1, 0);
+    set({ results, total: results.length });
     // 直前に効いていたフィルタを永続化する（次回起動時に復元する）。
     prefsApi
       .setSetting("filter_query", query)
