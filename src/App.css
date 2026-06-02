@@ -473,3 +473,28 @@ body,
 .history-dropdown li button.active {
   background: #dde;
 }
+
+.confirm-dialog .confirm-body {
+  margin: 8px 0 4px;
+  line-height: 1.6;
+}
+
+.confirm-dialog .confirm-body code {
+  background: #eee;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.danger-btn {
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.danger-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
