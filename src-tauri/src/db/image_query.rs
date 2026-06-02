@@ -72,6 +72,73 @@ pub fn count_query(conn: &Connection, query_text: &str) -> rusqlite::Result<i64>
     conn.query_row(&sql, params_from_iter(cf.params), |r| r.get(0))
 }
 
+/// ビューアのメタデータパネル用の全フィールド。
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ImageDetail {
+    pub id: i64,
+    pub path: String,
+    pub filename: String,
+    pub width: i64,
+    pub height: i64,
+    pub pixels: i64,
+    pub size: i64,
+    pub rating: Option<i64>,
+    pub created_at: Option<i64>,
+    pub modified_at: Option<i64>,
+    pub format: String,
+    pub source_tool: String,
+    pub raw_parameters: Option<String>,
+    pub positive: Option<String>,
+    pub negative: Option<String>,
+    pub model: Option<String>,
+    pub sampler: Option<String>,
+    pub steps: Option<i64>,
+    pub seed: Option<i64>,
+    pub cfg: Option<f64>,
+    pub comfy_workflow: Option<String>,
+}
+
+const DETAIL_COLS: &str = "id, path, filename, width, height, pixels, size, rating, \
+    created_at, modified_at, format, source_tool, raw_parameters, positive, negative, \
+    model, sampler, steps, seed, cfg, comfy_workflow";
+
+fn row_to_detail(r: &rusqlite::Row) -> rusqlite::Result<ImageDetail> {
+    Ok(ImageDetail {
+        id: r.get(0)?,
+        path: r.get(1)?,
+        filename: r.get(2)?,
+        width: r.get(3)?,
+        height: r.get(4)?,
+        pixels: r.get(5)?,
+        size: r.get(6)?,
+        rating: r.get(7)?,
+        created_at: r.get(8)?,
+        modified_at: r.get(9)?,
+        format: r.get(10)?,
+        source_tool: r.get(11)?,
+        raw_parameters: r.get(12)?,
+        positive: r.get(13)?,
+        negative: r.get(14)?,
+        model: r.get(15)?,
+        sampler: r.get(16)?,
+        steps: r.get(17)?,
+        seed: r.get(18)?,
+        cfg: r.get(19)?,
+        comfy_workflow: r.get(20)?,
+    })
+}
+
+/// 1画像の全メタデータを取得する。無ければ None。
+pub fn get_detail(conn: &Connection, id: i64) -> rusqlite::Result<Option<ImageDetail>> {
+    let sql = format!("SELECT {DETAIL_COLS} FROM images WHERE id = ?1");
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query([id])?;
+    match rows.next()? {
+        Some(r) => Ok(Some(row_to_detail(r)?)),
+        None => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,5 +243,54 @@ mod tests {
         seed(&c);
         c.execute("UPDATE images SET missing = 1 WHERE filename = 'a.png'", []).unwrap();
         assert_eq!(count_query(&c, "").unwrap(), 2);
+    }
+
+    #[test]
+    fn get_detail_returns_full_fields() {
+        let c = conn();
+        seed(&c);
+        let id = crate::db::images::upsert(
+            &c,
+            &NewImage {
+                directory_id: 1,
+                path: "/d/full.png".into(),
+                filename: "full.png".into(),
+                size: 42,
+                mtime: 1,
+                width: 640,
+                height: 480,
+                rating: Some(4),
+                format: "png".into(),
+                positive: Some("a fox".into()),
+                negative: Some("blurry".into()),
+                model: Some("sdxl".into()),
+                sampler: Some("Euler".into()),
+                steps: Some(30),
+                seed: Some(99),
+                cfg: Some(7.0),
+                raw_parameters: Some("a fox\nNegative prompt: blurry".into()),
+                source_tool: "a1111".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        let d = get_detail(&c, id).unwrap().unwrap();
+        assert_eq!(d.filename, "full.png");
+        assert_eq!(d.width, 640);
+        assert_eq!(d.pixels, 640 * 480);
+        assert_eq!(d.size, 42);
+        assert_eq!(d.rating, Some(4));
+        assert_eq!(d.positive.as_deref(), Some("a fox"));
+        assert_eq!(d.negative.as_deref(), Some("blurry"));
+        assert_eq!(d.model.as_deref(), Some("sdxl"));
+        assert_eq!(d.steps, Some(30));
+        assert_eq!(d.cfg, Some(7.0));
+    }
+
+    #[test]
+    fn get_detail_missing_id_is_none() {
+        let c = conn();
+        assert_eq!(get_detail(&c, 999).unwrap(), None);
     }
 }
