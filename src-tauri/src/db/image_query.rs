@@ -50,7 +50,9 @@ pub fn query_images(
 ) -> rusqlite::Result<Vec<ImageRow>> {
     let cf = compile::compile(&parse::parse(query_text));
     let sql = format!(
-        "SELECT {cols} FROM images WHERE {where_sql} ORDER BY {sortcol} {sortdir}, id {sortdir} LIMIT ? OFFSET ?",
+        "SELECT {cols} FROM images WHERE ({where_sql}) \
+         AND directory_id IN (SELECT id FROM directories WHERE visible = 1) \
+         ORDER BY {sortcol} {sortdir}, id {sortdir} LIMIT ? OFFSET ?",
         cols = SELECT_COLS,
         where_sql = cf.where_sql,
         sortcol = sort.column(),
@@ -68,7 +70,11 @@ pub fn query_images(
 /// クエリ文字列に一致する画像件数を返す。
 pub fn count_query(conn: &Connection, query_text: &str) -> rusqlite::Result<i64> {
     let cf = compile::compile(&parse::parse(query_text));
-    let sql = format!("SELECT count(*) FROM images WHERE {}", cf.where_sql);
+    let sql = format!(
+        "SELECT count(*) FROM images WHERE ({}) \
+         AND directory_id IN (SELECT id FROM directories WHERE visible = 1)",
+        cf.where_sql
+    );
     conn.query_row(&sql, params_from_iter(cf.params), |r| r.get(0))
 }
 
@@ -292,5 +298,16 @@ mod tests {
     fn get_detail_missing_id_is_none() {
         let c = conn();
         assert_eq!(get_detail(&c, 999).unwrap(), None);
+    }
+
+    #[test]
+    fn invisible_directory_excluded_from_query_and_count() {
+        let c = conn();
+        seed(&c);
+        assert_eq!(count_query(&c, "").unwrap(), 3);
+        c.execute("UPDATE directories SET visible = 0 WHERE id = 1", []).unwrap();
+        assert_eq!(count_query(&c, "").unwrap(), 0);
+        let rows = query_images(&c, "", SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
+        assert_eq!(rows.len(), 0);
     }
 }
