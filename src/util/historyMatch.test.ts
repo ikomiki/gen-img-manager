@@ -17,7 +17,8 @@ describe("matchHistory", () => {
   });
 
   it("is case-insensitive", () => {
-    expect(matchHistory("forest", HISTORY)).toEqual(["forest", "FOREST night"]);
+    // 大小無視で "FOR" が "forest" と "FOREST night" の両方にマッチする。
+    expect(matchHistory("FOR", HISTORY)).toEqual(["forest", "FOREST night"]);
   });
 
   it("excludes entries equal to the input (case-insensitive)", () => {
