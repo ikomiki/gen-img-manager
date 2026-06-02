@@ -20,6 +20,7 @@ beforeEach(() => {
   });
   vi.resetAllMocks();
   vi.mocked(prefsApi.syncFilenameMenu).mockResolvedValue(undefined as unknown as void);
+  vi.mocked(prefsApi.setSetting).mockResolvedValue(undefined as unknown as void);
 });
 
 describe("useQueryStore", () => {
@@ -81,5 +82,22 @@ describe("useQueryStore", () => {
     await useQueryStore.getState().loadSettings();
     expect(useQueryStore.getState().sort).toBe("filename");
     expect(useQueryStore.getState().dir).toBe("asc");
+  });
+
+  it("runQuery persists the current filter query", async () => {
+    vi.mocked(imagesApi.queryImages).mockResolvedValue([]);
+    vi.mocked(imagesApi.countQuery).mockResolvedValue(0);
+    useQueryStore.getState().setQuery("forest");
+    await useQueryStore.getState().runQuery();
+    expect(prefsApi.setSetting).toHaveBeenCalledWith("filter_query", "forest");
+  });
+
+  it("loadSettings restores persisted filter query", async () => {
+    vi.mocked(prefsApi.getSetting).mockImplementation(async (key: string) => {
+      if (key === "filter_query") return "cat -blurry";
+      return null;
+    });
+    await useQueryStore.getState().loadSettings();
+    expect(useQueryStore.getState().query).toBe("cat -blurry");
   });
 });

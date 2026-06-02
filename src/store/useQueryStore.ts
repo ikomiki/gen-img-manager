@@ -45,6 +45,10 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       imagesApi.countQuery(query),
     ]);
     set({ results, total });
+    // 直前に効いていたフィルタを永続化する（次回起動時に復元する）。
+    prefsApi
+      .setSetting("filter_query", query)
+      .catch((e) => console.error("setSetting(filter_query) failed:", e));
   },
   commitHistory: async () => {
     const q = get().query.trim();
@@ -62,9 +66,10 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     prefsApi.syncFilenameMenu(next).catch((e) => console.error("syncFilenameMenu failed:", e));
   },
   loadSettings: async () => {
-    const [sortRaw, showRaw] = await Promise.all([
+    const [sortRaw, showRaw, queryRaw] = await Promise.all([
       prefsApi.getSetting("sort"),
       prefsApi.getSetting("show_filename"),
+      prefsApi.getSetting("filter_query"),
     ]);
     if (sortRaw) {
       const [sort, dir] = sortRaw.split(":");
@@ -74,6 +79,9 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       const on = showRaw !== "false";
       set({ showFilename: on });
       prefsApi.syncFilenameMenu(on).catch((e) => console.error("syncFilenameMenu failed:", e));
+    }
+    if (queryRaw !== null) {
+      set({ query: queryRaw });
     }
   },
 }));
