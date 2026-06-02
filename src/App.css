@@ -97,7 +97,7 @@ body,
   min-width: 0;
 }
 .filter-input {
-  flex: 1;
+  width: 100%;
   box-sizing: border-box;
   padding: 6px 8px;
 }
@@ -386,9 +386,18 @@ body,
 .history-btn {
   flex-shrink: 0;
 }
-.history-wrap {
+.filter-combo {
   position: relative;
-  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.filter-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
 }
 .history-btn {
   width: 32px;
@@ -408,7 +417,8 @@ body,
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   max-height: 280px;
   overflow-y: auto;
-  min-width: 240px;
+  width: 100%;
+  box-sizing: border-box;
 }
 .history-dropdown li button {
   display: block;
@@ -421,7 +431,7 @@ body,
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 360px;
+  max-width: 100%;
 }
 .history-dropdown li button:hover {
   background: #eef;
