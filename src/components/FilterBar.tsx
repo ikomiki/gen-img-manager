@@ -38,6 +38,7 @@ export function FilterBar() {
     const onDown = (e: MouseEvent) => {
       if (historyWrapRef.current && !historyWrapRef.current.contains(e.target as Node)) {
         setHistoryOpen(false);
+        setHistoryIndex(-1);
       }
     };
     document.addEventListener("mousedown", onDown);
@@ -159,10 +160,11 @@ export function FilterBar() {
           onClick={() =>
             setHistoryOpen((o) => {
               const nextOpen = !o;
+              // 開閉いずれでもハイライト位置をリセットする（閉じた後の ArrowDown での古い index 参照を防ぐ）。
+              setHistoryIndex(-1);
               if (nextOpen) {
                 // 全件ブラウズ: 現在の入力に関係なく全履歴を表示する。
                 setAcItems(history);
-                setHistoryIndex(-1);
               }
               return nextOpen;
             })
