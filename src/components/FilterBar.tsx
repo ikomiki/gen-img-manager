@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryStore } from "../store/useQueryStore";
+import { useViewerStore } from "../store/useViewerStore";
+import { startSlideshow } from "../api/slideshow";
 import type { SortKey } from "../types";
 import { FilterDialog } from "./FilterDialog";
 
@@ -19,6 +21,8 @@ export function FilterBar() {
   const dir = useQueryStore((s) => s.dir);
   const setSort = useQueryStore((s) => s.setSort);
   const total = useQueryStore((s) => s.total);
+  const results = useQueryStore((s) => s.results);
+  const selectedIndex = useViewerStore((s) => s.selectedIndex);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -53,6 +57,15 @@ export function FilterBar() {
     } finally {
       setHistoryIndex(-1);
     }
+  };
+
+  const launchSlideshow = () => {
+    if (results.length === 0) return;
+    const start = selectedIndex >= 0 ? selectedIndex : 0;
+    void startSlideshow(
+      results.map((r) => r.path),
+      start,
+    ).catch((e) => console.error("スライドショー起動に失敗しました:", e));
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -129,6 +142,13 @@ export function FilterBar() {
         検索
       </button>
       <button onClick={() => setDialogOpen(true)} aria-label="詳細フィルタを開く">詳細…</button>
+      <button
+        onClick={launchSlideshow}
+        disabled={results.length === 0}
+        aria-label="スライドショーを開始"
+      >
+        スライドショー▶
+      </button>
       <label className="sort-control">
         並べ替え:
         <select
