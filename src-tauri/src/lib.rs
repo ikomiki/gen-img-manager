@@ -35,6 +35,7 @@ pub fn run() {
             commands::scan::count_images,
             commands::query::query_images,
             commands::query::count_query,
+            commands::query::get_image_detail,
             commands::prefs::add_filter_history,
             commands::prefs::list_filter_history,
             commands::prefs::get_setting,

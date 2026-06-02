@@ -1,4 +1,4 @@
-use crate::db::image_query::{self, ImageRow};
+use crate::db::image_query::{self, ImageDetail, ImageRow};
 use crate::db::Db;
 use crate::query::{SortDir, SortKey};
 use tauri::State;
@@ -30,4 +30,11 @@ pub fn query_images(
 pub fn count_query(db: State<Db>, query: String) -> Result<i64, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     image_query::count_query(&conn, &query).map_err(|e| e.to_string())
+}
+
+/// 1画像の全メタデータを取得する。
+#[tauri::command]
+pub fn get_image_detail(db: State<Db>, id: i64) -> Result<Option<ImageDetail>, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    image_query::get_detail(&conn, id).map_err(|e| e.to_string())
 }
