@@ -14,6 +14,10 @@ interface ViewerState {
   selectedIndex: number;
   zoomMode: ZoomMode;
   scale: number;
+  /** ビューアのメタデータサイドバーを開いているか。 */
+  metaOpen: boolean;
+  /** prompt/negative を整形表示するか（空行・カンマだけの行・前後空白を除去）。 */
+  normalizePrompt: boolean;
   open: (index: number) => void;
   close: () => void;
   next: () => void;
@@ -21,6 +25,8 @@ interface ViewerState {
   select: (index: number) => void;
   setZoomMode: (m: ZoomMode) => void;
   zoomBy: (factor: number) => void;
+  toggleMeta: () => void;
+  toggleNormalize: () => void;
 }
 
 function resultsLength(): number {
@@ -33,9 +39,12 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   selectedIndex: -1,
   zoomMode: "fit",
   scale: 1,
+  metaOpen: true,
+  normalizePrompt: false,
+  // 再オープン時は直前のズーム設定（zoomMode/scale）を復元する（リセットしない）。
   open: (index) => {
-    set({ isOpen: true, index, selectedIndex: index, zoomMode: "fit", scale: 1 });
-    syncZoomMenu("fit").catch((e) => console.error("syncZoomMenu failed:", e));
+    set({ isOpen: true, index, selectedIndex: index });
+    syncZoomMenu(get().zoomMode).catch((e) => console.error("syncZoomMenu failed:", e));
   },
   close: () => set({ isOpen: false }),
   // ナビゲーション時はズーム状態（zoomMode/scale）を維持する。
@@ -59,4 +68,6 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     });
     syncZoomMenu("custom").catch((e) => console.error("syncZoomMenu failed:", e));
   },
+  toggleMeta: () => set({ metaOpen: !get().metaOpen }),
+  toggleNormalize: () => set({ normalizePrompt: !get().normalizePrompt }),
 }));

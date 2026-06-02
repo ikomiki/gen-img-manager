@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryStore } from "../store/useQueryStore";
 import type { SortKey } from "../types";
 import { FilterDialog } from "./FilterDialog";
@@ -21,7 +21,28 @@ export function FilterBar() {
   const total = useQueryStore((s) => s.total);
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const historyWrapRef = useRef<HTMLDivElement>(null);
+
+  // 履歴ドロップダウンの外側クリックで閉じる。
+  useEffect(() => {
+    if (!historyOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (historyWrapRef.current && !historyWrapRef.current.contains(e.target as Node)) {
+        setHistoryOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [historyOpen]);
+
+  const pickHistory = (h: string) => {
+    setQuery(h);
+    setHistoryOpen(false);
+    setHistoryIndex(-1);
+    void runQuery();
+  };
 
   const submit = async () => {
     try {
@@ -47,6 +68,25 @@ export function FilterBar() {
       const next = Math.max(historyIndex - 1, -1);
       setHistoryIndex(next);
       setQuery(next === -1 ? "" : history[next]);
+    } else if (e.key === "Home") {
+      // macOS の WebKit では Home が効かないため、行頭へカーソル移動（Shiftで選択）。
+      e.preventDefault();
+      const el = e.currentTarget;
+      if (e.shiftKey) {
+        el.setSelectionRange(0, el.selectionEnd ?? 0, "backward");
+      } else {
+        el.setSelectionRange(0, 0);
+      }
+    } else if (e.key === "End") {
+      // 同上。行末へカーソル移動（Shiftで選択）。
+      e.preventDefault();
+      const el = e.currentTarget;
+      const len = el.value.length;
+      if (e.shiftKey) {
+        el.setSelectionRange(el.selectionStart ?? len, len, "forward");
+      } else {
+        el.setSelectionRange(len, len);
+      }
     }
   };
 
@@ -61,14 +101,30 @@ export function FilterBar() {
           setHistoryIndex(-1);
         }}
         onKeyDown={onKeyDown}
-        list="filter-history"
         aria-label="フィルタクエリ"
       />
-      <datalist id="filter-history">
-        {history.map((h) => (
-          <option key={h} value={h} />
-        ))}
-      </datalist>
+      <div className="history-wrap" ref={historyWrapRef}>
+        <button
+          className="history-btn"
+          onClick={() => setHistoryOpen((o) => !o)}
+          disabled={history.length === 0}
+          aria-label="検索履歴"
+          aria-expanded={historyOpen}
+        >
+          ▾
+        </button>
+        {historyOpen && history.length > 0 && (
+          <ul className="history-dropdown">
+            {history.map((h) => (
+              <li key={h}>
+                <button onClick={() => pickHistory(h)} title={h}>
+                  {h}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       <button onClick={() => void submit()} aria-label="検索">
         検索
       </button>

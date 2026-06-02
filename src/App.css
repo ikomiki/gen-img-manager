@@ -12,13 +12,23 @@ body,
 
 .app-shell {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  /* グリッドの列幅は App.tsx の inline style（dirWidth）で上書きする。 */
+  grid-template-columns: 220px 5px 1fr;
   grid-template-rows: auto 1fr;
   grid-template-areas:
-    "filter filter"
-    "dirs   grid";
+    "filter filter   filter"
+    "dirs   resizer  grid";
   height: 100vh;
   margin: 0;
+}
+
+.dir-resizer {
+  grid-area: resizer;
+  cursor: col-resize;
+  background: #ddd;
+}
+.dir-resizer:hover {
+  background: #3a6ea5;
 }
 
 .filter-bar-slot {
@@ -229,8 +239,10 @@ body,
   display: block;
 }
 .viewer-img.viewer-fit {
-  max-width: 100%;
-  max-height: 100%;
+  /* WebKit(Tauri/macOS) では img の flex 子に max-height:100% が効かないため
+     width/height:100% + object-fit:contain で確実に全体フィットさせる。 */
+  width: 100%;
+  height: 100%;
   object-fit: contain;
 }
 .viewer-img.viewer-fill {
@@ -315,4 +327,102 @@ body,
 .image-grid:focus-visible {
   outline: 2px solid #3a6ea5;
   outline-offset: -2px;
+}
+
+/* ビューア: 情報パネル開閉トグル */
+.viewer-meta-toggle {
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+/* ビューア: ズーム倍率インジケータ（一定時間で消える） */
+.viewer-zoom-indicator {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* メタパネル: テキストブロックのアクション・最大化 */
+.meta-block-actions {
+  display: flex;
+  gap: 4px;
+}
+.meta-normalize-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #aaa;
+  margin: 8px 0 0;
+  cursor: pointer;
+}
+.meta-normalize-toggle input {
+  cursor: pointer;
+}
+.meta-panel.maximized {
+  display: flex;
+  flex-direction: column;
+}
+.meta-block.maximized {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.meta-block.maximized .meta-text {
+  flex: 1;
+  max-height: none;
+}
+
+/* フィルタバー: 履歴ドロップダウン（固定幅ボタン） */
+.filter-bar > button,
+.history-btn {
+  flex-shrink: 0;
+}
+.history-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+.history-btn {
+  width: 32px;
+}
+.history-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
+  margin: 2px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  color: #111;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  max-height: 280px;
+  overflow-y: auto;
+  min-width: 240px;
+}
+.history-dropdown li button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+  padding: 4px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 360px;
+}
+.history-dropdown li button:hover {
+  background: #eef;
 }
