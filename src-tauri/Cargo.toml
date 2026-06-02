@@ -25,8 +25,8 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 tauri-plugin-dialog = "2"
 image = "0.25"
 webp = "0.3"
-png = "0.17"
+png = "0.18"
 walkdir = "2"
 kamadak-exif = "0.6"
-quick-xml = "0.37"
+quick-xml = "0.39"
 

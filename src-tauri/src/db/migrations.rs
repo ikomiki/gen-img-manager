@@ -161,4 +161,45 @@ mod tests {
             .unwrap();
         assert_eq!(hits, 1);
     }
+
+    #[test]
+    fn fts_sync_on_delete_and_update() {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        conn.execute(
+            "INSERT INTO directories (path, label, recursive) VALUES ('/d', 'd', 1)",
+            [],
+        )
+        .unwrap();
+        let dir_id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO images (directory_id, path, filename, size, mtime, width, height, pixels, format, positive)
+             VALUES (?1, '/d/a.png', 'a.png', 10, 20, 4, 4, 16, 'png', 'misty harbor sunrise')",
+            rusqlite::params![dir_id],
+        )
+        .unwrap();
+        let img_id = conn.last_insert_rowid();
+
+        // UPDATE: 旧キーワードは消え、新キーワードでヒットする。
+        conn.execute(
+            "UPDATE images SET positive = 'snowy mountain village' WHERE id = ?1",
+            rusqlite::params![img_id],
+        )
+        .unwrap();
+        let old_hits: i64 = conn
+            .query_row("SELECT count(*) FROM images_fts WHERE images_fts MATCH 'harbor'", [], |r| r.get(0))
+            .unwrap();
+        let new_hits: i64 = conn
+            .query_row("SELECT count(*) FROM images_fts WHERE images_fts MATCH 'mountain'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(old_hits, 0, "old keyword should be gone after update");
+        assert_eq!(new_hits, 1, "new keyword should match after update");
+
+        // DELETE: FTSエントリも消える。
+        conn.execute("DELETE FROM images WHERE id = ?1", rusqlite::params![img_id]).unwrap();
+        let after_delete: i64 = conn
+            .query_row("SELECT count(*) FROM images_fts WHERE images_fts MATCH 'mountain'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(after_delete, 0, "fts entry should be removed after delete");
+    }
 }
