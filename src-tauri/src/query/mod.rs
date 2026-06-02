@@ -1,4 +1,4 @@
-// pub mod compile;
+pub mod compile;
 pub mod parse;
 
 /// 構造化条件の演算子。日時も epoch 秒の数値として扱う。
