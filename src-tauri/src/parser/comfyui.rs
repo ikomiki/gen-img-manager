@@ -21,6 +21,10 @@ pub fn extract_comfy_text(prompt_json: &str) -> ComfyFields {
         return fields;
     };
 
+    // NOTE(既知の制限):
+    // - CLIPTextEncodeSDXL のように inputs.text ではなく text_g/text_l を使うノードは取得しない。
+    // - serde_json の Map 反復順は preserve_order 無効時はキー辞書順で、ノードID順とは限らない。
+    //   結合結果は全文検索用途のため順序は機能要件ではない。
     let mut texts: Vec<String> = Vec::new();
     for node in obj.values() {
         let class_type = node.get("class_type").and_then(|v| v.as_str()).unwrap_or("");
@@ -70,5 +74,17 @@ mod tests {
     #[test]
     fn invalid_json_returns_default() {
         assert_eq!(extract_comfy_text("not json"), ComfyFields::default());
+    }
+
+    #[test]
+    fn whitespace_only_text_is_filtered() {
+        let json = r#"{"6": {"class_type": "CLIPTextEncode", "inputs": {"text": "   "}}}"#;
+        assert_eq!(extract_comfy_text(json), ComfyFields::default());
+    }
+
+    #[test]
+    fn non_object_json_returns_default() {
+        assert_eq!(extract_comfy_text("[1, 2, 3]"), ComfyFields::default());
+        assert_eq!(extract_comfy_text("42"), ComfyFields::default());
     }
 }
