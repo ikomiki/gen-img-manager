@@ -15,8 +15,10 @@ export function ImageGridPanel() {
   const selectedIndex = useViewerStore((s) => s.selectedIndex);
   const selectImage = useViewerStore((s) => s.select);
   const openViewer = useViewerStore((s) => s.open);
+  const viewerOpen = useViewerStore((s) => s.isOpen);
 
   const parentRef = useRef<HTMLDivElement>(null);
+  const wasViewerOpen = useRef(false);
   const [width, setWidth] = useState(0);
 
   useEffect(() => {
@@ -44,6 +46,17 @@ export function ImageGridPanel() {
   useEffect(() => {
     rowVirtualizer.measure();
   }, [rowHeight, rowVirtualizer]);
+
+  // ビューアを閉じたら一覧にフォーカスを戻し、選択中の画像へスクロール追従する。
+  useEffect(() => {
+    if (wasViewerOpen.current && !viewerOpen) {
+      parentRef.current?.focus();
+      if (selectedIndex >= 0) {
+        rowVirtualizer.scrollToIndex(Math.floor(selectedIndex / columns));
+      }
+    }
+    wasViewerOpen.current = viewerOpen;
+  }, [viewerOpen, selectedIndex, columns, rowVirtualizer]);
 
   if (width === 0) {
     return <div className="image-grid" ref={parentRef} />;

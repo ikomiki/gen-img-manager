@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
@@ -18,17 +18,26 @@ export function ImageViewer() {
   const index = useViewerStore((s) => s.index);
   const zoomMode = useViewerStore((s) => s.zoomMode);
   const scale = useViewerStore((s) => s.scale);
+  const metaOpen = useViewerStore((s) => s.metaOpen);
   const close = useViewerStore((s) => s.close);
   const next = useViewerStore((s) => s.next);
   const prev = useViewerStore((s) => s.prev);
+  const select = useViewerStore((s) => s.select);
   const setZoomMode = useViewerStore((s) => s.setZoomMode);
   const zoomBy = useViewerStore((s) => s.zoomBy);
+  const toggleMeta = useViewerStore((s) => s.toggleMeta);
 
   const results = useQueryStore((s) => s.results);
   const image = results[index];
 
   const [detail, setDetail] = useState<ImageDetail | null>(null);
 
+  // ズーム倍率インジケータ（一定時間で消える）。
+  const [zoomIndicator, setZoomIndicator] = useState<string | null>(null);
+  const indicatorTimer = useRef<number | null>(null);
+  const firstZoomEffect = useRef(true);
+
+  // 現在画像のメタデータを取得。
   useEffect(() => {
     if (!isOpen || !image) return;
     let active = true;
@@ -43,11 +52,34 @@ export function ImageViewer() {
     };
   }, [isOpen, image]);
 
+  // ズーム変更時に倍率インジケータを表示し、一定時間後に消す。
+  useEffect(() => {
+    if (firstZoomEffect.current) {
+      firstZoomEffect.current = false;
+      return;
+    }
+    const text =
+      zoomMode === "custom" ? `${Math.round(scale * 100)}%` : ZOOM_LABELS[zoomMode];
+    setZoomIndicator(text);
+    if (indicatorTimer.current) window.clearTimeout(indicatorTimer.current);
+    indicatorTimer.current = window.setTimeout(() => setZoomIndicator(null), 1200);
+    return () => {
+      if (indicatorTimer.current) window.clearTimeout(indicatorTimer.current);
+    };
+  }, [zoomMode, scale]);
+
+  // キーボード操作。
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
       switch (e.key) {
         case "Escape":
+          close();
+          break;
+        case "Enter":
+          // 現在表示中の画像を選択しつつ一覧へ戻る。
+          e.preventDefault();
+          select(index);
           close();
           break;
         case "ArrowRight":
@@ -80,7 +112,7 @@ export function ImageViewer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, close, next, prev, zoomBy, setZoomMode]);
+  }, [isOpen, index, close, next, prev, select, zoomBy, setZoomMode]);
 
   if (!isOpen || !image) return null;
 
@@ -88,6 +120,13 @@ export function ImageViewer() {
   const imgClass = `viewer-img viewer-${zoomMode}`;
   const imgStyle =
     zoomMode === "custom" ? { transform: `scale(${scale})` } : undefined;
+
+  // 任意倍率時はホイールでズーム。
+  const onWheel = (e: React.WheelEvent) => {
+    if (zoomMode !== "custom") return;
+    e.preventDefault();
+    zoomBy(e.deltaY < 0 ? 1.1 : 0.9);
+  };
 
   return (
     <div className="viewer-overlay">
@@ -110,8 +149,16 @@ export function ImageViewer() {
               </button>
             ))}
           </div>
+          <button
+            className="viewer-meta-toggle"
+            onClick={toggleMeta}
+            aria-pressed={metaOpen}
+            aria-label="情報パネルの表示切替"
+          >
+            {metaOpen ? "情報 ▶" : "◀ 情報"}
+          </button>
         </div>
-        <div className="viewer-stage">
+        <div className="viewer-stage" onWheel={onWheel}>
           <button className="viewer-nav prev" onClick={prev} aria-label="前へ">
             ‹
           </button>
@@ -119,9 +166,10 @@ export function ImageViewer() {
           <button className="viewer-nav next" onClick={next} aria-label="次へ">
             ›
           </button>
+          {zoomIndicator && <div className="viewer-zoom-indicator">{zoomIndicator}</div>}
         </div>
       </div>
-      <MetadataPanel detail={detail} />
+      {metaOpen && <MetadataPanel detail={detail} />}
     </div>
   );
 }
