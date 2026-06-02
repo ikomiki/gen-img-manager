@@ -65,6 +65,16 @@ const MIGRATIONS: &[&str] = &[
         INSERT INTO images_fts(rowid, raw_parameters, positive, negative, model, filename)
         VALUES (new.id, new.raw_parameters, new.positive, new.negative, new.model, new.filename);
     END;",
+    // v3: filter_history, settings
+    "CREATE TABLE filter_history (
+        id INTEGER PRIMARY KEY,
+        query_text TEXT NOT NULL UNIQUE,
+        used_at INTEGER NOT NULL
+    );
+    CREATE TABLE settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );",
 ];
 
 /// 未適用のマイグレーションを順に適用し PRAGMA user_version を更新する。
@@ -95,7 +105,7 @@ mod tests {
         let v: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 2);
+        assert_eq!(v, 3);
 
         let count: i64 = conn
             .query_row(
@@ -115,7 +125,7 @@ mod tests {
         let v: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 2);
+        assert_eq!(v, 3);
     }
 
     #[test]
@@ -123,7 +133,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 2);
+        assert_eq!(v, 3);
         for name in ["images", "images_fts"] {
             let c: i64 = conn
                 .query_row(
@@ -201,5 +211,19 @@ mod tests {
             .query_row("SELECT count(*) FROM images_fts WHERE images_fts MATCH 'mountain'", [], |r| r.get(0))
             .unwrap();
         assert_eq!(after_delete, 0, "fts entry should be removed after delete");
+    }
+
+    #[test]
+    fn v3_creates_history_and_settings_and_version_is_3() {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(v, 3);
+        for name in ["filter_history", "settings"] {
+            let c: i64 = conn
+                .query_row("SELECT count(*) FROM sqlite_master WHERE name = ?1", [name], |r| r.get(0))
+                .unwrap();
+            assert_eq!(c, 1, "missing table: {name}");
+        }
     }
 }
