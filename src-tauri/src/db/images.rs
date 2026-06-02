@@ -89,6 +89,27 @@ pub fn list_paths_in_directory(
     rows.collect()
 }
 
+/// ディレクトリ配下の (path, id, size, mtime, missing) 一覧。
+/// 変更検出（事前ロードマップ）と missing 検出の両方に使う。
+pub fn list_meta_in_directory(
+    conn: &Connection,
+    directory_id: i64,
+) -> rusqlite::Result<Vec<(String, i64, i64, i64, bool)>> {
+    let mut stmt = conn.prepare(
+        "SELECT path, id, size, mtime, missing FROM images WHERE directory_id = ?1",
+    )?;
+    let rows = stmt.query_map(params![directory_id], |r| {
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, i64>(1)?,
+            r.get::<_, i64>(2)?,
+            r.get::<_, i64>(3)?,
+            r.get::<_, i64>(4)? != 0,
+        ))
+    })?;
+    rows.collect()
+}
+
 pub fn mark_missing(conn: &Connection, id: i64, missing: bool) -> rusqlite::Result<()> {
     conn.execute(
         "UPDATE images SET missing = ?2 WHERE id = ?1",
@@ -192,5 +213,20 @@ mod tests {
         delete_by_directory(&c, 1).unwrap();
         let count: i64 = c.query_row("SELECT count(*) FROM images", [], |r| r.get(0)).unwrap();
         assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn list_meta_in_directory_returns_all_fields() {
+        let c = conn();
+        let id = upsert(&c, &sample("/d/a.png")).unwrap();
+        mark_missing(&c, id, true).unwrap();
+        let metas = list_meta_in_directory(&c, 1).unwrap();
+        assert_eq!(metas.len(), 1);
+        let (path, got_id, size, mtime, missing) = &metas[0];
+        assert_eq!(path, "/d/a.png");
+        assert_eq!(*got_id, id);
+        assert_eq!(*size, 100);
+        assert_eq!(*mtime, 200);
+        assert!(*missing);
     }
 }
