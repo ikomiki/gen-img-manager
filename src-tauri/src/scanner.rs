@@ -205,20 +205,23 @@ mod tests {
         writer.write_image_data(&vec![0u8; 4 * 2 * 4]).unwrap();
     }
 
+    fn unique_id() -> u64 {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        COUNTER.fetch_add(1, Ordering::Relaxed)
+    }
+
     fn setup() -> (Connection, std::path::PathBuf, Directory) {
         let c = Connection::open_in_memory().unwrap();
         migrations::run(&c).unwrap();
-        let base = std::env::temp_dir().join(format!("gim_scan_{}_{}", std::process::id(), now_nonce()));
+        let base = std::env::temp_dir().join(format!(
+            "gim_scan_{}_{}",
+            std::process::id(),
+            unique_id()
+        ));
         std::fs::create_dir_all(&base).unwrap();
         let dir = directories::add(&c, base.to_str().unwrap(), "scan", true).unwrap();
         (c, base, dir)
-    }
-
-    fn now_nonce() -> u128 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
     }
 
     #[test]
