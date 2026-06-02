@@ -8,4 +8,5 @@ pub struct Directory {
     pub is_online: bool,
     pub last_scanned_at: Option<i64>,
     pub recursive: bool,
+    pub visible: bool,
 }
