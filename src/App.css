@@ -306,3 +306,8 @@ body,
   overflow-y: auto;
   margin: 4px 0 0;
 }
+
+.thumb-cell.selected .thumb-square {
+  outline: 2px solid #3a6ea5;
+  outline-offset: 1px;
+}

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useQueryStore } from "../store/useQueryStore";
+import { useViewerStore } from "../store/useViewerStore";
+import { ImageViewer } from "./ImageViewer";
 
 const MIN_CELL = 160; // セル最小幅(px)。これを基準に列数を決める。
 const GAP = 6;
@@ -10,6 +12,10 @@ const NAME_H = 34; // ファイル名2行分の高さ(px)（line-height 1.3 × 1
 export function ImageGridPanel() {
   const results = useQueryStore((s) => s.results);
   const showFilename = useQueryStore((s) => s.showFilename);
+
+  const selectedIndex = useViewerStore((s) => s.selectedIndex);
+  const selectImage = useViewerStore((s) => s.select);
+  const openViewer = useViewerStore((s) => s.open);
 
   const parentRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -53,7 +59,17 @@ export function ImageGridPanel() {
   }
 
   return (
-    <div className="image-grid" ref={parentRef}>
+    <div
+      className="image-grid"
+      ref={parentRef}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && results[selectedIndex]) {
+          e.preventDefault();
+          openViewer(selectedIndex);
+        }
+      }}
+    >
       <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}>
         {rowVirtualizer.getVirtualItems().map((vrow) => {
           const start = vrow.index * columns;
@@ -72,30 +88,41 @@ export function ImageGridPanel() {
                 gap: GAP,
               }}
             >
-              {items.map((img) => (
-                <div key={img.id} className="thumb-cell">
-                  <div className="thumb-square" style={{ height: cellSize }}>
-                    {img.thumb_path ? (
-                      <img
-                        src={convertFileSrc(img.thumb_path)}
-                        alt={img.filename}
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="thumb-missing">▦</div>
+              {items.map((img, col) => {
+                const globalIndex = start + col;
+                return (
+                  <div
+                    key={img.id}
+                    className={
+                      globalIndex === selectedIndex ? "thumb-cell selected" : "thumb-cell"
+                    }
+                    onClick={() => selectImage(globalIndex)}
+                    onDoubleClick={() => openViewer(globalIndex)}
+                  >
+                    <div className="thumb-square" style={{ height: cellSize }}>
+                      {img.thumb_path ? (
+                        <img
+                          src={convertFileSrc(img.thumb_path)}
+                          alt={img.filename}
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="thumb-missing">▦</div>
+                      )}
+                    </div>
+                    {showFilename && (
+                      <div className="thumb-name" title={img.filename}>
+                        {img.filename}
+                      </div>
                     )}
                   </div>
-                  {showFilename && (
-                    <div className="thumb-name" title={img.filename}>
-                      {img.filename}
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           );
         })}
       </div>
+      <ImageViewer />
     </div>
   );
 }
