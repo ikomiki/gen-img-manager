@@ -9,6 +9,7 @@ interface LibraryState {
   loadDirectories: () => Promise<void>;
   addDirectory: (path: string, recursive: boolean) => Promise<void>;
   removeDirectory: (id: number) => Promise<void>;
+  setDirectoryVisible: (id: number, visible: boolean) => Promise<void>;
   setScanProgress: (p: ScanProgress) => void;
   clearScanProgress: (id: number) => void;
   setImageCount: (id: number, count: number) => void;
@@ -28,6 +29,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
   removeDirectory: async (id) => {
     await api.removeDirectory(id);
     set({ directories: get().directories.filter((d) => d.id !== id) });
+  },
+  setDirectoryVisible: async (id, visible) => {
+    await api.setDirectoryVisible(id, visible);
+    set({
+      directories: get().directories.map((d) =>
+        d.id === id ? { ...d, visible } : d,
+      ),
+    });
   },
   setScanProgress: (p) => set({ scanning: { ...get().scanning, [p.directory_id]: p } }),
   clearScanProgress: (id) => {

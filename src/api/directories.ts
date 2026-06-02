@@ -8,3 +8,6 @@ export const addDirectory = (path: string, recursive: boolean) =>
 
 export const removeDirectory = (id: number) =>
   invoke<void>("remove_directory", { id });
+
+export const setDirectoryVisible = (id: number, visible: boolean) =>
+  invoke<void>("set_directory_visible", { id, visible });

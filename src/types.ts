@@ -5,6 +5,7 @@ export interface Directory {
   is_online: boolean;
   last_scanned_at: number | null;
   recursive: boolean;
+  visible: boolean;
 }
 
 export interface ScanProgress {

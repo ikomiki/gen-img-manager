@@ -5,7 +5,7 @@ import * as api from "../api/directories";
 vi.mock("../api/directories");
 
 const dir = (id: number, label: string): import("../types").Directory => ({
-  id, path: `/p/${label}`, label, is_online: true, last_scanned_at: null, recursive: true,
+  id, path: `/p/${label}`, label, is_online: true, last_scanned_at: null, recursive: true, visible: true,
 });
 
 beforeEach(() => {
