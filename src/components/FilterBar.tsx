@@ -68,6 +68,25 @@ export function FilterBar() {
       const next = Math.max(historyIndex - 1, -1);
       setHistoryIndex(next);
       setQuery(next === -1 ? "" : history[next]);
+    } else if (e.key === "Home") {
+      // macOS の WebKit では Home が効かないため、行頭へカーソル移動（Shiftで選択）。
+      e.preventDefault();
+      const el = e.currentTarget;
+      if (e.shiftKey) {
+        el.setSelectionRange(0, el.selectionEnd ?? 0, "backward");
+      } else {
+        el.setSelectionRange(0, 0);
+      }
+    } else if (e.key === "End") {
+      // 同上。行末へカーソル移動（Shiftで選択）。
+      e.preventDefault();
+      const el = e.currentTarget;
+      const len = el.value.length;
+      if (e.shiftKey) {
+        el.setSelectionRange(el.selectionStart ?? len, len, "forward");
+      } else {
+        el.setSelectionRange(len, len);
+      }
     }
   };
 
