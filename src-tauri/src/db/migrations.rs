@@ -129,7 +129,7 @@ mod tests {
     }
 
     #[test]
-    fn v2_creates_images_and_fts_and_version_is_2() {
+    fn v2_creates_images_and_fts() {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
