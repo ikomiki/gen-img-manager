@@ -6,6 +6,7 @@ use rusqlite::Connection;
 use serde::Serialize;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 const REACH_TIMEOUT: Duration = Duration::from_secs(3);
@@ -157,6 +158,11 @@ fn process_one(
     }
 }
 
+/// 接続ロックを取得する（毒されていても中身を取り出して継続）。
+fn lock_conn(conn: &Arc<Mutex<Connection>>) -> std::sync::MutexGuard<'_, Connection> {
+    conn.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// 1ディレクトリをスキャンする。`on_progress` は進捗の節目ごとに呼ばれる。
 /// 到達不可なら is_online=0 にして early return（解析しない）。
 ///
@@ -165,7 +171,7 @@ fn process_one(
 /// 既知の限界: ファイルシステムが mtime を返さない場合 mtime=0 となり、
 /// サイズも不変なら変更を取りこぼしうる（大半のFSでは問題にならない）。
 pub fn scan_directory<F: Fn(ScanProgress) + Sync>(
-    conn: &Connection,
+    conn: &Arc<Mutex<Connection>>,
     dir: &Directory,
     thumb_dir: &Path,
     now: i64,
@@ -174,11 +180,12 @@ pub fn scan_directory<F: Fn(ScanProgress) + Sync>(
 ) -> rusqlite::Result<ScanSummary> {
     let root = Path::new(&dir.path);
     if !fs_guard::is_reachable(root, REACH_TIMEOUT) {
-        directories::set_online(conn, dir.id, false)?;
+        let c = lock_conn(conn);
+        directories::set_online(&c, dir.id, false)?;
         return Ok(ScanSummary { reachable: false, ..Default::default() });
     }
 
-    // 対象ファイル列挙（thumb_dir 配下は除外）。
+    // 対象ファイル列挙（thumb_dir 配下は除外）。DBロック不要。
     let walker = walkdir::WalkDir::new(root).max_depth(if dir.recursive { usize::MAX } else { 1 });
     let files: Vec<std::path::PathBuf> = walker
         .into_iter()
@@ -193,8 +200,11 @@ pub fn scan_directory<F: Fn(ScanProgress) + Sync>(
         .collect();
     let total = files.len();
 
-    // 既存メタを一度だけ事前ロード（変更検出 + missing 検出に共用）。
-    let existing = images::list_meta_in_directory(conn, dir.id)?;
+    // 既存メタを一度だけ事前ロード（変更検出 + missing 検出に共用）。短時間ロック。
+    let existing = {
+        let c = lock_conn(conn);
+        images::list_meta_in_directory(&c, dir.id)?
+    };
     let prev_map: std::collections::HashMap<String, PrevMeta> = existing
         .iter()
         .map(|(path, id, size, mtime, missing)| {
@@ -205,7 +215,8 @@ pub fn scan_directory<F: Fn(ScanProgress) + Sync>(
         })
         .collect();
 
-    // 並列フェーズ: stat→decide→parse+サムネ。DB には触れない。
+    // 並列フェーズ: stat→decide→parse+サムネ。DB には触れない（ロックを保持しない）。
+    // ここが長時間（NASのファイルI/O）なので、この間は他のDB操作をブロックしない。
     let counter = AtomicUsize::new(0);
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(concurrency.max(1))
@@ -235,37 +246,40 @@ pub fn scan_directory<F: Fn(ScanProgress) + Sync>(
         on_progress(ScanProgress { directory_id: dir.id, processed: 0, total: 0, current: String::new() });
     }
 
-    // 書き込みフェーズ（逐次・単一接続）。
+    // 書き込みフェーズ（逐次・単一接続）。ここだけロックを保持する。
     let mut summary = ScanSummary { reachable: true, ..Default::default() };
-    for outcome in outcomes {
-        match outcome {
-            FileOutcome::Unchanged { id, was_missing } => {
-                if was_missing {
-                    images::mark_missing(conn, id, false)?;
+    {
+        let c = lock_conn(conn);
+        for outcome in outcomes {
+            match outcome {
+                FileOutcome::Unchanged { id, was_missing } => {
+                    if was_missing {
+                        images::mark_missing(&c, id, false)?;
+                    }
+                    summary.skipped += 1;
                 }
-                summary.skipped += 1;
+                FileOutcome::Upsert(mut img) => {
+                    img.directory_id = dir.id;
+                    images::upsert(&c, &img)?;
+                    summary.added_or_updated += 1;
+                }
+                FileOutcome::Failed => {}
             }
-            FileOutcome::Upsert(mut img) => {
-                img.directory_id = dir.id;
-                images::upsert(conn, &img)?;
-                summary.added_or_updated += 1;
+        }
+
+        // missing 検出: 列挙されなかった既存パスに印を付ける（事前ロード済み existing を再利用）。
+        let seen: std::collections::HashSet<String> =
+            files.iter().map(|f| f.to_string_lossy().to_string()).collect();
+        for (db_path, id, _size, _mtime, _missing) in &existing {
+            if !seen.contains(db_path) {
+                images::mark_missing(&c, *id, true)?;
+                summary.missing += 1;
             }
-            FileOutcome::Failed => {}
         }
-    }
 
-    // missing 検出: 列挙されなかった既存パスに印を付ける（事前ロード済み existing を再利用）。
-    let seen: std::collections::HashSet<String> =
-        files.iter().map(|f| f.to_string_lossy().to_string()).collect();
-    for (db_path, id, _size, _mtime, _missing) in &existing {
-        if !seen.contains(db_path) {
-            images::mark_missing(conn, *id, true)?;
-            summary.missing += 1;
-        }
+        directories::set_online(&c, dir.id, true)?;
+        directories::set_last_scanned(&c, dir.id, now)?;
     }
-
-    directories::set_online(conn, dir.id, true)?;
-    directories::set_last_scanned(conn, dir.id, now)?;
     Ok(summary)
 }
 
@@ -292,7 +306,7 @@ mod tests {
         COUNTER.fetch_add(1, Ordering::Relaxed)
     }
 
-    fn setup() -> (Connection, std::path::PathBuf, Directory) {
+    fn setup() -> (Arc<Mutex<Connection>>, std::path::PathBuf, Directory) {
         let c = Connection::open_in_memory().unwrap();
         migrations::run(&c).unwrap();
         let base = std::env::temp_dir().join(format!(
@@ -302,7 +316,7 @@ mod tests {
         ));
         std::fs::create_dir_all(&base).unwrap();
         let dir = directories::add(&c, base.to_str().unwrap(), "scan", true).unwrap();
-        (c, base, dir)
+        (Arc::new(Mutex::new(c)), base, dir)
     }
 
     #[test]
@@ -315,7 +329,7 @@ mod tests {
         let s1 = scan_directory(&c, &dir, &thumb_dir, 1000, 4, |_| {}).unwrap();
         assert!(s1.reachable);
         assert_eq!(s1.added_or_updated, 2);
-        assert_eq!(images::count_in_directory(&c, dir.id).unwrap(), 2);
+        assert_eq!(images::count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 2);
 
         // 2回目: 変更なし → 全てスキップ。
         let s2 = scan_directory(&c, &dir, &thumb_dir, 1001, 4, |_| {}).unwrap();
@@ -323,7 +337,7 @@ mod tests {
         assert_eq!(s2.skipped, 2);
 
         // 検索（FTS）が効く。
-        let hits: i64 = c
+        let hits: i64 = c.lock().unwrap()
             .query_row("SELECT count(*) FROM images_fts WHERE images_fts MATCH 'cat'", [], |r| r.get(0))
             .unwrap();
         assert_eq!(hits, 1);
@@ -338,14 +352,14 @@ mod tests {
         let a = base.join("a.png");
         write_png_with_params(&a, "x\nSteps: 1, Seed: 1");
         scan_directory(&c, &dir, &thumb_dir, 1000, 4, |_| {}).unwrap();
-        assert_eq!(images::count_in_directory(&c, dir.id).unwrap(), 1);
+        assert_eq!(images::count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 1);
 
         std::fs::remove_file(&a).unwrap();
         let s = scan_directory(&c, &dir, &thumb_dir, 1001, 4, |_| {}).unwrap();
         assert_eq!(s.missing, 1);
         // missing は count から除外（行は残る）。
-        assert_eq!(images::count_in_directory(&c, dir.id).unwrap(), 0);
-        let rows: i64 = c.query_row("SELECT count(*) FROM images", [], |r| r.get(0)).unwrap();
+        assert_eq!(images::count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 0);
+        let rows: i64 = c.lock().unwrap().query_row("SELECT count(*) FROM images", [], |r| r.get(0)).unwrap();
         assert_eq!(rows, 1);
 
         std::fs::remove_dir_all(&base).ok();
@@ -353,12 +367,13 @@ mod tests {
 
     #[test]
     fn unreachable_directory_sets_offline() {
-        let c = Connection::open_in_memory().unwrap();
-        migrations::run(&c).unwrap();
-        let dir = directories::add(&c, "/no/such/path/gim_unreachable", "x", true).unwrap();
+        let conn = Connection::open_in_memory().unwrap();
+        migrations::run(&conn).unwrap();
+        let dir = directories::add(&conn, "/no/such/path/gim_unreachable", "x", true).unwrap();
+        let c = Arc::new(Mutex::new(conn));
         let s = scan_directory(&c, &dir, Path::new("/tmp/thumbs"), 1000, 4, |_| {}).unwrap();
         assert!(!s.reachable);
-        assert!(!directories::get(&c, dir.id).unwrap().is_online);
+        assert!(!directories::get(&c.lock().unwrap(), dir.id).unwrap().is_online);
     }
 
     #[test]
@@ -414,7 +429,7 @@ mod tests {
         }
         let s1 = scan_directory(&c, &dir, &thumb_dir, 1000, 8, |_| {}).unwrap();
         assert_eq!(s1.added_or_updated, 30);
-        assert_eq!(images::count_in_directory(&c, dir.id).unwrap(), 30);
+        assert_eq!(images::count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 30);
         let s2 = scan_directory(&c, &dir, &thumb_dir, 1001, 8, |_| {}).unwrap();
         assert_eq!(s2.added_or_updated, 0);
         assert_eq!(s2.skipped, 30);

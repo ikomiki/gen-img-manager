@@ -99,10 +99,9 @@ pub fn count_images(db: State<Db>, id: i64) -> Result<i64, String> {
 
 /// 指定IDのディレクトリ群を順にスキャンし、進捗/完了イベントを発火する。
 ///
-/// 注: 1ディレクトリのスキャン全体で単一接続のロックを保持する簡易方式
-/// （計画3で読み取り専用接続の分離を検討）。スキャン中は他のDB操作がブロックされる。
-/// また async_runtime（tokio）上で std::sync::Mutex を保持するが、scan_directory は
-/// 同期処理（.awaitを跨がない）のためデッドロックの懸念はない。
+/// scan_directory 内部でフェーズごとにロックを取得/解放するため、
+/// 長い並列フェーズ（NASのファイルI/O）中はDBロックを保持しない。
+/// これにより、スキャン中も他のDB操作（set_directory_visible等）がブロックされない。
 fn run_scan_ids(
     app: &AppHandle,
     conn_arc: Arc<Mutex<rusqlite::Connection>>,
@@ -122,18 +121,22 @@ fn run_scan_ids(
             .unwrap_or(scanner::DEFAULT_CONCURRENCY)
     };
     for &id in ids {
-        let scan_ok = {
+        // ディレクトリ情報だけ短時間ロックで取得する。
+        let dir = {
             let conn = conn_arc.lock().unwrap_or_else(|e| e.into_inner());
-            match directories::get(&conn, id) {
-                Ok(dir) => {
-                    let app_cb = app.clone();
-                    scanner::scan_directory(&conn, &dir, thumb_dir, now, concurrency, move |p| {
-                        let _ = app_cb.emit("scan-progress", &p);
-                    })
-                    .is_ok()
-                }
-                Err(_) => false,
+            directories::get(&conn, id).ok()
+        };
+        let scan_ok = match dir {
+            Some(dir) => {
+                let app_cb = app.clone();
+                // scan_directory 内部でフェーズごとにロックを取得/解放するため、
+                // 長い並列フェーズ中はDBロックを保持しない（スキャン中も他操作が可能）。
+                scanner::scan_directory(&conn_arc, &dir, thumb_dir, now, concurrency, move |p| {
+                    let _ = app_cb.emit("scan-progress", &p);
+                })
+                .is_ok()
             }
+            None => false,
         };
         let success = scan_ok && !failed_pre.contains(&id);
         let _ = app.emit("scan-done", ScanDone { directory_id: id, success });
