@@ -90,13 +90,6 @@ pub fn rebuild_all(app: AppHandle, db: State<Db>) -> Result<(), String> {
     Ok(())
 }
 
-/// ディレクトリ内の（missing除く）画像件数を返す。
-#[tauri::command]
-pub fn count_images(db: State<Db>, id: i64) -> Result<i64, String> {
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-    images::count_in_directory(&conn, id).map_err(|e| e.to_string())
-}
-
 /// 指定IDのディレクトリ群を順にスキャンし、進捗/完了イベントを発火する。
 ///
 /// scan_directory 内部でフェーズごとにロックを取得/解放するため、

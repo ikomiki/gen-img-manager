@@ -93,6 +93,7 @@ pub fn mark_missing(conn: &Connection, id: i64, missing: bool) -> rusqlite::Resu
     Ok(())
 }
 
+#[cfg(test)]
 pub fn count_in_directory(conn: &Connection, directory_id: i64) -> rusqlite::Result<i64> {
     conn.query_row(
         "SELECT count(*) FROM images WHERE directory_id = ?1 AND missing = 0",
