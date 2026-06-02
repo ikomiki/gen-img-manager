@@ -25,7 +25,8 @@ pub fn decode_user_comment(bytes: &[u8]) -> Option<String> {
                 .collect();
             String::from_utf16_lossy(&u16s)
         }
-        _ => String::from_utf8_lossy(bytes).to_string(),
+        // 不明な文字コード指定: ヘッダ8バイトを除いた本体をUTF-8とみなす。
+        _ => String::from_utf8_lossy(body).to_string(),
     };
     let text = text.trim_matches(char::from(0)).trim().to_string();
     if text.is_empty() {
@@ -109,5 +110,20 @@ mod tests {
         // EXIFを書いていないので UserComment は None。
         assert_eq!(data.user_comment, None);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn unknown_charset_header_is_stripped() {
+        // 先頭8バイトが未知コード（例: JIS\0...）でも本体だけを返す。
+        let mut bytes = b"JIS\0\0\0\0\0".to_vec();
+        bytes.extend_from_slice(b"hello");
+        assert_eq!(decode_user_comment(&bytes).as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn ascii_trailing_nulls_are_trimmed() {
+        let mut bytes = b"ASCII\0\0\0".to_vec();
+        bytes.extend_from_slice(b"foo\0\0");
+        assert_eq!(decode_user_comment(&bytes).as_deref(), Some("foo"));
     }
 }
