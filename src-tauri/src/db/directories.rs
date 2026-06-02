@@ -49,6 +49,22 @@ fn row_to_dir(r: &rusqlite::Row) -> rusqlite::Result<Directory> {
     })
 }
 
+pub fn set_online(conn: &Connection, id: i64, online: bool) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE directories SET is_online = ?2 WHERE id = ?1",
+        params![id, online as i64],
+    )?;
+    Ok(())
+}
+
+pub fn set_last_scanned(conn: &Connection, id: i64, ts: i64) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE directories SET last_scanned_at = ?2 WHERE id = ?1",
+        params![id, ts],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,5 +103,16 @@ mod tests {
         let c = conn();
         add(&c, "/a", "a", true).unwrap();
         assert!(add(&c, "/a", "a", true).is_err());
+    }
+
+    #[test]
+    fn set_online_and_last_scanned_persist() {
+        let c = conn();
+        let d = add(&c, "/a", "a", true).unwrap();
+        set_online(&c, d.id, false).unwrap();
+        set_last_scanned(&c, d.id, 1717000000).unwrap();
+        let got = get(&c, d.id).unwrap();
+        assert!(!got.is_online);
+        assert_eq!(got.last_scanned_at, Some(1717000000));
     }
 }

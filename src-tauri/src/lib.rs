@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod fs_guard;
 mod models;
 mod parser;
 mod thumbnail;
