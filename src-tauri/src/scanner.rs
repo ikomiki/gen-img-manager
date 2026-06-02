@@ -44,6 +44,11 @@ fn mtime_secs(meta: &std::fs::Metadata) -> i64 {
 
 /// 1ディレクトリをスキャンする。`on_progress` は1ファイルごとに呼ばれる。
 /// 到達不可なら is_online=0 にして early return（解析しない）。
+///
+/// 前提: `thumb_dir` は**絶対パス**であること（walkdir が返す絶対パスとの
+/// `starts_with` 比較で生成済みサムネを除外するため。相対パスだと除外が効かない）。
+/// 既知の限界: ファイルシステムが mtime を返さない場合 mtime=0 となり、
+/// サイズも不変なら変更を取りこぼしうる（大半のFSでは問題にならない）。
 pub fn scan_directory<F: FnMut(ScanProgress)>(
     conn: &Connection,
     dir: &Directory,
@@ -82,7 +87,16 @@ pub fn scan_directory<F: FnMut(ScanProgress)>(
 
         let meta = match std::fs::metadata(file) {
             Ok(m) => m,
-            Err(_) => continue, // 1ファイルの失敗で全体を止めない
+            Err(_) => {
+                // 1ファイルの失敗で全体を止めない（進捗は単調に進める）
+                on_progress(ScanProgress {
+                    directory_id: dir.id,
+                    processed: i + 1,
+                    total,
+                    current: path_str,
+                });
+                continue;
+            }
         };
         let size = meta.len() as i64;
         let mtime = mtime_secs(&meta);
