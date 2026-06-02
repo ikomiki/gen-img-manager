@@ -1,7 +1,92 @@
+import { useState } from "react";
+import { useQueryStore } from "../store/useQueryStore";
+import type { SortKey } from "../types";
+import { FilterDialog } from "./FilterDialog";
+
+const SORT_LABELS: Record<SortKey, string> = {
+  filename: "名前",
+  created: "作成日時",
+  modified: "更新日時",
+};
+
 export function FilterBar() {
+  const query = useQueryStore((s) => s.query);
+  const setQuery = useQueryStore((s) => s.setQuery);
+  const runQuery = useQueryStore((s) => s.runQuery);
+  const commitHistory = useQueryStore((s) => s.commitHistory);
+  const history = useQueryStore((s) => s.history);
+  const sort = useQueryStore((s) => s.sort);
+  const dir = useQueryStore((s) => s.dir);
+  const setSort = useQueryStore((s) => s.setSort);
+  const total = useQueryStore((s) => s.total);
+
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  const submit = async () => {
+    await runQuery();
+    await commitHistory();
+    setHistoryIndex(-1);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      void submit();
+    } else if (e.key === "ArrowUp" && history.length > 0) {
+      e.preventDefault();
+      const next = Math.min(historyIndex + 1, history.length - 1);
+      setHistoryIndex(next);
+      setQuery(history[next]);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = Math.max(historyIndex - 1, -1);
+      setHistoryIndex(next);
+      setQuery(next === -1 ? "" : history[next]);
+    }
+  };
+
   return (
     <div className="filter-bar">
-      <input className="filter-input" placeholder="フィルタ（計画3で実装）" disabled />
+      <input
+        className="filter-input"
+        value={query}
+        placeholder='例: prompt:1girl rating:>=4 -blurry'
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={onKeyDown}
+        list="filter-history"
+        aria-label="フィルタクエリ"
+      />
+      <datalist id="filter-history">
+        {history.map((h) => (
+          <option key={h} value={h} />
+        ))}
+      </datalist>
+      <button onClick={() => void submit()} aria-label="検索">
+        検索
+      </button>
+      <button onClick={() => setDialogOpen(true)}>詳細…</button>
+      <label className="sort-control">
+        並べ替え:
+        <select
+          value={sort}
+          onChange={(e) => setSort(e.target.value as SortKey, dir)}
+          aria-label="ソートキー"
+        >
+          {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+            <option key={k} value={k}>
+              {SORT_LABELS[k]}
+            </option>
+          ))}
+        </select>
+        <button
+          onClick={() => setSort(sort, dir === "asc" ? "desc" : "asc")}
+          aria-label="昇順降順切替"
+        >
+          {dir === "asc" ? "↑" : "↓"}
+        </button>
+      </label>
+      <span className="result-count">{total} 件</span>
+      {dialogOpen && <FilterDialog onClose={() => setDialogOpen(false)} />}
     </div>
   );
 }
