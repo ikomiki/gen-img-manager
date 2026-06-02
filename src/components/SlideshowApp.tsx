@@ -85,7 +85,7 @@ export function SlideshowApp() {
       return;
     }
     if (r.wrapped && randomRef.current && delta === 1) {
-      setOrder(buildOrder(len, true, mulberry32(len + r.pos + posRef.current + 2)));
+      setOrder(buildOrder(len, true, mulberry32(Date.now())));
     }
     setPos(r.pos);
   }, []);
