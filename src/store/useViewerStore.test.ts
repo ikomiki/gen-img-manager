@@ -76,4 +76,12 @@ describe("useViewerStore", () => {
     useViewerStore.getState().toggleMeta();
     expect(useViewerStore.getState().metaOpen).toBe(true);
   });
+
+  it("toggleNormalize flips normalizePrompt", () => {
+    useViewerStore.setState({ normalizePrompt: false });
+    useViewerStore.getState().toggleNormalize();
+    expect(useViewerStore.getState().normalizePrompt).toBe(true);
+    useViewerStore.getState().toggleNormalize();
+    expect(useViewerStore.getState().normalizePrompt).toBe(false);
+  });
 });

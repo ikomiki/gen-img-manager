@@ -352,6 +352,18 @@ body,
   display: flex;
   gap: 4px;
 }
+.meta-normalize-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #aaa;
+  margin: 8px 0 0;
+  cursor: pointer;
+}
+.meta-normalize-toggle input {
+  cursor: pointer;
+}
 .meta-panel.maximized {
   display: flex;
   flex-direction: column;

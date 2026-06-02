@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ImageDetail } from "../types";
+import { useViewerStore } from "../store/useViewerStore";
+import { normalizePromptText } from "../util/normalizeText";
 
 interface Props {
   detail: ImageDetail | null;
@@ -9,6 +11,8 @@ interface TextBlock {
   key: string;
   label: string;
   text: string;
+  /** 整形トグルの対象か（prompt/negative のみ true）。 */
+  normalizable: boolean;
 }
 
 function Row({ label, value }: { label: string; value: string | number | null }) {
@@ -22,6 +26,10 @@ function Row({ label, value }: { label: string; value: string | number | null })
 }
 
 export function MetadataPanel({ detail }: Props) {
+  // prompt/negative の整形表示トグル（空行・カンマだけの行・前後空白を除去）。
+  const normalizePrompt = useViewerStore((s) => s.normalizePrompt);
+  const toggleNormalize = useViewerStore((s) => s.toggleNormalize);
+
   // どのテキストブロックをサイドバー全体に最大化表示しているか。
   const [maximized, setMaximized] = useState<string | null>(null);
 
@@ -44,20 +52,24 @@ export function MetadataPanel({ detail }: Props) {
 
   // 表示するテキストブロック（positive があれば Prompt、無ければ Parameters）。
   const blocks: TextBlock[] = [];
-  if (detail.positive) blocks.push({ key: "prompt", label: "Prompt", text: detail.positive });
-  if (detail.negative) blocks.push({ key: "negative", label: "Negative", text: detail.negative });
+  if (detail.positive)
+    blocks.push({ key: "prompt", label: "Prompt", text: detail.positive, normalizable: true });
+  if (detail.negative)
+    blocks.push({ key: "negative", label: "Negative", text: detail.negative, normalizable: true });
   if (!detail.positive && detail.raw_parameters) {
-    blocks.push({ key: "params", label: "Parameters", text: detail.raw_parameters });
+    blocks.push({ key: "params", label: "Parameters", text: detail.raw_parameters, normalizable: false });
   }
 
   const renderBlock = (b: TextBlock) => {
     const isMax = maximized === b.key;
+    // prompt/negative かつトグルONのときだけ整形して表示・コピーする。
+    const displayText = b.normalizable && normalizePrompt ? normalizePromptText(b.text) : b.text;
     return (
       <div className={isMax ? "meta-block maximized" : "meta-block"} key={b.key}>
         <div className="meta-block-head">
           <span className="meta-label">{b.label}</span>
           <span className="meta-block-actions">
-            <button onClick={() => void copyText(b.text)} aria-label={`${b.label}をコピー`}>
+            <button onClick={() => void copyText(displayText)} aria-label={`${b.label}をコピー`}>
               コピー
             </button>
             <button
@@ -68,15 +80,29 @@ export function MetadataPanel({ detail }: Props) {
             </button>
           </span>
         </div>
-        <pre className="meta-text">{b.text}</pre>
+        <pre className="meta-text">{displayText}</pre>
       </div>
     );
   };
 
+  // 整形トグル（prompt/negative がある場合のみ表示）。
+  const hasNormalizable = blocks.some((b) => b.normalizable);
+  const normalizeToggle = hasNormalizable ? (
+    <label className="meta-normalize-toggle" title="空行・カンマだけの行・行頭行末の空白を除去">
+      <input type="checkbox" checked={normalizePrompt} onChange={toggleNormalize} />
+      整形（空行・カンマ行・前後空白を除去）
+    </label>
+  ) : null;
+
   // 最大化中は対象ブロックのみをサイドバー全体に表示する。
   const maxBlock = maximized ? blocks.find((b) => b.key === maximized) : undefined;
   if (maxBlock) {
-    return <div className="meta-panel maximized">{renderBlock(maxBlock)}</div>;
+    return (
+      <div className="meta-panel maximized">
+        {maxBlock.normalizable && normalizeToggle}
+        {renderBlock(maxBlock)}
+      </div>
+    );
   }
 
   return (
@@ -84,6 +110,7 @@ export function MetadataPanel({ detail }: Props) {
       <h3 className="meta-filename" title={detail.path}>
         {detail.filename}
       </h3>
+      {normalizeToggle}
       <Row label="サイズ" value={`${detail.width} × ${detail.height}`} />
       <Row label="ツール" value={detail.source_tool} />
       <Row label="モデル" value={detail.model} />
