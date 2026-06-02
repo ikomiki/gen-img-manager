@@ -2,6 +2,7 @@ mod commands;
 mod db;
 mod models;
 mod parser;
+mod thumbnail;
 
 use std::sync::Mutex;
 use tauri::Manager;
