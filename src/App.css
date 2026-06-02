@@ -498,3 +498,45 @@ body,
   opacity: 0.6;
   cursor: default;
 }
+
+.filter-dialog {
+  max-height: 90vh;
+  overflow-y: auto;
+  min-width: 360px;
+}
+.filter-dialog label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.filter-dialog input[type="text"],
+.filter-dialog input[type="number"] {
+  flex: 1;
+  min-width: 0;
+}
+.date-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 8px;
+}
+.date-field-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.date-field-head span {
+  font-weight: 600;
+}
+.date-clear {
+  font-size: 11px;
+}
+/* 画像が存在する日のハイライト */
+.rdp-has-images:not([disabled]) {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: #3a6ea5;
+}

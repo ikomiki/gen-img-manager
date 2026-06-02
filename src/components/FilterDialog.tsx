@@ -1,44 +1,80 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/style.css";
 import { useQueryStore } from "../store/useQueryStore";
+import { extractField, upsertField } from "../util/queryTokens";
+import { imageDateInfo, localDateToDate, dateToLocalString } from "../util/imageDates";
 
 interface Props {
   onClose: () => void;
 }
 
+/** created トークン値 (">=A" / "<=B" / "A..B" / "A") を from/to へ分解。 */
+function parseCreated(v: string | null): { from: string; to: string } {
+  if (!v) return { from: "", to: "" };
+  if (v.includes("..")) {
+    const [a, b] = v.split("..");
+    return { from: a ?? "", to: b ?? "" };
+  }
+  if (v.startsWith(">=")) return { from: v.slice(2), to: "" };
+  if (v.startsWith("<=")) return { from: "", to: v.slice(2) };
+  return { from: v, to: v };
+}
+
 /**
- * 既存クエリから指定フィールドのトークンを除去して新トークンを追記する。
- * NOTE(既知の制限): 空白で分割するため、クエリ中のダブルクォート句（例 prompt:"a b"）は
- * 壊れる可能性がある。詳細ダイアログが扱う field:value トークンは引用句を含まないため実用上問題ない。
+ * from/to から created トークン値を生成。
+ * NOTE: 単一日（from==to）は `A..A` になる。バックエンドは bare な `A` も `A..A` も
+ * 同日の Range(0時, 23:59:59) として解釈するため意味は同じ（トークン表記のみ変わる）。
  */
-function upsertToken(query: string, field: string, token: string | null): string {
-  const tokens = query.split(/\s+/).filter((t) => t && !t.startsWith(`${field}:`));
-  if (token) tokens.push(token);
-  return tokens.join(" ").trim();
+function buildCreated(from: string, to: string): string | null {
+  if (from && to) return `${from}..${to}`;
+  if (from) return `>=${from}`;
+  if (to) return `<=${to}`;
+  return null;
+}
+
+/** ">=N" から N を取り出す。整数のみ。 */
+function parseMin(v: string | null): string {
+  const m = v?.match(/^>=(\d+)$/);
+  return m ? m[1] : "";
 }
 
 export function FilterDialog({ onClose }: Props) {
   const query = useQueryStore((s) => s.query);
   const setQuery = useQueryStore((s) => s.setQuery);
   const runQuery = useQueryStore((s) => s.runQuery);
+  const results = useQueryStore((s) => s.results);
 
-  const [minRating, setMinRating] = useState("");
-  const [minWidth, setMinWidth] = useState("");
-  const [minHeight, setMinHeight] = useState("");
-  const [createdFrom, setCreatedFrom] = useState("");
-  const [createdTo, setCreatedTo] = useState("");
+  const [minRating, setMinRating] = useState(() => parseMin(extractField(query, "rating")));
+  const [minWidth, setMinWidth] = useState(() => parseMin(extractField(query, "width")));
+  const [minHeight, setMinHeight] = useState(() => parseMin(extractField(query, "height")));
+  const [createdFrom, setCreatedFrom] = useState(() => parseCreated(extractField(query, "created")).from);
+  const [createdTo, setCreatedTo] = useState(() => parseCreated(extractField(query, "created")).to);
+  const [prompt, setPrompt] = useState(() => extractField(query, "prompt") ?? "");
+  const [negative, setNegative] = useState(() => extractField(query, "negative") ?? "");
+  const [model, setModel] = useState(() => extractField(query, "model") ?? "");
+  const [sampler, setSampler] = useState(() => extractField(query, "sampler") ?? "");
+  const [tool, setTool] = useState(() => extractField(query, "tool") ?? "");
+
+  const dateInfo = useMemo(() => imageDateInfo(results), [results]);
+  const highlighted = useMemo(
+    () => [...dateInfo.dates].map(localDateToDate),
+    [dateInfo],
+  );
 
   const apply = async () => {
+    let q = query;
+    q = upsertField(q, "rating", minRating ? `>=${minRating}` : null);
+    q = upsertField(q, "width", minWidth ? `>=${minWidth}` : null);
+    q = upsertField(q, "height", minHeight ? `>=${minHeight}` : null);
+    q = upsertField(q, "created", buildCreated(createdFrom, createdTo));
+    q = upsertField(q, "prompt", prompt.trim() || null);
+    q = upsertField(q, "negative", negative.trim() || null);
+    q = upsertField(q, "model", model.trim() || null);
+    q = upsertField(q, "sampler", sampler.trim() || null);
+    q = upsertField(q, "tool", tool.trim() || null);
+    setQuery(q);
     try {
-      let q = query;
-      q = upsertToken(q, "rating", minRating ? `rating:>=${minRating}` : null);
-      q = upsertToken(q, "width", minWidth ? `width:>=${minWidth}` : null);
-      q = upsertToken(q, "height", minHeight ? `height:>=${minHeight}` : null);
-      q = upsertToken(
-        q,
-        "created",
-        createdFrom && createdTo ? `created:${createdFrom}..${createdTo}` : null,
-      );
-      setQuery(q);
       await runQuery();
     } catch (e) {
       console.error("フィルタ適用に失敗しました:", e);
@@ -47,21 +83,24 @@ export function FilterDialog({ onClose }: Props) {
     }
   };
 
+  const modifiers = { hasImages: highlighted };
+  const modifiersClassNames = { hasImages: "rdp-has-images" };
+
   return (
     <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog" onClick={(e) => e.stopPropagation()}>
+      <div className="dialog filter-dialog" onClick={(e) => e.stopPropagation()}>
         <h3>詳細フィルタ</h3>
+
         <label>
           レーティング下限
-          <select value={minRating} onChange={(e) => setMinRating(e.target.value)}>
+          <select value={minRating} onChange={(e) => setMinRating(e.target.value)} aria-label="レーティング下限">
             <option value="">指定なし</option>
             {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>
-                ★{n}以上
-              </option>
+              <option key={n} value={n}>★{n}以上</option>
             ))}
           </select>
         </label>
+
         <label>
           幅下限(px)
           <input type="number" min="0" step="1" value={minWidth} onChange={(e) => setMinWidth(e.target.value)} />
@@ -70,14 +109,82 @@ export function FilterDialog({ onClose }: Props) {
           高さ下限(px)
           <input type="number" min="0" step="1" value={minHeight} onChange={(e) => setMinHeight(e.target.value)} />
         </label>
+
         <label>
-          作成日 開始
-          <input type="date" value={createdFrom} onChange={(e) => setCreatedFrom(e.target.value)} />
+          プロンプト
+          <input type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} aria-label="プロンプト" />
         </label>
         <label>
-          作成日 終了
-          <input type="date" value={createdTo} onChange={(e) => setCreatedTo(e.target.value)} />
+          ネガティブ
+          <input type="text" value={negative} onChange={(e) => setNegative(e.target.value)} aria-label="ネガティブ" />
         </label>
+        <label>
+          モデル名
+          <input type="text" value={model} onChange={(e) => setModel(e.target.value)} aria-label="モデル名" />
+        </label>
+        <label>
+          サンプラー
+          <input type="text" value={sampler} onChange={(e) => setSampler(e.target.value)} aria-label="サンプラー" />
+        </label>
+        <label>
+          ツール
+          <input type="text" value={tool} onChange={(e) => setTool(e.target.value)} aria-label="ツール" />
+        </label>
+
+        <div className="date-fields">
+          <div className="date-field">
+            <div className="date-field-head">
+              <span>作成日 開始</span>
+              <button
+                type="button"
+                disabled={!dateInfo.min}
+                onClick={() => dateInfo.min && setCreatedFrom(dateInfo.min)}
+              >
+                {dateInfo.min ? `最小: ${dateInfo.min}` : "最小: -"}
+              </button>
+              {createdFrom && (
+                <button type="button" className="date-clear" onClick={() => setCreatedFrom("")}>
+                  クリア
+                </button>
+              )}
+            </div>
+            <DayPicker
+              mode="single"
+              selected={createdFrom ? localDateToDate(createdFrom) : undefined}
+              defaultMonth={localDateToDate(createdFrom || dateInfo.min || dateToLocalString(new Date()))}
+              onSelect={(d) => setCreatedFrom(d ? dateToLocalString(d) : "")}
+              modifiers={modifiers}
+              modifiersClassNames={modifiersClassNames}
+            />
+          </div>
+
+          <div className="date-field">
+            <div className="date-field-head">
+              <span>作成日 終了</span>
+              <button
+                type="button"
+                disabled={!dateInfo.max}
+                onClick={() => dateInfo.max && setCreatedTo(dateInfo.max)}
+              >
+                {dateInfo.max ? `最大: ${dateInfo.max}` : "最大: -"}
+              </button>
+              {createdTo && (
+                <button type="button" className="date-clear" onClick={() => setCreatedTo("")}>
+                  クリア
+                </button>
+              )}
+            </div>
+            <DayPicker
+              mode="single"
+              selected={createdTo ? localDateToDate(createdTo) : undefined}
+              defaultMonth={localDateToDate(createdTo || dateInfo.max || dateToLocalString(new Date()))}
+              onSelect={(d) => setCreatedTo(d ? dateToLocalString(d) : "")}
+              modifiers={modifiers}
+              modifiersClassNames={modifiersClassNames}
+            />
+          </div>
+        </div>
+
         <div className="dialog-actions">
           <button onClick={onClose}>キャンセル</button>
           <button onClick={() => void apply()}>適用</button>
