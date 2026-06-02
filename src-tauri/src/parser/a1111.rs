@@ -45,7 +45,10 @@ pub fn parse_a1111(raw: &str) -> A1111Fields {
         }
     }
 
-    // パラメータ行を ", " 区切りの key: value に分解。
+    // パラメータ行を ", " 区切りの key: value に分解する。
+    // NOTE(既知の制限): 値自体が ", " を含む場合（例: サンプラー名やLoRAハッシュ）は
+    // トークンが分裂し値が欠損しうる。完全な解析には key 境界を辿るステートマシンが必要だが、
+    // 実用上の大半のケースはこの単純分割でカバーできるため、現状は許容する。
     for token in params_line.split(", ") {
         if let Some((key, value)) = token.split_once(": ") {
             let value = value.trim();
