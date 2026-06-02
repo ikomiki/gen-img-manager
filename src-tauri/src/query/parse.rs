@@ -11,29 +11,26 @@ fn text_field_column(field: &str) -> Option<&'static str> {
     }
 }
 
-/// 構造化フィールド -> (列名, is_date)。
-fn struct_field(field: &str) -> Option<(&'static str, bool)> {
-    match field {
-        "sampler" => Some(("sampler", false)),
-        "tool" => Some(("source_tool", false)),
-        "rating" => Some(("rating", false)),
-        "width" => Some(("width", false)),
-        "height" => Some(("height", false)),
-        "pixels" => Some(("pixels", false)),
-        "steps" => Some(("steps", false)),
-        "seed" => Some(("seed", false)),
-        "created" => Some(("created_at", true)),
-        "modified" => Some(("modified_at", true)),
-        _ => None,
-    }
+enum FieldKind {
+    Like,
+    Num { is_date: bool },
 }
 
-/// 数値フィールドかどうか（Like ではなく数値比較を使うフィールド）。
-fn is_numeric_field(column: &str) -> bool {
-    matches!(
-        column,
-        "rating" | "width" | "height" | "pixels" | "steps" | "seed" | "created_at" | "modified_at"
-    )
+/// 構造化フィールド -> (列名, 種別)。
+fn struct_field(field: &str) -> Option<(&'static str, FieldKind)> {
+    match field {
+        "sampler" => Some(("sampler", FieldKind::Like)),
+        "tool" => Some(("source_tool", FieldKind::Like)),
+        "rating" => Some(("rating", FieldKind::Num { is_date: false })),
+        "width" => Some(("width", FieldKind::Num { is_date: false })),
+        "height" => Some(("height", FieldKind::Num { is_date: false })),
+        "pixels" => Some(("pixels", FieldKind::Num { is_date: false })),
+        "steps" => Some(("steps", FieldKind::Num { is_date: false })),
+        "seed" => Some(("seed", FieldKind::Num { is_date: false })),
+        "created" => Some(("created_at", FieldKind::Num { is_date: true })),
+        "modified" => Some(("modified_at", FieldKind::Num { is_date: true })),
+        _ => None,
+    }
 }
 
 struct RawToken {
@@ -109,7 +106,7 @@ fn parse_value_op(value: &str, is_date: bool) -> Option<CondOp> {
         let lo = if is_date { date_to_epoch(a, false) } else { a.parse().ok() };
         let hi = if is_date { date_to_epoch(b, true) } else { b.parse().ok() };
         return match (lo, hi) {
-            (Some(lo), Some(hi)) => Some(CondOp::Range(lo, hi)),
+            (Some(lo), Some(hi)) if lo <= hi => Some(CondOp::Range(lo, hi)),
             _ => None,
         };
     }
@@ -123,6 +120,19 @@ fn parse_value_op(value: &str, is_date: bool) -> Option<CondOp> {
     }
 }
 
+fn is_leap(y: i64) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
+}
+
+fn days_in_month(y: i64, m: i64) -> i64 {
+    match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => if is_leap(y) { 29 } else { 28 },
+        _ => 0,
+    }
+}
+
 /// "YYYY-MM-DD" を epoch 秒へ。end_of_day=true なら同日 23:59:59。UTC基準・素朴計算。
 fn date_to_epoch(s: &str, end_of_day: bool) -> Option<i64> {
     let parts: Vec<&str> = s.split('-').collect();
@@ -133,6 +143,9 @@ fn date_to_epoch(s: &str, end_of_day: bool) -> Option<i64> {
     let m: i64 = parts[1].parse().ok()?;
     let d: i64 = parts[2].parse().ok()?;
     if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+        return None;
+    }
+    if d > days_in_month(y, m) {
         return None;
     }
     let days = days_from_civil(y, m, d);
@@ -184,19 +197,13 @@ pub fn parse(input: &str) -> ParsedQuery {
         if !tok.quoted {
             if let Some((field, value)) = body.split_once(':') {
                 if !value.is_empty() {
-                    if let Some((column, is_date)) = struct_field(field) {
-                        if is_numeric_field(column) {
-                            // 数値/日時フィールド: parse_value_op で処理。失敗したら無視。
-                            if let Some(op) = parse_value_op(value, is_date) {
-                                conds.push(Cond { column, op, negate });
-                            }
-                        } else {
-                            // テキスト的構造化フィールド（sampler, tool など）: Like
-                            conds.push(Cond {
-                                column,
-                                op: CondOp::Like(value.to_string()),
-                                negate,
-                            });
+                    if let Some((column, kind)) = struct_field(field) {
+                        let op = match kind {
+                            FieldKind::Like => Some(CondOp::Like(value.to_string())),
+                            FieldKind::Num { is_date } => parse_value_op(value, is_date),
+                        };
+                        if let Some(op) = op {
+                            conds.push(Cond { column, op, negate });
                         }
                         continue;
                     }
@@ -317,5 +324,32 @@ mod tests {
     fn unknown_field_is_treated_as_bare_text() {
         let pq = parse("foo:bar");
         assert_eq!(pq.fts_include.as_deref(), Some("\"foo:bar\""));
+    }
+
+    #[test]
+    fn invalid_date_is_ignored() {
+        let pq = parse("created:2025-02-30");
+        assert!(pq.conds.is_empty());
+    }
+
+    #[test]
+    fn reverse_range_is_ignored() {
+        let pq = parse("width:1000..100");
+        assert!(pq.conds.is_empty());
+    }
+
+    #[test]
+    fn unclosed_quote_is_handled() {
+        let pq = parse("\"unclosed");
+        assert_eq!(pq.fts_include.as_deref(), Some("\"unclosed\""));
+        assert_eq!(pq.fts_exclude, None);
+    }
+
+    #[test]
+    fn or_only_produces_no_fts() {
+        let pq = parse("OR");
+        assert_eq!(pq.fts_include, None);
+        assert_eq!(pq.fts_exclude, None);
+        assert!(pq.conds.is_empty());
     }
 }
