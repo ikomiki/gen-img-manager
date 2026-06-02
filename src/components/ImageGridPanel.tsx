@@ -63,10 +63,37 @@ export function ImageGridPanel() {
       ref={parentRef}
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === "Enter" && results[selectedIndex]) {
-          e.preventDefault();
-          openViewer(selectedIndex);
+        const len = results.length;
+        if (len === 0) return;
+        const cur = selectedIndex < 0 ? 0 : selectedIndex;
+        let nextIndex: number | null = null;
+        switch (e.key) {
+          case "ArrowRight":
+            nextIndex = Math.min(cur + 1, len - 1);
+            break;
+          case "ArrowLeft":
+            nextIndex = Math.max(cur - 1, 0);
+            break;
+          case "ArrowDown":
+            // 上下は表示行（列数分）で移動。
+            nextIndex = Math.min(cur + columns, len - 1);
+            break;
+          case "ArrowUp":
+            nextIndex = Math.max(cur - columns, 0);
+            break;
+          case "Enter":
+            if (results[selectedIndex]) {
+              e.preventDefault();
+              openViewer(selectedIndex);
+            }
+            return;
+          default:
+            return;
         }
+        e.preventDefault();
+        selectImage(nextIndex);
+        // 選択行を表示に追従させる。
+        rowVirtualizer.scrollToIndex(Math.floor(nextIndex / columns));
       }}
     >
       <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}>
