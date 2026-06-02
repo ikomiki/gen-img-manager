@@ -230,8 +230,10 @@ pub fn scan_directory<F: Fn(ScanProgress) + Sync>(
             })
             .collect()
     });
-    // 最終進捗を必ず1回（0件でも UI を進める。current は空）。
-    on_progress(ScanProgress { directory_id: dir.id, processed: total, total, current: String::new() });
+    // 0件時は並列ループが何も emit しないため、ここで1回だけ UI を進める。
+    if total == 0 {
+        on_progress(ScanProgress { directory_id: dir.id, processed: 0, total: 0, current: String::new() });
+    }
 
     // 書き込みフェーズ（逐次・単一接続）。
     let mut summary = ScanSummary { reachable: true, ..Default::default() };
