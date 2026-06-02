@@ -12,13 +12,23 @@ body,
 
 .app-shell {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  /* グリッドの列幅は App.tsx の inline style（dirWidth）で上書きする。 */
+  grid-template-columns: 220px 5px 1fr;
   grid-template-rows: auto 1fr;
   grid-template-areas:
-    "filter filter"
-    "dirs   grid";
+    "filter filter   filter"
+    "dirs   resizer  grid";
   height: 100vh;
   margin: 0;
+}
+
+.dir-resizer {
+  grid-area: resizer;
+  cursor: col-resize;
+  background: #ddd;
+}
+.dir-resizer:hover {
+  background: #3a6ea5;
 }
 
 .filter-bar-slot {

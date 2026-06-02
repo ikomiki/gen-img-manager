@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useLibraryStore } from "./store/useLibraryStore";
 import { useQueryStore } from "./store/useQueryStore";
@@ -18,6 +18,24 @@ function App() {
   const showFilename = useQueryStore((s) => s.showFilename);
   const toggleShowFilename = useQueryStore((s) => s.toggleShowFilename);
   const setZoomMode = useViewerStore((s) => s.setZoomMode);
+
+  const [dirWidth, setDirWidth] = useState(220);
+
+  // ディレクトリパネルの幅をドラッグでリサイズする。
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = dirWidth;
+    const onMove = (ev: MouseEvent) => {
+      setDirWidth(Math.min(500, Math.max(120, startW + ev.clientX - startX)));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   useEffect(() => {
     void (async () => {
@@ -44,7 +62,10 @@ function App() {
   }, [toggleShowFilename, setZoomMode]);
 
   return (
-    <div className="app-shell">
+    <div
+      className="app-shell"
+      style={{ gridTemplateColumns: `${dirWidth}px 5px 1fr` }}
+    >
       <header className="filter-bar-slot">
         <FilterBar />
         <button
@@ -56,6 +77,13 @@ function App() {
         </button>
       </header>
       <DirectoryPanel />
+      <div
+        className="dir-resizer"
+        onMouseDown={startResize}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="ディレクトリ幅を変更"
+      />
       <main className="image-grid-slot">
         <ImageGridPanel />
       </main>
