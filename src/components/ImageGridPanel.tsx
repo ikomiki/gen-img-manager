@@ -97,10 +97,9 @@ export function ImageGridPanel() {
             nextIndex = Math.max(cur - columns, 0);
             break;
           case "Enter":
-            if (results[selectedIndex]) {
-              e.preventDefault();
-              openViewer(selectedIndex);
-            }
+            // ダブルクリックと同様に、選択中（未選択なら先頭）の画像を表示する。
+            e.preventDefault();
+            openViewer(cur);
             return;
           default:
             return;
@@ -137,7 +136,11 @@ export function ImageGridPanel() {
                     className={
                       globalIndex === selectedIndex ? "thumb-cell selected" : "thumb-cell"
                     }
-                    onClick={() => selectImage(globalIndex)}
+                    onClick={() => {
+                      selectImage(globalIndex);
+                      // クリックでグリッドへフォーカスを移し、Enter/カーソルキーを有効にする。
+                      parentRef.current?.focus();
+                    }}
                     onDoubleClick={() => openViewer(globalIndex)}
                   >
                     <div className="thumb-square" style={{ height: cellSize }}>
