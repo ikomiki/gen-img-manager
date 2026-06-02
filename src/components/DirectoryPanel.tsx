@@ -5,6 +5,27 @@ import { useLibraryStore } from "../store/useLibraryStore";
 import { useQueryStore } from "../store/useQueryStore";
 import type { ScanProgress, ScanDone } from "../types";
 import * as scanApi from "../api/scan";
+import { dirStatusLine } from "../util/dirStatus";
+
+function EyeIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function EyeOffIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  );
+}
 
 export function DirectoryPanel() {
   const directories = useLibraryStore((s) => s.directories);
@@ -15,6 +36,7 @@ export function DirectoryPanel() {
   const setScanProgress = useLibraryStore((s) => s.setScanProgress);
   const clearScanProgress = useLibraryStore((s) => s.clearScanProgress);
   const setImageCount = useLibraryStore((s) => s.setImageCount);
+  const setDirectoryVisible = useLibraryStore((s) => s.setDirectoryVisible);
   const runQuery = useQueryStore((s) => s.runQuery);
 
   // バックエンドの進捗/完了イベントを購読。
@@ -78,6 +100,15 @@ export function DirectoryPanel() {
     }
   };
 
+  const handleToggleVisible = async (id: number, current: boolean) => {
+    try {
+      await setDirectoryVisible(id, !current);
+      void runQuery();
+    } catch (e) {
+      console.error("表示切り替えに失敗しました:", e);
+    }
+  };
+
   return (
     <aside className="directory-panel">
       <div className="panel-header">
@@ -90,25 +121,37 @@ export function DirectoryPanel() {
       <ul className="directory-list">
         {directories.map((d) => {
           const prog = scanning[d.id];
+          const status = dirStatusLine({
+            scanning: prog ? { processed: prog.processed, total: prog.total } : undefined,
+            isOnline: d.is_online,
+            count: imageCounts[d.id],
+            lastScannedAt: d.last_scanned_at,
+          });
           return (
-            <li key={d.id} className="directory-item">
-              <span className="dir-label" title={d.path}>
-                {d.label}
-              </span>
-              {!d.is_online && <span className="offline-badge">⦿offline</span>}
-              {prog ? (
-                <span className="scan-progress">
-                  {prog.processed}/{prog.total}
-                </span>
-              ) : (
-                <span className="image-count">{imageCounts[d.id] ?? ""}</span>
-              )}
-              <button className="scan-btn" aria-label="スキャン" onClick={() => handleScan(d.id)}>
-                ⟳
+            <li key={d.id} className={`directory-item${d.visible ? "" : " hidden-dir"}`}>
+              <button
+                className="eye-btn"
+                onClick={() => handleToggleVisible(d.id, d.visible)}
+                aria-pressed={d.visible}
+                aria-label={d.visible ? "表示中（クリックで非表示にする）" : "非表示中（クリックで表示する）"}
+                title={d.visible ? "表示中（クリックで非表示にする）" : "非表示中（クリックで表示する）"}
+              >
+                {d.visible ? <EyeIcon /> : <EyeOffIcon />}
               </button>
-              <button className="remove-btn" aria-label="削除" onClick={() => handleRemove(d.id)}>
-                ×
-              </button>
+              <div className="dir-main">
+                <div className="dir-row1">
+                  <span className="dir-label" title={d.path}>
+                    {d.label}
+                  </span>
+                  <button className="scan-btn" aria-label="スキャン" onClick={() => handleScan(d.id)}>
+                    ⟳
+                  </button>
+                  <button className="remove-btn" aria-label="削除" onClick={() => handleRemove(d.id)}>
+                    ×
+                  </button>
+                </div>
+                <div className="dir-row2">{status}</div>
+              </div>
             </li>
           );
         })}
