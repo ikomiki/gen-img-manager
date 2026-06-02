@@ -19,8 +19,7 @@ export function MetadataPanel({ detail }: Props) {
     return <div className="meta-panel" />;
   }
 
-  const copyPrompt = async () => {
-    const text = detail.raw_parameters ?? detail.positive ?? "";
+  const copyText = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
     } catch (e) {
@@ -46,7 +45,9 @@ export function MetadataPanel({ detail }: Props) {
         <div className="meta-block">
           <div className="meta-block-head">
             <span className="meta-label">Prompt</span>
-            <button onClick={() => void copyPrompt()}>コピー</button>
+            <button onClick={() => void copyText(detail.positive!)} aria-label="プロンプトをコピー">
+              コピー
+            </button>
           </div>
           <pre className="meta-text">{detail.positive}</pre>
         </div>
@@ -61,7 +62,9 @@ export function MetadataPanel({ detail }: Props) {
         <div className="meta-block">
           <div className="meta-block-head">
             <span className="meta-label">Parameters</span>
-            <button onClick={() => void copyPrompt()}>コピー</button>
+            <button onClick={() => void copyText(detail.raw_parameters!)} aria-label="パラメータをコピー">
+              コピー
+            </button>
           </div>
           <pre className="meta-text">{detail.raw_parameters}</pre>
         </div>
