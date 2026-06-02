@@ -22,6 +22,18 @@ pub fn run() {
             let thumb_dir = dir.join("thumbnails");
             std::fs::create_dir_all(&thumb_dir)?;
             app.asset_protocol_scope().allow_directory(&thumb_dir, true)?;
+            // 既存の記憶対象ディレクトリ配下の原画像も asset protocol で表示できるよう許可する。
+            {
+                let db_state = app.state::<db::Db>();
+                let conn = db_state.0.lock().unwrap();
+                if let Ok(dirs) = db::directories::list(&conn) {
+                    for d in dirs {
+                        let _ = app
+                            .asset_protocol_scope()
+                            .allow_directory(std::path::Path::new(&d.path), d.recursive);
+                    }
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

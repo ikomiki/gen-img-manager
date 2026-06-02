@@ -1,17 +1,27 @@
 use crate::db::Db;
 use crate::models::Directory;
 use std::path::Path;
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
-pub fn add_directory(db: State<Db>, path: String, recursive: bool) -> Result<Directory, String> {
+pub fn add_directory(
+    app: AppHandle,
+    db: State<Db>,
+    path: String,
+    recursive: bool,
+) -> Result<Directory, String> {
     let label = Path::new(&path)
         .file_name()
         .and_then(|s| s.to_str())
         .map(|s| s.to_string())
         .unwrap_or_else(|| path.clone());
-    let conn = db.0.lock().map_err(|e| e.to_string())?;
-    crate::db::directories::add(&conn, &path, &label, recursive).map_err(|e| e.to_string())
+    let dir = {
+        let conn = db.0.lock().map_err(|e| e.to_string())?;
+        crate::db::directories::add(&conn, &path, &label, recursive).map_err(|e| e.to_string())?
+    };
+    // 追加ディレクトリ配下の原画像を asset protocol で表示できるよう許可する。
+    let _ = app.asset_protocol_scope().allow_directory(Path::new(&path), recursive);
+    Ok(dir)
 }
 
 #[tauri::command]
