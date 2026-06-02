@@ -9,6 +9,43 @@ use std::time::Duration;
 
 const REACH_TIMEOUT: Duration = Duration::from_secs(3);
 const EXTS: [&str; 4] = ["png", "jpg", "jpeg", "webp"];
+/// 進捗 emit を間引く間隔（件）。
+pub const EMIT_INTERVAL: usize = 25;
+/// 並列スキャンの既定同時実行数（settings の scan_concurrency で上書き）。
+pub const DEFAULT_CONCURRENCY: usize = 8;
+
+/// 事前ロードした既存画像メタ（変更検出用）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct PrevMeta {
+    pub id: i64,
+    pub size: i64,
+    pub mtime: i64,
+    pub missing: bool,
+}
+
+/// 1ファイルの処理方針。
+#[derive(Debug, Clone, PartialEq)]
+pub enum Decision {
+    /// 未変更。parse/サムネ不要。was_missing が真なら missing フラグ解除が必要。
+    Skip { id: i64, was_missing: bool },
+    /// 新規または変更。parse + サムネ生成が必要。
+    NeedsParse,
+}
+
+/// stat 結果（size, mtime）と既存メタから処理方針を決める。
+pub fn decide(size: i64, mtime: i64, prev: Option<&PrevMeta>) -> Decision {
+    match prev {
+        Some(p) if p.size == size && p.mtime == mtime => {
+            Decision::Skip { id: p.id, was_missing: p.missing }
+        }
+        _ => Decision::NeedsParse,
+    }
+}
+
+/// 進捗 emit すべきか（一定間隔ごと、かつ最終件は必ず）。
+pub fn should_emit(processed: usize, total: usize, interval: usize) -> bool {
+    processed == total || (interval > 0 && processed % interval == 0)
+}
 
 /// 進捗イベントのペイロード。
 #[derive(Debug, Clone, Serialize)]
@@ -278,5 +315,49 @@ mod tests {
         let s = scan_directory(&c, &dir, Path::new("/tmp/thumbs"), 1000, |_| {}).unwrap();
         assert!(!s.reachable);
         assert!(!directories::get(&c, dir.id).unwrap().is_online);
+    }
+
+    #[test]
+    fn decide_skip_when_unchanged() {
+        let prev = PrevMeta { id: 7, size: 100, mtime: 200, missing: false };
+        assert_eq!(
+            decide(100, 200, Some(&prev)),
+            Decision::Skip { id: 7, was_missing: false }
+        );
+    }
+
+    #[test]
+    fn decide_skip_reports_was_missing() {
+        let prev = PrevMeta { id: 7, size: 100, mtime: 200, missing: true };
+        assert_eq!(
+            decide(100, 200, Some(&prev)),
+            Decision::Skip { id: 7, was_missing: true }
+        );
+    }
+
+    #[test]
+    fn decide_needs_parse_when_size_changed() {
+        let prev = PrevMeta { id: 7, size: 100, mtime: 200, missing: false };
+        assert_eq!(decide(101, 200, Some(&prev)), Decision::NeedsParse);
+    }
+
+    #[test]
+    fn decide_needs_parse_when_mtime_changed() {
+        let prev = PrevMeta { id: 7, size: 100, mtime: 200, missing: false };
+        assert_eq!(decide(100, 201, Some(&prev)), Decision::NeedsParse);
+    }
+
+    #[test]
+    fn decide_needs_parse_when_new() {
+        assert_eq!(decide(100, 200, None), Decision::NeedsParse);
+    }
+
+    #[test]
+    fn should_emit_on_interval_and_final() {
+        assert!(should_emit(25, 1000, 25));
+        assert!(should_emit(50, 1000, 25));
+        assert!(!should_emit(24, 1000, 25));
+        assert!(should_emit(1000, 1000, 25)); // final item always
+        assert!(should_emit(0, 0, 25)); // 0 files: processed==total==0
     }
 }
