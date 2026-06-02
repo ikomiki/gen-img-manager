@@ -9,4 +9,5 @@ pub struct Directory {
     pub last_scanned_at: Option<i64>,
     pub recursive: bool,
     pub visible: bool,
+    pub image_count: i64,
 }
