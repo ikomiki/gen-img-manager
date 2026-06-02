@@ -10,6 +10,7 @@ pub enum ThumbError {
     Image(#[from] image::ImageError),
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
+    #[allow(dead_code)]
     #[error("webp encode failed: {0}")]
     Webp(String),
 }
@@ -38,7 +39,10 @@ pub fn generate_thumbnail(src: &Path, thumb_dir: &Path) -> Result<PathBuf, Thumb
     let square = img.crop_imm(x, y, side, side);
     let thumb = square.resize_exact(THUMB_SIZE, THUMB_SIZE, image::imageops::FilterType::Lanczos3);
 
-    let encoder = webp::Encoder::from_image(&thumb).map_err(|e| ThumbError::Webp(e.to_string()))?;
+    // 16bit/グレースケール等も含め 8bit RGBA に正規化してからエンコードする
+    // （webp::Encoder::from_image は RGB8/RGBA8 以外で失敗するため）。
+    let rgba = thumb.into_rgba8();
+    let encoder = webp::Encoder::from_rgba(rgba.as_raw(), THUMB_SIZE, THUMB_SIZE);
     let data = encoder.encode(THUMB_QUALITY);
 
     std::fs::create_dir_all(thumb_dir)?;
@@ -51,6 +55,24 @@ pub fn generate_thumbnail(src: &Path, thumb_dir: &Path) -> Result<PathBuf, Thumb
 mod tests {
     use super::*;
     use std::io::BufWriter;
+
+    fn write_png_colored(path: &Path, w: u32, h: u32, color: png::ColorType) {
+        let file = std::fs::File::create(path).unwrap();
+        let bw = BufWriter::new(file);
+        let mut encoder = png::Encoder::new(bw, w, h);
+        encoder.set_color(color);
+        encoder.set_depth(png::BitDepth::Eight);
+        let mut writer = encoder.write_header().unwrap();
+        let channels = match color {
+            png::ColorType::Grayscale => 1,
+            png::ColorType::Rgb => 3,
+            png::ColorType::Rgba => 4,
+            png::ColorType::GrayscaleAlpha => 2,
+            png::ColorType::Indexed => 1,
+        };
+        let buf = vec![0u8; (w * h * channels) as usize];
+        writer.write_image_data(&buf).unwrap();
+    }
 
     fn write_png(path: &Path, w: u32, h: u32) {
         let file = std::fs::File::create(path).unwrap();
@@ -91,5 +113,31 @@ mod tests {
     fn filename_is_stable_for_same_path() {
         assert_eq!(thumb_filename(Path::new("/a/b.png")), thumb_filename(Path::new("/a/b.png")));
         assert_ne!(thumb_filename(Path::new("/a/b.png")), thumb_filename(Path::new("/a/c.png")));
+    }
+
+    #[test]
+    fn grayscale_input_produces_valid_webp() {
+        let dir = std::env::temp_dir().join(format!("gim_thumb_gray_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("gray.png");
+        write_png_colored(&src, 80, 80, png::ColorType::Grayscale);
+        let out = generate_thumbnail(&src, &dir.join("t")).unwrap();
+        let (tw, th) = image::ImageReader::open(&out).unwrap()
+            .with_guessed_format().unwrap().into_dimensions().unwrap();
+        assert_eq!((tw, th), (512, 512));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn portrait_input_produces_square() {
+        let dir = std::env::temp_dir().join(format!("gim_thumb_portrait_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("tall.png");
+        write_png_colored(&src, 40, 100, png::ColorType::Rgba);
+        let out = generate_thumbnail(&src, &dir.join("t")).unwrap();
+        let (tw, th) = image::ImageReader::open(&out).unwrap()
+            .with_guessed_format().unwrap().into_dimensions().unwrap();
+        assert_eq!((tw, th), (512, 512));
+        std::fs::remove_dir_all(&dir).ok();
     }
 }
