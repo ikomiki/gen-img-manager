@@ -38,6 +38,7 @@ pub fn run() {
             }
             let (app_menu, view_menu) = menu::build(app.handle())?;
             app.set_menu(app_menu)?;
+            app.manage(crate::commands::slideshow::SlideshowState::default());
             app.manage(view_menu);
             Ok(())
         })
@@ -62,6 +63,9 @@ pub fn run() {
             commands::prefs::set_setting,
             commands::view_menu::sync_zoom_menu,
             commands::view_menu::sync_filename_menu,
+            commands::view_menu::sync_slideshow_menu,
+            commands::slideshow::start_slideshow,
+            commands::slideshow::get_slideshow_payload,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
