@@ -157,18 +157,14 @@ export function FilterBar() {
       <div className="history-wrap" ref={historyWrapRef}>
         <button
           className="history-btn"
-          onClick={() =>
-            setHistoryOpen((o) => {
-              const nextOpen = !o;
-              // 開閉いずれでもハイライト位置をリセットする（閉じた後の ArrowDown での古い index 参照を防ぐ）。
-              setHistoryIndex(-1);
-              if (nextOpen) {
-                // 全件ブラウズ: 現在の入力に関係なく全履歴を表示する。
-                setAcItems(history);
-              }
-              return nextOpen;
-            })
-          }
+          onClick={() => {
+            const nextOpen = !historyOpen;
+            setHistoryOpen(nextOpen);
+            // 開閉いずれでもハイライト位置をリセットする（閉じた後の ArrowDown での古い index 参照を防ぐ）。
+            setHistoryIndex(-1);
+            // 全件ブラウズ: 現在の入力に関係なく全履歴を表示する。
+            if (nextOpen) setAcItems(history);
+          }}
           disabled={history.length === 0}
           aria-label="検索履歴"
           aria-expanded={historyOpen}
