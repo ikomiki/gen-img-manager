@@ -436,3 +436,6 @@ body,
 .history-dropdown li button:hover {
   background: #eef;
 }
+.history-dropdown li button.active {
+  background: #dde;
+}
