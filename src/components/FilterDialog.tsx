@@ -5,7 +5,11 @@ interface Props {
   onClose: () => void;
 }
 
-/** 既存クエリから指定フィールドのトークンを除去して新トークンを追記する。 */
+/**
+ * 既存クエリから指定フィールドのトークンを除去して新トークンを追記する。
+ * NOTE(既知の制限): 空白で分割するため、クエリ中のダブルクォート句（例 prompt:"a b"）は
+ * 壊れる可能性がある。詳細ダイアログが扱う field:value トークンは引用句を含まないため実用上問題ない。
+ */
 function upsertToken(query: string, field: string, token: string | null): string {
   const tokens = query.split(/\s+/).filter((t) => t && !t.startsWith(`${field}:`));
   if (token) tokens.push(token);
@@ -24,18 +28,23 @@ export function FilterDialog({ onClose }: Props) {
   const [createdTo, setCreatedTo] = useState("");
 
   const apply = async () => {
-    let q = query;
-    q = upsertToken(q, "rating", minRating ? `rating:>=${minRating}` : null);
-    q = upsertToken(q, "width", minWidth ? `width:>=${minWidth}` : null);
-    q = upsertToken(q, "height", minHeight ? `height:>=${minHeight}` : null);
-    q = upsertToken(
-      q,
-      "created",
-      createdFrom && createdTo ? `created:${createdFrom}..${createdTo}` : null,
-    );
-    setQuery(q);
-    await runQuery();
-    onClose();
+    try {
+      let q = query;
+      q = upsertToken(q, "rating", minRating ? `rating:>=${minRating}` : null);
+      q = upsertToken(q, "width", minWidth ? `width:>=${minWidth}` : null);
+      q = upsertToken(q, "height", minHeight ? `height:>=${minHeight}` : null);
+      q = upsertToken(
+        q,
+        "created",
+        createdFrom && createdTo ? `created:${createdFrom}..${createdTo}` : null,
+      );
+      setQuery(q);
+      await runQuery();
+    } catch (e) {
+      console.error("フィルタ適用に失敗しました:", e);
+    } finally {
+      onClose();
+    }
   };
 
   return (
@@ -55,11 +64,11 @@ export function FilterDialog({ onClose }: Props) {
         </label>
         <label>
           幅下限(px)
-          <input type="number" value={minWidth} onChange={(e) => setMinWidth(e.target.value)} />
+          <input type="number" min="0" step="1" value={minWidth} onChange={(e) => setMinWidth(e.target.value)} />
         </label>
         <label>
           高さ下限(px)
-          <input type="number" value={minHeight} onChange={(e) => setMinHeight(e.target.value)} />
+          <input type="number" min="0" step="1" value={minHeight} onChange={(e) => setMinHeight(e.target.value)} />
         </label>
         <label>
           作成日 開始

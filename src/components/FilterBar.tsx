@@ -24,9 +24,14 @@ export function FilterBar() {
   const [historyIndex, setHistoryIndex] = useState(-1);
 
   const submit = async () => {
-    await runQuery();
-    await commitHistory();
-    setHistoryIndex(-1);
+    try {
+      await runQuery();
+      await commitHistory();
+    } catch (e) {
+      console.error("検索に失敗しました:", e);
+    } finally {
+      setHistoryIndex(-1);
+    }
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -37,7 +42,7 @@ export function FilterBar() {
       const next = Math.min(historyIndex + 1, history.length - 1);
       setHistoryIndex(next);
       setQuery(history[next]);
-    } else if (e.key === "ArrowDown") {
+    } else if (e.key === "ArrowDown" && historyIndex > -1) {
       e.preventDefault();
       const next = Math.max(historyIndex - 1, -1);
       setHistoryIndex(next);
@@ -64,7 +69,7 @@ export function FilterBar() {
       <button onClick={() => void submit()} aria-label="検索">
         検索
       </button>
-      <button onClick={() => setDialogOpen(true)}>詳細…</button>
+      <button onClick={() => setDialogOpen(true)} aria-label="詳細フィルタを開く">詳細…</button>
       <label className="sort-control">
         並べ替え:
         <select
