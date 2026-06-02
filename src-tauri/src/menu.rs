@@ -1,4 +1,4 @@
-use tauri::menu::{CheckMenuItem, Menu, MenuBuilder, SubmenuBuilder};
+use tauri::menu::{CheckMenuItem, Menu, SubmenuBuilder};
 use tauri::{AppHandle, Wry};
 
 /// 「表示」メニューのチェック項目ハンドルを保持し、フロントの状態と同期する。
@@ -32,7 +32,10 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
         .item(&show_filename)
         .build()?;
 
-    let menu = MenuBuilder::new(app).item(&view_submenu).build()?;
+    // macOS既定メニュー（アプリ名/Quit・編集/コピー&ペースト・Window等）を保持し、
+    // 「表示」メニューを追加する。
+    let menu = Menu::default(app)?;
+    menu.append(&view_submenu)?;
 
     Ok((
         menu,
@@ -49,13 +52,22 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
 impl ViewMenu {
     /// フロントのズームモードに合わせてチェックを排他更新する。
     pub fn sync_zoom(&self, mode: &str) {
-        let _ = self.zoom_fit.set_checked(mode == "fit");
-        let _ = self.zoom_actual.set_checked(mode == "actual");
-        let _ = self.zoom_fill.set_checked(mode == "fill");
-        let _ = self.zoom_custom.set_checked(mode == "custom");
+        let items = [
+            (&self.zoom_fit, "fit"),
+            (&self.zoom_actual, "actual"),
+            (&self.zoom_fill, "fill"),
+            (&self.zoom_custom, "custom"),
+        ];
+        for (item, name) in items {
+            if let Err(e) = item.set_checked(mode == name) {
+                eprintln!("[menu] zoom set_checked({name}) failed: {e}");
+            }
+        }
     }
 
     pub fn sync_filename(&self, on: bool) {
-        let _ = self.show_filename.set_checked(on);
+        if let Err(e) = self.show_filename.set_checked(on) {
+            eprintln!("[menu] filename set_checked failed: {e}");
+        }
     }
 }
