@@ -62,3 +62,8 @@ export interface ImageDetail {
 }
 
 export type ZoomMode = "fit" | "actual" | "fill" | "custom";
+
+export interface SlideshowPayload {
+  paths: string[];
+  start_index: number;
+}

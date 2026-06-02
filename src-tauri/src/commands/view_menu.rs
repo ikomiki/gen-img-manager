@@ -12,3 +12,9 @@ pub fn sync_zoom_menu(menu: State<ViewMenu>, mode: String) {
 pub fn sync_filename_menu(menu: State<ViewMenu>, on: bool) {
     menu.sync_filename(on);
 }
+
+/// スライドショーの表示モード変更をネイティブメニューのチェックへ反映する。
+#[tauri::command]
+pub fn sync_slideshow_menu(menu: State<ViewMenu>, fullscreen: bool) {
+    menu.sync_slideshow(fullscreen);
+}
