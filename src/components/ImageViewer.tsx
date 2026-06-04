@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
 import { getImageDetail } from "../api/images";
@@ -81,11 +82,17 @@ export function ImageViewer() {
           // ベストエフォート: Web content 側の preventDefault が効かない環境では OS 挙動が優先される。
           e.preventDefault();
           e.stopPropagation();
+          void getCurrentWindow()
+            .setFullscreen(false)
+            .catch(() => {});
           close();
           break;
         case "Enter":
           // 現在表示中の画像を選択しつつ一覧へ戻る。
           e.preventDefault();
+          void getCurrentWindow()
+            .setFullscreen(false)
+            .catch(() => {});
           select(index);
           close();
           break;
@@ -105,6 +112,20 @@ export function ImageViewer() {
           e.preventDefault();
           last();
           break;
+        case "i":
+        case "I":
+          e.preventDefault();
+          toggleMeta();
+          break;
+        case "F11": {
+          e.preventDefault();
+          const w = getCurrentWindow();
+          void w
+            .isFullscreen()
+            .then((on) => w.setFullscreen(!on))
+            .catch((err) => console.error("setFullscreen failed:", err));
+          break;
+        }
         case "+":
         case "=":
           zoomBy(1.25);
@@ -122,7 +143,7 @@ export function ImageViewer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last]);
+  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last, toggleMeta]);
 
   if (!isOpen || !image) return null;
 
