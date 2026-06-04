@@ -192,9 +192,13 @@ export function ImageGridPanel() {
                         <div className="thumb-missing">▦</div>
                       )}
                     </div>
-                    {img.rating != null && img.rating > 0 && (
-                      <div className="thumb-rating" aria-label={`レーティング ${img.rating}`}>
-                        {"★".repeat(img.rating)}
+                    {(img.rating ?? 0) > 0 && (
+                      <div
+                        className="thumb-rating"
+                        role="img"
+                        aria-label={`レーティング ${img.rating}`}
+                      >
+                        {"★".repeat(img.rating!)}
                       </div>
                     )}
                     {showFilename && (
