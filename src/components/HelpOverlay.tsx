@@ -17,6 +17,7 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
       { keys: "Home / End", desc: "先頭 / 末尾の画像" },
       { keys: "PageUp / PageDown", desc: "ページ単位で移動" },
       { keys: "Enter", desc: "ビューアで開く" },
+      { keys: "0 - 5", desc: "レーティング設定（0でクリア）" },
     ],
   },
   {
@@ -28,6 +29,7 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
       { keys: "Z", desc: "ズームモード循環（fit→actual→fill）" },
       { keys: "I", desc: "情報パネルの開閉" },
       { keys: "F11", desc: "フルスクリーン切替" },
+      { keys: "0 - 5", desc: "レーティング設定（0でクリア）" },
       { keys: "Enter", desc: "選択して一覧へ戻る" },
       { keys: "Esc", desc: "閉じる" },
     ],

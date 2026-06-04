@@ -42,6 +42,11 @@ pub fn get_image_detail(db: State<Db>, id: i64) -> Result<Option<ImageDetail>, S
 /// 画像のレーティングを設定する（None でクリア）。
 #[tauri::command]
 pub fn set_rating(db: State<Db>, id: i64, rating: Option<i64>) -> Result<(), String> {
+    if let Some(r) = rating {
+        if !(1..=5).contains(&r) {
+            return Err(format!("rating out of range: {r}"));
+        }
+    }
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     crate::db::images::set_rating(&conn, id, rating).map_err(|e| e.to_string())
 }

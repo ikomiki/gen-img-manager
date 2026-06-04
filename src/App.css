@@ -640,3 +640,6 @@ body,
   outline: 2px solid #3a6ea5;
   outline-offset: 1px;
 }
+.meta-rating-stars .star.filled {
+  color: #ffce3d;
+}
