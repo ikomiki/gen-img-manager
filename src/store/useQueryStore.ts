@@ -11,12 +11,17 @@ interface QueryState {
   total: number;
   history: string[];
   showFilename: boolean;
+  dirCollapsed: boolean;
+  helpOpen: boolean;
   setQuery: (q: string) => void;
   setSort: (sort: SortKey, dir: SortDir) => void;
   runQuery: () => Promise<void>;
   commitHistory: () => Promise<void>;
   loadHistory: () => Promise<void>;
   toggleShowFilename: () => Promise<void>;
+  toggleDirCollapsed: () => Promise<void>;
+  toggleHelp: () => void;
+  closeHelp: () => void;
   loadSettings: () => Promise<void>;
 }
 
@@ -28,6 +33,8 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   total: 0,
   history: [],
   showFilename: true,
+  dirCollapsed: false,
+  helpOpen: false,
   setQuery: (q) => set({ query: q }),
   setSort: (sort, dir) => {
     set({ sort, dir });
@@ -61,11 +68,19 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     await prefsApi.setSetting("show_filename", String(next));
     prefsApi.syncFilenameMenu(next).catch((e) => console.error("syncFilenameMenu failed:", e));
   },
+  toggleDirCollapsed: async () => {
+    const next = !get().dirCollapsed;
+    set({ dirCollapsed: next });
+    await prefsApi.setSetting("dir_collapsed", String(next));
+  },
+  toggleHelp: () => set({ helpOpen: !get().helpOpen }),
+  closeHelp: () => set({ helpOpen: false }),
   loadSettings: async () => {
-    const [sortRaw, showRaw, queryRaw] = await Promise.all([
+    const [sortRaw, showRaw, queryRaw, dirCollapsedRaw] = await Promise.all([
       prefsApi.getSetting("sort"),
       prefsApi.getSetting("show_filename"),
       prefsApi.getSetting("filter_query"),
+      prefsApi.getSetting("dir_collapsed"),
     ]);
     if (sortRaw) {
       const [sort, dir] = sortRaw.split(":");
@@ -78,6 +93,9 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     }
     if (queryRaw !== null) {
       set({ query: queryRaw });
+    }
+    if (dirCollapsedRaw !== null) {
+      set({ dirCollapsed: dirCollapsedRaw === "true" });
     }
   },
 }));

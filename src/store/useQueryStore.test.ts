@@ -17,6 +17,7 @@ beforeEach(() => {
   useQueryStore.setState({
     query: "", sort: "filename", dir: "asc",
     results: [], total: 0, history: [], showFilename: true,
+    dirCollapsed: false, helpOpen: false,
   });
   vi.resetAllMocks();
   vi.mocked(prefsApi.syncFilenameMenu).mockResolvedValue(undefined as unknown as void);
@@ -97,5 +98,21 @@ describe("useQueryStore", () => {
     });
     await useQueryStore.getState().loadSettings();
     expect(useQueryStore.getState().query).toBe("cat -blurry");
+  });
+
+  it("toggleDirCollapsed flips and persists", async () => {
+    vi.mocked(prefsApi.setSetting).mockResolvedValue(undefined as unknown as void);
+    await useQueryStore.getState().toggleDirCollapsed();
+    expect(useQueryStore.getState().dirCollapsed).toBe(true);
+    expect(prefsApi.setSetting).toHaveBeenCalledWith("dir_collapsed", "true");
+  });
+
+  it("loadSettings restores persisted dir_collapsed", async () => {
+    vi.mocked(prefsApi.getSetting).mockImplementation(async (key: string) => {
+      if (key === "dir_collapsed") return "true";
+      return null;
+    });
+    await useQueryStore.getState().loadSettings();
+    expect(useQueryStore.getState().dirCollapsed).toBe(true);
   });
 });
