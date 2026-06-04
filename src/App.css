@@ -158,6 +158,7 @@ body,
   display: flex;
   flex-direction: column;
   min-width: 0;
+  position: relative;
 }
 .thumb-square {
   width: 100%;
@@ -608,4 +609,37 @@ body,
 }
 .help-header button:hover {
   color: #000;
+}
+.thumb-rating {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  font-size: 11px;
+  line-height: 1;
+  color: #ffce3d;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+.meta-rating-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+.meta-rating-stars .star {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 1px;
+  font-size: 15px;
+  line-height: 1;
+  color: #c9a227;
+}
+.meta-rating-stars .star:hover {
+  color: #ffce3d;
+}
+.meta-rating-stars .star:focus-visible {
+  outline: 2px solid #3a6ea5;
+  outline-offset: 1px;
+}
+.meta-rating-stars .star.filled {
+  color: #ffce3d;
 }

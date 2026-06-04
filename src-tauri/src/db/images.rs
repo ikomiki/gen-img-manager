@@ -46,7 +46,7 @@ pub fn upsert(conn: &Connection, img: &NewImage) -> rusqlite::Result<i64> {
             size=excluded.size, mtime=excluded.mtime,
             created_at=excluded.created_at, modified_at=excluded.modified_at,
             width=excluded.width, height=excluded.height, pixels=excluded.pixels,
-            rating=excluded.rating, format=excluded.format, thumb_path=excluded.thumb_path,
+            rating=COALESCE(excluded.rating, images.rating), format=excluded.format, thumb_path=excluded.thumb_path,
             raw_parameters=excluded.raw_parameters, positive=excluded.positive,
             negative=excluded.negative, model=excluded.model, sampler=excluded.sampler,
             steps=excluded.steps, seed=excluded.seed, cfg=excluded.cfg,
@@ -89,6 +89,15 @@ pub fn mark_missing(conn: &Connection, id: i64, missing: bool) -> rusqlite::Resu
     conn.execute(
         "UPDATE images SET missing = ?2 WHERE id = ?1",
         params![id, missing as i64],
+    )?;
+    Ok(())
+}
+
+/// 画像のレーティングを更新する。None でクリア（NULL）。
+pub fn set_rating(conn: &Connection, id: i64, rating: Option<i64>) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE images SET rating = ?2 WHERE id = ?1",
+        params![id, rating],
     )?;
     Ok(())
 }
@@ -196,5 +205,35 @@ mod tests {
         assert_eq!(*size, 100);
         assert_eq!(*mtime, 200);
         assert!(*missing);
+    }
+
+    #[test]
+    fn set_rating_updates_and_clears() {
+        let c = conn();
+        let id = upsert(&c, &sample("/d/a.png")).unwrap();
+        set_rating(&c, id, Some(4)).unwrap();
+        let r: Option<i64> = c
+            .query_row("SELECT rating FROM images WHERE id = ?1", params![id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(r, Some(4));
+        set_rating(&c, id, None).unwrap();
+        let r2: Option<i64> = c
+            .query_row("SELECT rating FROM images WHERE id = ?1", params![id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(r2, None);
+    }
+
+    #[test]
+    fn rescan_preserves_manual_rating() {
+        let c = conn();
+        let id = upsert(&c, &sample("/d/a.png")).unwrap();
+        set_rating(&c, id, Some(5)).unwrap();
+        // 再スキャン相当: 同じ path を rating=None で upsert（メタデータにレーティングが無い通常ケース）。
+        let again = upsert(&c, &sample("/d/a.png")).unwrap();
+        assert_eq!(again, id);
+        let r: Option<i64> = c
+            .query_row("SELECT rating FROM images WHERE id = ?1", params![id], |r| r.get(0))
+            .unwrap();
+        assert_eq!(r, Some(5), "manual rating must survive a rescan");
     }
 }

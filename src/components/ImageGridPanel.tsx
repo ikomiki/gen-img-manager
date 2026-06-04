@@ -12,6 +12,7 @@ const NAME_H = 34; // ファイル名2行分の高さ(px)（line-height 1.3 × 1
 export function ImageGridPanel() {
   const results = useQueryStore((s) => s.results);
   const showFilename = useQueryStore((s) => s.showFilename);
+  const setRating = useQueryStore((s) => s.setRating);
 
   const selectedIndex = useViewerStore((s) => s.selectedIndex);
   const selectImage = useViewerStore((s) => s.select);
@@ -103,6 +104,19 @@ export function ImageGridPanel() {
         case "PageUp":
           nextIndex = moveIndex(cur, len, -pageDelta);
           break;
+        case "0":
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+        case "5": {
+          e.preventDefault();
+          const target = results[cur];
+          if (target) {
+            void setRating(target.id, e.key === "0" ? null : Number(e.key));
+          }
+          return;
+        }
         case "Enter":
           // ダブルクリックと同様に、選択中（未選択なら先頭）の画像を表示する。
           e.preventDefault();
@@ -118,7 +132,7 @@ export function ImageGridPanel() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [viewerOpen, results, selectedIndex, columns, rowHeight, selectImage, openViewer, rowVirtualizer]);
+  }, [viewerOpen, results, selectedIndex, columns, rowHeight, selectImage, openViewer, rowVirtualizer, setRating]);
 
   if (width === 0) {
     return <div className="image-grid" ref={parentRef} />;
@@ -178,6 +192,15 @@ export function ImageGridPanel() {
                         <div className="thumb-missing">▦</div>
                       )}
                     </div>
+                    {(img.rating ?? 0) > 0 && (
+                      <div
+                        className="thumb-rating"
+                        role="img"
+                        aria-label={`レーティング ${img.rating}`}
+                      >
+                        {"★".repeat(img.rating!)}
+                      </div>
+                    )}
                     {showFilename && (
                       <div className="thumb-name" title={img.filename}>
                         {img.filename}

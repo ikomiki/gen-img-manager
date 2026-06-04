@@ -13,3 +13,6 @@ export const countQuery = (query: string) => invoke<number>("count_query", { que
 
 export const getImageDetail = (id: number) =>
   invoke<ImageDetail | null>("get_image_detail", { id });
+
+export const setRating = (id: number, rating: number | null) =>
+  invoke<void>("set_rating", { id, rating });

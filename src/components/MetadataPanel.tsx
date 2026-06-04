@@ -5,6 +5,7 @@ import { normalizePromptText } from "../util/normalizeText";
 
 interface Props {
   detail: ImageDetail | null;
+  onRate?: (rating: number | null) => void;
 }
 
 interface TextBlock {
@@ -25,7 +26,7 @@ function Row({ label, value }: { label: string; value: string | number | null })
   );
 }
 
-export function MetadataPanel({ detail }: Props) {
+export function MetadataPanel({ detail, onRate }: Props) {
   // prompt/negative の整形表示トグル（空行・カンマだけの行・前後空白を除去）。
   const normalizePrompt = useViewerStore((s) => s.normalizePrompt);
   const toggleNormalize = useViewerStore((s) => s.toggleNormalize);
@@ -118,7 +119,29 @@ export function MetadataPanel({ detail }: Props) {
       <Row label="Steps" value={detail.steps} />
       <Row label="CFG" value={detail.cfg} />
       <Row label="Seed" value={detail.seed} />
-      <Row label="レーティング" value={detail.rating !== null ? `★${detail.rating}` : null} />
+      {onRate ? (
+        <div className="meta-row">
+          <span className="meta-label">レーティング</span>
+          <span className="meta-rating-stars" role="group" aria-label="レーティング">
+            {[1, 2, 3, 4, 5].map((n) => {
+              const filled = (detail.rating ?? 0) >= n;
+              return (
+                <button
+                  key={n}
+                  className={filled ? "star filled" : "star"}
+                  aria-label={`${n} つ星`}
+                  aria-pressed={filled}
+                  onClick={() => onRate(detail.rating === n ? null : n)}
+                >
+                  {filled ? "★" : "☆"}
+                </button>
+              );
+            })}
+          </span>
+        </div>
+      ) : (
+        <Row label="レーティング" value={detail.rating !== null ? `★${detail.rating}` : null} />
+      )}
       {blocks.map(renderBlock)}
     </div>
   );

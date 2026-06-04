@@ -115,4 +115,21 @@ describe("useQueryStore", () => {
     await useQueryStore.getState().loadSettings();
     expect(useQueryStore.getState().dirCollapsed).toBe(true);
   });
+
+  it("setRating calls api and patches the row in results", async () => {
+    vi.mocked(imagesApi.setRating).mockResolvedValue(undefined as unknown as void);
+    useQueryStore.setState({ results: [row(1, "a.png"), row(2, "b.png")] });
+    await useQueryStore.getState().setRating(2, 4);
+    expect(imagesApi.setRating).toHaveBeenCalledWith(2, 4);
+    expect(useQueryStore.getState().results.find((r) => r.id === 2)?.rating).toBe(4);
+    expect(useQueryStore.getState().results.find((r) => r.id === 1)?.rating).toBeNull();
+  });
+
+  it("setRating with null clears the row rating", async () => {
+    vi.mocked(imagesApi.setRating).mockResolvedValue(undefined as unknown as void);
+    useQueryStore.setState({ results: [{ ...row(1, "a.png"), rating: 5 }] });
+    await useQueryStore.getState().setRating(1, null);
+    expect(imagesApi.setRating).toHaveBeenCalledWith(1, null);
+    expect(useQueryStore.getState().results[0].rating).toBeNull();
+  });
 });
