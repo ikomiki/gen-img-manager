@@ -25,6 +25,7 @@ export function SlideshowApp() {
   const orderRef = useRef<number[]>([]);
   const loopRef = useRef(true);
   const randomRef = useRef(false);
+  const fullscreenRef = useRef(false);
   const errorsRef = useRef(0);
   const toastTimer = useRef<number | null>(null);
 
@@ -32,6 +33,7 @@ export function SlideshowApp() {
   useEffect(() => { orderRef.current = order; }, [order]);
   useEffect(() => { loopRef.current = loop; }, [loop]);
   useEffect(() => { randomRef.current = random; }, [random]);
+  useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -145,17 +147,11 @@ export function SlideshowApp() {
           break;
         case "End":
           e.preventDefault();
-          {
-            const len = orderRef.current.length;
-            if (len > 0) setPos(len - 1);
-          }
+          if (orderRef.current.length > 0) setPos(orderRef.current.length - 1);
           break;
         case "F11":
           e.preventDefault();
-          void getCurrentWindow()
-            .isFullscreen()
-            .then((on) => toggleFullscreen(!on))
-            .catch((err) => console.error("setFullscreen failed:", err));
+          void toggleFullscreen(!fullscreenRef.current);
           break;
         default:
           break;
