@@ -27,6 +27,8 @@ export function ImageViewer() {
   const zoomBy = useViewerStore((s) => s.zoomBy);
   const toggleMeta = useViewerStore((s) => s.toggleMeta);
   const cycleZoom = useViewerStore((s) => s.cycleZoom);
+  const first = useViewerStore((s) => s.first);
+  const last = useViewerStore((s) => s.last);
 
   const results = useQueryStore((s) => s.results);
   const image = results[index];
@@ -95,6 +97,14 @@ export function ImageViewer() {
         case "ArrowLeft":
           prev();
           break;
+        case "Home":
+          e.preventDefault();
+          first();
+          break;
+        case "End":
+          e.preventDefault();
+          last();
+          break;
         case "+":
         case "=":
           zoomBy(1.25);
@@ -112,7 +122,7 @@ export function ImageViewer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom]);
+  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last]);
 
   if (!isOpen || !image) return null;
 

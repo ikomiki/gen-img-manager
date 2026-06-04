@@ -28,6 +28,8 @@ interface ViewerState {
   setZoomMode: (m: ZoomMode) => void;
   zoomBy: (factor: number) => void;
   cycleZoom: () => void;
+  first: () => void;
+  last: () => void;
   toggleMeta: () => void;
   toggleNormalize: () => void;
   loadZoom: () => Promise<void>;
@@ -77,6 +79,8 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     );
   },
   cycleZoom: () => get().setZoomMode(nextZoomMode(get().zoomMode)),
+  first: () => set({ index: 0 }),
+  last: () => set({ index: Math.max(resultsLength() - 1, 0) }),
   toggleMeta: () => set({ metaOpen: !get().metaOpen }),
   toggleNormalize: () => set({ normalizePrompt: !get().normalizePrompt }),
   // 起動時に永続化されたズーム設定を復元する。不正値は無視してデフォルトのまま。
