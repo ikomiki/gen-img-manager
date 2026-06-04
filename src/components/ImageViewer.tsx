@@ -32,6 +32,7 @@ export function ImageViewer() {
   const last = useViewerStore((s) => s.last);
 
   const results = useQueryStore((s) => s.results);
+  const setRating = useQueryStore((s) => s.setRating);
   const image = results[index];
 
   const [detail, setDetail] = useState<ImageDetail | null>(null);
@@ -54,7 +55,7 @@ export function ImageViewer() {
     return () => {
       active = false;
     };
-  }, [isOpen, image]);
+  }, [isOpen, image?.id]);
 
   // ズーム変更時に倍率インジケータを表示し、一定時間後に消す。
   useEffect(() => {
@@ -137,13 +138,29 @@ export function ImageViewer() {
         case "Z":
           cycleZoom();
           break;
+        case "0":
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+        case "5":
+          e.preventDefault();
+          applyRating(e.key === "0" ? null : Number(e.key));
+          break;
         default:
           break;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last, toggleMeta]);
+  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last, toggleMeta, image, setRating]);
+
+  // 現在表示中の画像にレーティングを適用し、detail もその場で更新する。
+  const applyRating = (rating: number | null) => {
+    if (!image) return;
+    void setRating(image.id, rating);
+    setDetail((d) => (d ? { ...d, rating } : d));
+  };
 
   if (!isOpen || !image) return null;
 
@@ -218,7 +235,7 @@ export function ImageViewer() {
           {zoomIndicator && <div className="viewer-zoom-indicator">{zoomIndicator}</div>}
         </div>
       </div>
-      {metaOpen && <MetadataPanel detail={detail} />}
+      {metaOpen && <MetadataPanel detail={detail} onRate={applyRating} />}
     </div>
   );
 }

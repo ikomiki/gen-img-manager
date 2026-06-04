@@ -620,3 +620,19 @@ body,
   text-shadow: 0 0 2px rgba(0, 0, 0, 0.9);
   pointer-events: none;
 }
+.meta-rating-stars {
+  display: inline-flex;
+  gap: 2px;
+}
+.meta-rating-stars .star {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 1px;
+  font-size: 15px;
+  line-height: 1;
+  color: #c9a227;
+}
+.meta-rating-stars .star:hover {
+  color: #ffce3d;
+}
