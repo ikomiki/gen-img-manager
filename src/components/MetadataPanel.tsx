@@ -122,7 +122,7 @@ export function MetadataPanel({ detail, onRate }: Props) {
       {onRate ? (
         <div className="meta-row">
           <span className="meta-label">レーティング</span>
-          <span className="meta-rating-stars" role="radiogroup" aria-label="レーティング">
+          <span className="meta-rating-stars" role="group" aria-label="レーティング">
             {[1, 2, 3, 4, 5].map((n) => {
               const filled = (detail.rating ?? 0) >= n;
               return (

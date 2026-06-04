@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useQueryStore } from "../store/useQueryStore";
@@ -72,6 +72,16 @@ export function ImageViewer() {
       if (indicatorTimer.current) window.clearTimeout(indicatorTimer.current);
     };
   }, [zoomMode, scale]);
+
+  // 現在表示中の画像にレーティングを適用し、detail もその場で更新する。
+  const applyRating = useCallback(
+    (rating: number | null) => {
+      if (!image) return;
+      void setRating(image.id, rating);
+      setDetail((d) => (d ? { ...d, rating } : d));
+    },
+    [image, setRating],
+  );
 
   // キーボード操作。
   useEffect(() => {
@@ -153,14 +163,7 @@ export function ImageViewer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last, toggleMeta, image, setRating]);
-
-  // 現在表示中の画像にレーティングを適用し、detail もその場で更新する。
-  const applyRating = (rating: number | null) => {
-    if (!image) return;
-    void setRating(image.id, rating);
-    setDetail((d) => (d ? { ...d, rating } : d));
-  };
+  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last, toggleMeta, applyRating]);
 
   if (!isOpen || !image) return null;
 
