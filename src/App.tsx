@@ -7,6 +7,7 @@ import { DirectoryPanel } from "./components/DirectoryPanel";
 import { FilterBar } from "./components/FilterBar";
 import { ImageGridPanel } from "./components/ImageGridPanel";
 import { ImageViewer } from "./components/ImageViewer";
+import { HelpOverlay } from "./components/HelpOverlay";
 import type { ZoomMode } from "./types";
 import "./App.css";
 
@@ -19,6 +20,9 @@ function App() {
   const toggleShowFilename = useQueryStore((s) => s.toggleShowFilename);
   const dirCollapsed = useQueryStore((s) => s.dirCollapsed);
   const toggleDirCollapsed = useQueryStore((s) => s.toggleDirCollapsed);
+  const helpOpen = useQueryStore((s) => s.helpOpen);
+  const toggleHelp = useQueryStore((s) => s.toggleHelp);
+  const closeHelp = useQueryStore((s) => s.closeHelp);
   const setZoomMode = useViewerStore((s) => s.setZoomMode);
   const loadZoom = useViewerStore((s) => s.loadZoom);
 
@@ -65,9 +69,14 @@ function App() {
     };
   }, [toggleShowFilename, setZoomMode]);
 
-  // グローバルキー: B で左パネル折りたたみ。
+  // グローバルキー: B で左パネル折りたたみ、? でヘルプ、Esc でヘルプを閉じる。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (helpOpen && e.key === "Escape") {
+        e.preventDefault();
+        closeHelp();
+        return;
+      }
       const ae = document.activeElement;
       const typing =
         ae instanceof HTMLElement &&
@@ -76,11 +85,14 @@ function App() {
       if (e.key === "b" || e.key === "B") {
         e.preventDefault();
         void toggleDirCollapsed();
+      } else if (e.key === "?") {
+        e.preventDefault();
+        toggleHelp();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleDirCollapsed]);
+  }, [helpOpen, toggleDirCollapsed, toggleHelp, closeHelp]);
 
   return (
     <div
@@ -113,6 +125,7 @@ function App() {
         <ImageGridPanel />
       </main>
       <ImageViewer />
+      {helpOpen && <HelpOverlay onClose={closeHelp} />}
     </div>
   );
 }
