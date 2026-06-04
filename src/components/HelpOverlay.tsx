@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 interface Props {
   onClose: () => void;
 }
@@ -50,12 +52,17 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
 ];
 
 export function HelpOverlay({ onClose }: Props) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    closeRef.current?.focus();
+  }, []);
+
   return (
-    <div className="help-overlay" onClick={onClose} role="dialog" aria-modal="true">
+    <div className="help-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="help-dialog-title">
       <div className="help-panel" onClick={(e) => e.stopPropagation()}>
         <div className="help-header">
-          <h2>キーボードショートカット</h2>
-          <button onClick={onClose} aria-label="閉じる">
+          <h2 id="help-dialog-title">キーボードショートカット</h2>
+          <button ref={closeRef} onClick={onClose} aria-label="閉じる">
             ✕
           </button>
         </div>
