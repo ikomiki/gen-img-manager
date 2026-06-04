@@ -22,6 +22,7 @@ interface QueryState {
   toggleDirCollapsed: () => Promise<void>;
   toggleHelp: () => void;
   closeHelp: () => void;
+  setRating: (id: number, rating: number | null) => Promise<void>;
   loadSettings: () => Promise<void>;
 }
 
@@ -75,6 +76,12 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   },
   toggleHelp: () => set({ helpOpen: !get().helpOpen }),
   closeHelp: () => set({ helpOpen: false }),
+  setRating: async (id, rating) => {
+    await imagesApi.setRating(id, rating);
+    set({
+      results: get().results.map((r) => (r.id === id ? { ...r, rating } : r)),
+    });
+  },
   loadSettings: async () => {
     const [sortRaw, showRaw, queryRaw, dirCollapsedRaw] = await Promise.all([
       prefsApi.getSetting("sort"),
