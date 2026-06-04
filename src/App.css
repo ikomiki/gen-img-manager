@@ -609,3 +609,16 @@ body,
 .help-header button:hover {
   color: #000;
 }
+.thumb-cell {
+  position: relative;
+}
+.thumb-rating {
+  position: absolute;
+  left: 4px;
+  bottom: 4px;
+  font-size: 11px;
+  line-height: 1;
+  color: #ffce3d;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
