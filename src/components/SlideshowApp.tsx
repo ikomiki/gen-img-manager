@@ -25,6 +25,7 @@ export function SlideshowApp() {
   const orderRef = useRef<number[]>([]);
   const loopRef = useRef(true);
   const randomRef = useRef(false);
+  const fullscreenRef = useRef(false);
   const errorsRef = useRef(0);
   const toastTimer = useRef<number | null>(null);
 
@@ -32,6 +33,7 @@ export function SlideshowApp() {
   useEffect(() => { orderRef.current = order; }, [order]);
   useEffect(() => { loopRef.current = loop; }, [loop]);
   useEffect(() => { randomRef.current = random; }, [random]);
+  useEffect(() => { fullscreenRef.current = fullscreen; }, [fullscreen]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -139,13 +141,25 @@ export function SlideshowApp() {
           e.preventDefault();
           void getCurrentWindow().close();
           break;
+        case "Home":
+          e.preventDefault();
+          if (orderRef.current.length > 0) setPos(0);
+          break;
+        case "End":
+          e.preventDefault();
+          if (orderRef.current.length > 0) setPos(orderRef.current.length - 1);
+          break;
+        case "F11":
+          e.preventDefault();
+          void toggleFullscreen(!fullscreenRef.current);
+          break;
         default:
           break;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [advance]);
+  }, [advance, toggleFullscreen]);
 
   // メニュー「表示 ▸ スライドショー」連携。
   useEffect(() => {

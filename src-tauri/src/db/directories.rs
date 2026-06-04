@@ -17,7 +17,8 @@ pub fn add(
 
 pub fn get(conn: &Connection, id: i64) -> rusqlite::Result<Directory> {
     conn.query_row(
-        "SELECT id, path, label, is_online, last_scanned_at, recursive, visible
+        "SELECT id, path, label, is_online, last_scanned_at, recursive, visible,
+                (SELECT count(*) FROM images i WHERE i.directory_id = directories.id AND i.missing = 0) AS image_count
          FROM directories WHERE id = ?1",
         params![id],
         row_to_dir,
@@ -26,7 +27,8 @@ pub fn get(conn: &Connection, id: i64) -> rusqlite::Result<Directory> {
 
 pub fn list(conn: &Connection) -> rusqlite::Result<Vec<Directory>> {
     let mut stmt = conn.prepare(
-        "SELECT id, path, label, is_online, last_scanned_at, recursive, visible
+        "SELECT id, path, label, is_online, last_scanned_at, recursive, visible,
+                (SELECT count(*) FROM images i WHERE i.directory_id = directories.id AND i.missing = 0) AS image_count
          FROM directories ORDER BY label COLLATE NOCASE",
     )?;
     let rows = stmt.query_map([], row_to_dir)?;
@@ -47,6 +49,7 @@ fn row_to_dir(r: &rusqlite::Row) -> rusqlite::Result<Directory> {
         last_scanned_at: r.get(4)?,
         recursive: r.get::<_, i64>(5)? != 0,
         visible: r.get::<_, i64>(6)? != 0,
+        image_count: r.get(7)?,
     })
 }
 
@@ -77,6 +80,7 @@ pub fn set_visible(conn: &Connection, id: i64, visible: bool) -> rusqlite::Resul
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db::images::NewImage;
     use crate::db::migrations;
 
     fn conn() -> Connection {
@@ -140,5 +144,34 @@ mod tests {
         assert!(!get(&c, d.id).unwrap().visible);
         set_visible(&c, d.id, true).unwrap();
         assert!(get(&c, d.id).unwrap().visible);
+    }
+
+    #[test]
+    fn list_includes_image_count_excluding_missing() {
+        let c = conn();
+        let d = add(&c, "/a", "a", true).unwrap();
+        // 画像なしは 0。
+        assert_eq!(list(&c).unwrap()[0].image_count, 0);
+
+        crate::db::images::upsert(
+            &c,
+            &NewImage {
+                directory_id: d.id,
+                path: "/a/x.png".into(),
+                filename: "x.png".into(),
+                size: 1,
+                mtime: 1,
+                format: "png".into(),
+                source_tool: "a1111".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(list(&c).unwrap()[0].image_count, 1);
+        assert_eq!(get(&c, d.id).unwrap().image_count, 1);
+
+        // missing は除外。
+        c.execute("UPDATE images SET missing = 1", []).unwrap();
+        assert_eq!(list(&c).unwrap()[0].image_count, 0);
     }
 }

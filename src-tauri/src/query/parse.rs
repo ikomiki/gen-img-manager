@@ -1,3 +1,4 @@
+use chrono::{Local, NaiveDate, TimeZone};
 use super::{Cond, CondOp, ParsedQuery};
 
 /// クエリフィールド名 -> FTS列名（テキスト系フィールド）。
@@ -34,19 +35,38 @@ fn struct_field(field: &str) -> Option<(&'static str, FieldKind)> {
 }
 
 struct RawToken {
+    /// クォートを外した全文（例 prompt:a b）。
     text: String,
+    /// クォートが1度でも出現したか。
     quoted: bool,
+    /// 最初のクォートより前の「素の」リード部（例 prompt:"a b" なら "prompt:"）。
+    /// クォートが先頭から始まる純粋句では空になる。
+    lead: String,
 }
 
 /// 空白区切り。ダブルクォートで囲まれた部分は1トークン（クォートは外す）。
+/// lead にはクォート前の素のテキストを記録し、フィールド判定に用いる。
 fn tokenize(input: &str) -> Vec<RawToken> {
     let mut tokens = Vec::new();
-    let mut chars = input.chars().peekable();
     let mut cur = String::new();
+    let mut lead = String::new();
     let mut in_quote = false;
     let mut quoted = false;
 
-    while let Some(&c) = chars.peek() {
+    let flush = |cur: &mut String, lead: &mut String, quoted: &mut bool, tokens: &mut Vec<RawToken>| {
+        if !cur.is_empty() || *quoted {
+            tokens.push(RawToken {
+                text: std::mem::take(cur),
+                quoted: *quoted,
+                lead: std::mem::take(lead),
+            });
+            *quoted = false;
+        } else {
+            lead.clear();
+        }
+    };
+
+    for c in input.chars() {
         match c {
             '"' => {
                 if in_quote {
@@ -55,24 +75,19 @@ fn tokenize(input: &str) -> Vec<RawToken> {
                     in_quote = true;
                     quoted = true;
                 }
-                chars.next();
             }
             c if c.is_whitespace() && !in_quote => {
-                if !cur.is_empty() || quoted {
-                    tokens.push(RawToken { text: std::mem::take(&mut cur), quoted });
-                    quoted = false;
-                }
-                chars.next();
+                flush(&mut cur, &mut lead, &mut quoted, &mut tokens);
             }
             _ => {
                 cur.push(c);
-                chars.next();
+                if !quoted {
+                    lead.push(c);
+                }
             }
         }
     }
-    if !cur.is_empty() || quoted {
-        tokens.push(RawToken { text: cur, quoted });
-    }
+    flush(&mut cur, &mut lead, &mut quoted, &mut tokens);
     tokens
 }
 
@@ -120,47 +135,23 @@ fn parse_value_op(value: &str, is_date: bool) -> Option<CondOp> {
     }
 }
 
-fn is_leap(y: i64) -> bool {
-    (y % 4 == 0 && y % 100 != 0) || y % 400 == 0
-}
-
-fn days_in_month(y: i64, m: i64) -> i64 {
-    match m {
-        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
-        4 | 6 | 9 | 11 => 30,
-        2 => if is_leap(y) { 29 } else { 28 },
-        _ => 0,
-    }
-}
-
-/// "YYYY-MM-DD" を epoch 秒へ。end_of_day=true なら同日 23:59:59。UTC基準・素朴計算。
+/// "YYYY-MM-DD" をローカルTZの epoch 秒へ。end_of_day=true なら同日 23:59:59。
+/// DST の重なり/欠落は最早の瞬間を採用する。
 fn date_to_epoch(s: &str, end_of_day: bool) -> Option<i64> {
     let parts: Vec<&str> = s.split('-').collect();
     if parts.len() != 3 {
         return None;
     }
-    let y: i64 = parts[0].parse().ok()?;
-    let m: i64 = parts[1].parse().ok()?;
-    let d: i64 = parts[2].parse().ok()?;
-    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
-        return None;
-    }
-    if d > days_in_month(y, m) {
-        return None;
-    }
-    let days = days_from_civil(y, m, d);
-    let secs = days * 86400 + if end_of_day { 86399 } else { 0 };
-    Some(secs)
-}
-
-/// 1970-01-01 からの経過日数（Howard Hinnant のアルゴリズム）。
-fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
-    let y = if m <= 2 { y - 1 } else { y };
-    let era = (if y >= 0 { y } else { y - 399 }) / 400;
-    let yoe = y - era * 400;
-    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146097 + doe - 719468
+    let y: i32 = parts[0].parse().ok()?;
+    let m: u32 = parts[1].parse().ok()?;
+    let d: u32 = parts[2].parse().ok()?;
+    let date = NaiveDate::from_ymd_opt(y, m, d)?;
+    let naive = if end_of_day {
+        date.and_hms_opt(23, 59, 59)?
+    } else {
+        date.and_hms_opt(0, 0, 0)?
+    };
+    Local.from_local_datetime(&naive).earliest().map(|dt| dt.timestamp())
 }
 
 /// クエリ文字列をパースする。
@@ -185,37 +176,38 @@ pub fn parse(input: &str) -> ParsedQuery {
             continue;
         }
 
-        let (negate, body) = if !tok.quoted && tok.text.len() > 1 && tok.text.starts_with('-') {
-            (true, tok.text[1..].to_string())
-        } else {
-            (false, tok.text.clone())
-        };
+        // 先頭 '-' は除外。判定は素のリード部で行う（純粋句 "..." は lead が空なので除外記号を持てない）。
+        let negate = tok.lead.starts_with('-');
+        let body = if negate { tok.text[1..].to_string() } else { tok.text.clone() };
+        let lead = if negate { tok.lead[1..].to_string() } else { tok.lead.clone() };
         if body.is_empty() {
             continue;
         }
 
-        if !tok.quoted {
-            if let Some((field, value)) = body.split_once(':') {
-                if !value.is_empty() {
-                    if let Some((column, kind)) = struct_field(field) {
-                        let op = match kind {
-                            FieldKind::Like => Some(CondOp::Like(value.to_string())),
-                            FieldKind::Num { is_date } => parse_value_op(value, is_date),
-                        };
-                        if let Some(op) = op {
-                            conds.push(Cond { column, op, negate });
-                        }
-                        continue;
+        // フィールド検出はクォート前の lead 内のコロンで行う。
+        // lead は body の先頭と一致するため、コロン位置は body 上でも同じ。
+        if let Some(colon) = lead.find(':') {
+            let field = &lead[..colon];
+            let value = &body[colon + 1..];
+            if !value.is_empty() {
+                if let Some((column, kind)) = struct_field(field) {
+                    let op = match kind {
+                        FieldKind::Like => Some(CondOp::Like(value.to_string())),
+                        FieldKind::Num { is_date } => parse_value_op(value, is_date),
+                    };
+                    if let Some(op) = op {
+                        conds.push(Cond { column, op, negate });
                     }
-                    if let Some(col) = text_field_column(field) {
-                        let expr = format!("{} : {}", col, fts_quote(value));
-                        if negate {
-                            excludes.push(expr);
-                        } else {
-                            append_include(&mut include, &mut include_or_pending, &expr);
-                        }
-                        continue;
+                    continue;
+                }
+                if let Some(col) = text_field_column(field) {
+                    let expr = format!("{} : {}", col, fts_quote(value));
+                    if negate {
+                        excludes.push(expr);
+                    } else {
+                        append_include(&mut include, &mut include_or_pending, &expr);
                     }
+                    continue;
                 }
             }
         }
@@ -307,10 +299,21 @@ mod tests {
 
     #[test]
     fn date_range_converts_to_epoch_seconds() {
+        use chrono::{Local, NaiveDate, TimeZone};
         let pq = parse("created:2025-01-01..2025-01-02");
         assert_eq!(pq.conds.len(), 1);
         assert_eq!(pq.conds[0].column, "created_at");
-        assert_eq!(pq.conds[0].op, CondOp::Range(1735689600, 1735862399));
+        let lo = Local
+            .from_local_datetime(&NaiveDate::from_ymd_opt(2025, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap())
+            .earliest()
+            .unwrap()
+            .timestamp();
+        let hi = Local
+            .from_local_datetime(&NaiveDate::from_ymd_opt(2025, 1, 2).unwrap().and_hms_opt(23, 59, 59).unwrap())
+            .earliest()
+            .unwrap()
+            .timestamp();
+        assert_eq!(pq.conds[0].op, CondOp::Range(lo, hi));
     }
 
     #[test]
@@ -351,5 +354,27 @@ mod tests {
         assert_eq!(pq.fts_include, None);
         assert_eq!(pq.fts_exclude, None);
         assert!(pq.conds.is_empty());
+    }
+
+    #[test]
+    fn quoted_field_value_maps_to_fts_phrase() {
+        let pq = parse("prompt:\"best quality\"");
+        assert_eq!(pq.fts_include.as_deref(), Some("positive : \"best quality\""));
+        assert_eq!(pq.fts_exclude, None);
+        assert!(pq.conds.is_empty());
+    }
+
+    #[test]
+    fn quoted_colon_phrase_is_not_a_field() {
+        // クォート内のコロンはフィールド指定にしない（純粋句として扱う）。
+        let pq = parse("\"foo:bar\"");
+        assert_eq!(pq.fts_include.as_deref(), Some("\"foo:bar\""));
+    }
+
+    #[test]
+    fn negated_quoted_field_value() {
+        let pq = parse("-negative:\"low quality\"");
+        assert_eq!(pq.fts_include, None);
+        assert_eq!(pq.fts_exclude.as_deref(), Some("negative : \"low quality\""));
     }
 }

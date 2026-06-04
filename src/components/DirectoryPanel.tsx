@@ -33,10 +33,9 @@ export function DirectoryPanel() {
   const addDirectory = useLibraryStore((s) => s.addDirectory);
   const removeDirectory = useLibraryStore((s) => s.removeDirectory);
   const scanning = useLibraryStore((s) => s.scanning);
-  const imageCounts = useLibraryStore((s) => s.imageCounts);
   const setScanProgress = useLibraryStore((s) => s.setScanProgress);
   const clearScanProgress = useLibraryStore((s) => s.clearScanProgress);
-  const setImageCount = useLibraryStore((s) => s.setImageCount);
+  const loadDirectories = useLibraryStore((s) => s.loadDirectories);
   const setDirectoryVisible = useLibraryStore((s) => s.setDirectoryVisible);
   const runQuery = useQueryStore((s) => s.runQuery);
 
@@ -54,20 +53,20 @@ export function DirectoryPanel() {
       if (!success) {
         console.error("スキャンに失敗しました（directory_id）:", id);
       }
-      // 成否に関わらず最新のDB件数を反映する（失敗時もコミット済みの実件数を表示するため）。
+      // 件数・last_scanned_at・is_online を一括で最新化する。
       try {
-        setImageCount(id, await scanApi.countImages(id));
+        await loadDirectories();
       } catch (err) {
-        console.error("count_images failed:", err);
+        console.error("loadDirectories failed:", err);
       }
-      // スキャン完了で新しい画像が入った可能性があるため一覧を更新。
+      // スキャン完了で新しい画像が入った可能性があるため一覧も更新。
       void runQuery();
     });
     return () => {
       unlistenProgress.then((f) => f());
       unlistenDone.then((f) => f());
     };
-  }, [setScanProgress, clearScanProgress, setImageCount, runQuery]);
+  }, [setScanProgress, clearScanProgress, loadDirectories, runQuery]);
 
   const handleAdd = async () => {
     try {
@@ -147,7 +146,7 @@ export function DirectoryPanel() {
           const status = dirStatusLine({
             scanning: prog ? { processed: prog.processed, total: prog.total } : undefined,
             isOnline: d.is_online,
-            count: imageCounts[d.id],
+            count: d.image_count,
             lastScannedAt: d.last_scanned_at,
           });
           return (

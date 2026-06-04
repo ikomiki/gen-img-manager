@@ -3,6 +3,7 @@ import type { ZoomMode } from "../types";
 import { useQueryStore } from "./useQueryStore";
 import { syncZoomMenu, setSetting, getSetting } from "../api/prefs";
 import { serializeZoom, parseZoom } from "../util/zoomSetting";
+import { nextZoomMode } from "../util/zoomCycle";
 
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 10;
@@ -26,6 +27,9 @@ interface ViewerState {
   select: (index: number) => void;
   setZoomMode: (m: ZoomMode) => void;
   zoomBy: (factor: number) => void;
+  cycleZoom: () => void;
+  first: () => void;
+  last: () => void;
   toggleMeta: () => void;
   toggleNormalize: () => void;
   loadZoom: () => Promise<void>;
@@ -74,6 +78,9 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
       console.error("setSetting(zoom) failed:", e),
     );
   },
+  cycleZoom: () => get().setZoomMode(nextZoomMode(get().zoomMode)),
+  first: () => set({ index: 0 }),
+  last: () => set({ index: Math.max(resultsLength() - 1, 0) }),
   toggleMeta: () => set({ metaOpen: !get().metaOpen }),
   toggleNormalize: () => set({ normalizePrompt: !get().normalizePrompt }),
   // 起動時に永続化されたズーム設定を復元する。不正値は無視してデフォルトのまま。

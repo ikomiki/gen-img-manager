@@ -7,6 +7,7 @@ import { DirectoryPanel } from "./components/DirectoryPanel";
 import { FilterBar } from "./components/FilterBar";
 import { ImageGridPanel } from "./components/ImageGridPanel";
 import { ImageViewer } from "./components/ImageViewer";
+import { HelpOverlay } from "./components/HelpOverlay";
 import type { ZoomMode } from "./types";
 import "./App.css";
 
@@ -17,8 +18,14 @@ function App() {
   const runQuery = useQueryStore((s) => s.runQuery);
   const showFilename = useQueryStore((s) => s.showFilename);
   const toggleShowFilename = useQueryStore((s) => s.toggleShowFilename);
+  const dirCollapsed = useQueryStore((s) => s.dirCollapsed);
+  const toggleDirCollapsed = useQueryStore((s) => s.toggleDirCollapsed);
+  const helpOpen = useQueryStore((s) => s.helpOpen);
+  const toggleHelp = useQueryStore((s) => s.toggleHelp);
+  const closeHelp = useQueryStore((s) => s.closeHelp);
   const setZoomMode = useViewerStore((s) => s.setZoomMode);
   const loadZoom = useViewerStore((s) => s.loadZoom);
+  const viewerOpen = useViewerStore((s) => s.isOpen);
 
   const [dirWidth, setDirWidth] = useState(220);
 
@@ -63,10 +70,39 @@ function App() {
     };
   }, [toggleShowFilename, setZoomMode]);
 
+  // グローバルキー: B で左パネル折りたたみ、? でヘルプ、Esc でヘルプを閉じる。
+  // ビューア表示中は B/? を無効化する（ImageGridPanel と同様）。
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (helpOpen && e.key === "Escape") {
+        e.preventDefault();
+        closeHelp();
+        return;
+      }
+      if (viewerOpen) return;
+      const ae = document.activeElement;
+      const typing =
+        ae instanceof HTMLElement &&
+        (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable);
+      if (typing) return;
+      if (e.key === "b" || e.key === "B") {
+        e.preventDefault();
+        void toggleDirCollapsed();
+      } else if (e.key === "?") {
+        e.preventDefault();
+        toggleHelp();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [helpOpen, viewerOpen, toggleDirCollapsed, toggleHelp, closeHelp]);
+
   return (
     <div
       className="app-shell"
-      style={{ gridTemplateColumns: `${dirWidth}px 5px 1fr` }}
+      style={{
+        gridTemplateColumns: dirCollapsed ? "0px 0px 1fr" : `${dirWidth}px 5px 1fr`,
+      }}
     >
       <header className="filter-bar-slot">
         <FilterBar />
@@ -78,18 +114,21 @@ function App() {
           ファイル名{showFilename ? "：表示" : "：非表示"}
         </button>
       </header>
-      <DirectoryPanel />
-      <div
-        className="dir-resizer"
-        onMouseDown={startResize}
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="ディレクトリ幅を変更"
-      />
+      {!dirCollapsed && <DirectoryPanel />}
+      {!dirCollapsed && (
+        <div
+          className="dir-resizer"
+          onMouseDown={startResize}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="ディレクトリ幅を変更"
+        />
+      )}
       <main className="image-grid-slot">
         <ImageGridPanel />
       </main>
       <ImageViewer />
+      {helpOpen && <HelpOverlay onClose={closeHelp} />}
     </div>
   );
 }

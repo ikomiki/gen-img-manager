@@ -5,11 +5,12 @@ import * as api from "../api/directories";
 vi.mock("../api/directories");
 
 const dir = (id: number, label: string): import("../types").Directory => ({
-  id, path: `/p/${label}`, label, is_online: true, last_scanned_at: null, recursive: true, visible: true,
+  id, path: `/p/${label}`, label, is_online: true, last_scanned_at: null,
+  recursive: true, visible: true, image_count: 0,
 });
 
 beforeEach(() => {
-  useLibraryStore.setState({ directories: [], scanning: {}, imageCounts: {} });
+  useLibraryStore.setState({ directories: [], scanning: {} });
   vi.resetAllMocks();
 });
 
@@ -62,8 +63,4 @@ describe("useLibraryStore", () => {
     expect(useLibraryStore.getState().scanning[1]).toBeUndefined();
   });
 
-  it("setImageCount stores the count by directory id", () => {
-    useLibraryStore.getState().setImageCount(2, 42);
-    expect(useLibraryStore.getState().imageCounts[2]).toBe(42);
-  });
 });

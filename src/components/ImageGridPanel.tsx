@@ -3,6 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
+import { moveIndex } from "../util/gridNav";
 
 const MIN_CELL = 160; // セル最小幅(px)。これを基準に列数を決める。
 const GAP = 6;
@@ -70,6 +71,12 @@ export function ImageGridPanel() {
       if (len === 0) return;
       const cur = selectedIndex < 0 ? 0 : selectedIndex;
       let nextIndex: number | null = null;
+      // 1 ページ＝表示中の行数 × 列数。コンテナ高さから可視行数を見積もる。
+      const visibleRows = Math.max(
+        1,
+        Math.floor((parentRef.current?.clientHeight ?? rowHeight) / rowHeight),
+      );
+      const pageDelta = visibleRows * columns;
       switch (e.key) {
         case "ArrowRight":
           nextIndex = Math.min(cur + 1, len - 1);
@@ -83,6 +90,18 @@ export function ImageGridPanel() {
           break;
         case "ArrowUp":
           nextIndex = Math.max(cur - columns, 0);
+          break;
+        case "Home":
+          nextIndex = 0;
+          break;
+        case "End":
+          nextIndex = len - 1;
+          break;
+        case "PageDown":
+          nextIndex = moveIndex(cur, len, pageDelta);
+          break;
+        case "PageUp":
+          nextIndex = moveIndex(cur, len, -pageDelta);
           break;
         case "Enter":
           // ダブルクリックと同様に、選択中（未選択なら先頭）の画像を表示する。
@@ -99,7 +118,7 @@ export function ImageGridPanel() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [viewerOpen, results, selectedIndex, columns, selectImage, openViewer, rowVirtualizer]);
+  }, [viewerOpen, results, selectedIndex, columns, rowHeight, selectImage, openViewer, rowVirtualizer]);
 
   if (width === 0) {
     return <div className="image-grid" ref={parentRef} />;

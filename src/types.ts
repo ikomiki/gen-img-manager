@@ -6,6 +6,7 @@ export interface Directory {
   last_scanned_at: number | null;
   recursive: boolean;
   visible: boolean;
+  image_count: number;
 }
 
 export interface ScanProgress {

@@ -72,6 +72,29 @@ describe("useViewerStore", () => {
     expect(useViewerStore.getState().zoomMode).toBe("fill");
   });
 
+  it("cycleZoom advances fit -> actual -> fill -> fit", () => {
+    useViewerStore.setState({ zoomMode: "fit", scale: 1 });
+    useViewerStore.getState().cycleZoom();
+    expect(useViewerStore.getState().zoomMode).toBe("actual");
+    useViewerStore.getState().cycleZoom();
+    expect(useViewerStore.getState().zoomMode).toBe("fill");
+    useViewerStore.getState().cycleZoom();
+    expect(useViewerStore.getState().zoomMode).toBe("fit");
+  });
+
+  it("first jumps to index 0", () => {
+    useViewerStore.setState({ index: 2 });
+    useViewerStore.getState().first();
+    expect(useViewerStore.getState().index).toBe(0);
+  });
+
+  it("last jumps to the final result index", () => {
+    // beforeEach は results を 3 件 [row(1),row(2),row(3)] に設定済み。
+    useViewerStore.setState({ index: 0 });
+    useViewerStore.getState().last();
+    expect(useViewerStore.getState().index).toBe(2);
+  });
+
   it("toggleMeta flips metaOpen", () => {
     useViewerStore.setState({ metaOpen: true });
     useViewerStore.getState().toggleMeta();

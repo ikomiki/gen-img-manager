@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
 import { getImageDetail } from "../api/images";
@@ -26,6 +27,9 @@ export function ImageViewer() {
   const setZoomMode = useViewerStore((s) => s.setZoomMode);
   const zoomBy = useViewerStore((s) => s.zoomBy);
   const toggleMeta = useViewerStore((s) => s.toggleMeta);
+  const cycleZoom = useViewerStore((s) => s.cycleZoom);
+  const first = useViewerStore((s) => s.first);
+  const last = useViewerStore((s) => s.last);
 
   const results = useQueryStore((s) => s.results);
   const image = results[index];
@@ -78,11 +82,17 @@ export function ImageViewer() {
           // ベストエフォート: Web content 側の preventDefault が効かない環境では OS 挙動が優先される。
           e.preventDefault();
           e.stopPropagation();
+          void getCurrentWindow()
+            .setFullscreen(false)
+            .catch(() => {});
           close();
           break;
         case "Enter":
           // 現在表示中の画像を選択しつつ一覧へ戻る。
           e.preventDefault();
+          void getCurrentWindow()
+            .setFullscreen(false)
+            .catch(() => {});
           select(index);
           close();
           break;
@@ -94,6 +104,28 @@ export function ImageViewer() {
         case "ArrowLeft":
           prev();
           break;
+        case "Home":
+          e.preventDefault();
+          first();
+          break;
+        case "End":
+          e.preventDefault();
+          last();
+          break;
+        case "i":
+        case "I":
+          e.preventDefault();
+          toggleMeta();
+          break;
+        case "F11": {
+          e.preventDefault();
+          const w = getCurrentWindow();
+          void w
+            .isFullscreen()
+            .then((on) => w.setFullscreen(!on))
+            .catch((err) => console.error("setFullscreen failed:", err));
+          break;
+        }
         case "+":
         case "=":
           zoomBy(1.25);
@@ -101,14 +133,9 @@ export function ImageViewer() {
         case "-":
           zoomBy(0.8);
           break;
-        case "1":
-          setZoomMode("fit");
-          break;
-        case "2":
-          setZoomMode("actual");
-          break;
-        case "3":
-          setZoomMode("fill");
+        case "z":
+        case "Z":
+          cycleZoom();
           break;
         default:
           break;
@@ -116,7 +143,7 @@ export function ImageViewer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, index, close, next, prev, select, zoomBy, setZoomMode]);
+  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last, toggleMeta]);
 
   if (!isOpen || !image) return null;
 
