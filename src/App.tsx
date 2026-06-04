@@ -25,6 +25,7 @@ function App() {
   const closeHelp = useQueryStore((s) => s.closeHelp);
   const setZoomMode = useViewerStore((s) => s.setZoomMode);
   const loadZoom = useViewerStore((s) => s.loadZoom);
+  const viewerOpen = useViewerStore((s) => s.isOpen);
 
   const [dirWidth, setDirWidth] = useState(220);
 
@@ -70,6 +71,7 @@ function App() {
   }, [toggleShowFilename, setZoomMode]);
 
   // グローバルキー: B で左パネル折りたたみ、? でヘルプ、Esc でヘルプを閉じる。
+  // ビューア表示中は B/? を無効化する（ImageGridPanel と同様）。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (helpOpen && e.key === "Escape") {
@@ -77,6 +79,7 @@ function App() {
         closeHelp();
         return;
       }
+      if (viewerOpen) return;
       const ae = document.activeElement;
       const typing =
         ae instanceof HTMLElement &&
@@ -92,7 +95,7 @@ function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [helpOpen, toggleDirCollapsed, toggleHelp, closeHelp]);
+  }, [helpOpen, viewerOpen, toggleDirCollapsed, toggleHelp, closeHelp]);
 
   return (
     <div
