@@ -26,6 +26,7 @@ export function ImageViewer() {
   const setZoomMode = useViewerStore((s) => s.setZoomMode);
   const zoomBy = useViewerStore((s) => s.zoomBy);
   const toggleMeta = useViewerStore((s) => s.toggleMeta);
+  const cycleZoom = useViewerStore((s) => s.cycleZoom);
 
   const results = useQueryStore((s) => s.results);
   const image = results[index];
@@ -101,14 +102,9 @@ export function ImageViewer() {
         case "-":
           zoomBy(0.8);
           break;
-        case "1":
-          setZoomMode("fit");
-          break;
-        case "2":
-          setZoomMode("actual");
-          break;
-        case "3":
-          setZoomMode("fill");
+        case "z":
+        case "Z":
+          cycleZoom();
           break;
         default:
           break;
@@ -116,7 +112,7 @@ export function ImageViewer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, index, close, next, prev, select, zoomBy, setZoomMode]);
+  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom]);
 
   if (!isOpen || !image) return null;
 

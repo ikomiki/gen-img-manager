@@ -72,6 +72,16 @@ describe("useViewerStore", () => {
     expect(useViewerStore.getState().zoomMode).toBe("fill");
   });
 
+  it("cycleZoom advances fit -> actual -> fill -> fit", () => {
+    useViewerStore.setState({ zoomMode: "fit", scale: 1 });
+    useViewerStore.getState().cycleZoom();
+    expect(useViewerStore.getState().zoomMode).toBe("actual");
+    useViewerStore.getState().cycleZoom();
+    expect(useViewerStore.getState().zoomMode).toBe("fill");
+    useViewerStore.getState().cycleZoom();
+    expect(useViewerStore.getState().zoomMode).toBe("fit");
+  });
+
   it("toggleMeta flips metaOpen", () => {
     useViewerStore.setState({ metaOpen: true });
     useViewerStore.getState().toggleMeta();
