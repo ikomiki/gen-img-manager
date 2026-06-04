@@ -139,13 +139,31 @@ export function SlideshowApp() {
           e.preventDefault();
           void getCurrentWindow().close();
           break;
+        case "Home":
+          e.preventDefault();
+          if (orderRef.current.length > 0) setPos(0);
+          break;
+        case "End":
+          e.preventDefault();
+          {
+            const len = orderRef.current.length;
+            if (len > 0) setPos(len - 1);
+          }
+          break;
+        case "F11":
+          e.preventDefault();
+          void getCurrentWindow()
+            .isFullscreen()
+            .then((on) => toggleFullscreen(!on))
+            .catch((err) => console.error("setFullscreen failed:", err));
+          break;
         default:
           break;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [advance]);
+  }, [advance, toggleFullscreen]);
 
   // メニュー「表示 ▸ スライドショー」連携。
   useEffect(() => {
