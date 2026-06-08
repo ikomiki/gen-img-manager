@@ -251,7 +251,7 @@ export function ImageGridPanel() {
     </div>
       {menuState.open && results[selectedIndex] && (() => {
         const target = results[selectedIndex];
-        const items: MenuEntry[] = [
+        const menuItems: MenuEntry[] = [
           {
             label: "ビューアで開く",
             onClick: () => {
@@ -295,7 +295,7 @@ export function ImageGridPanel() {
             x={menuState.x}
             y={menuState.y}
             onClose={closeMenu}
-            items={items}
+            items={menuItems}
           />
         );
       })()}
