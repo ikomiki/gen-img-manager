@@ -16,3 +16,6 @@ export const getImageDetail = (id: number) =>
 
 export const setRating = (id: number, rating: number | null) =>
   invoke<void>("set_rating", { id, rating });
+
+export const revealInFinder = (path: string) =>
+  invoke<void>("reveal_in_finder", { path });
