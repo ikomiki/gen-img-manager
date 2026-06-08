@@ -160,7 +160,7 @@ export function ImageGridPanel() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [viewerOpen, results, selectedIndex, columns, rowHeight, selectImage, openViewer, rowVirtualizer, setRating, closeMenu]);
+  }, [viewerOpen, results, selectedIndex, columns, rowHeight, selectImage, openViewer, rowVirtualizer, setRating]);
 
   if (width === 0) {
     return <div className="image-grid" ref={parentRef} />;
