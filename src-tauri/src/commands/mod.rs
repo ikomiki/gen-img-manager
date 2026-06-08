@@ -4,3 +4,4 @@ pub mod query;
 pub mod scan;
 pub mod slideshow;
 pub mod view_menu;
+pub mod fs;
