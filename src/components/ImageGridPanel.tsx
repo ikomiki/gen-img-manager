@@ -4,6 +4,11 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
 import { moveIndex } from "../util/gridNav";
+import { ContextMenu } from "./ContextMenu";
+import type { MenuEntry } from "./ContextMenu";
+import { useContextMenu } from "../hooks/useContextMenu";
+import { revealInFinder } from "../api/images";
+import { startSlideshow } from "../api/slideshow";
 
 const MIN_CELL = 160; // セル最小幅(px)。これを基準に列数を決める。
 const GAP = 6;
@@ -13,6 +18,7 @@ export function ImageGridPanel() {
   const results = useQueryStore((s) => s.results);
   const showFilename = useQueryStore((s) => s.showFilename);
   const setRating = useQueryStore((s) => s.setRating);
+  const { menuState, showMenu, closeMenu } = useContextMenu();
 
   const selectedIndex = useViewerStore((s) => s.selectedIndex);
   const selectImage = useViewerStore((s) => s.select);
@@ -117,6 +123,28 @@ export function ImageGridPanel() {
           }
           return;
         }
+        case "o":
+        case "O": {
+          e.preventDefault();
+          const target = results[cur];
+          if (target) {
+            void revealInFinder(target.path).catch((e) =>
+              console.error("Finderで表示に失敗しました:", e),
+            );
+          }
+          return;
+        }
+        case "c":
+        case "C": {
+          e.preventDefault();
+          const target = results[cur];
+          if (target) {
+            void navigator.clipboard
+              .writeText(target.path)
+              .catch((e) => console.error("パスのコピーに失敗しました:", e));
+          }
+          return;
+        }
         case "Enter":
           // ダブルクリックと同様に、選択中（未選択なら先頭）の画像を表示する。
           e.preventDefault();
@@ -132,7 +160,7 @@ export function ImageGridPanel() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [viewerOpen, results, selectedIndex, columns, rowHeight, selectImage, openViewer, rowVirtualizer, setRating]);
+  }, [viewerOpen, results, selectedIndex, columns, rowHeight, selectImage, openViewer, rowVirtualizer, setRating, closeMenu]);
 
   if (width === 0) {
     return <div className="image-grid" ref={parentRef} />;
@@ -147,7 +175,14 @@ export function ImageGridPanel() {
   }
 
   return (
-    <div className="image-grid" ref={parentRef} tabIndex={0}>
+    <>
+    <div className="image-grid" ref={parentRef} tabIndex={0}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        if (selectedIndex < 0 || !results[selectedIndex]) return;
+        showMenu(e.clientX, e.clientY, results[selectedIndex].id);
+      }}
+    >
       <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}>
         {rowVirtualizer.getVirtualItems().map((vrow) => {
           const start = vrow.index * columns;
@@ -214,5 +249,56 @@ export function ImageGridPanel() {
         })}
       </div>
     </div>
+      {menuState.open && results[selectedIndex] && (() => {
+        const target = results[selectedIndex];
+        const items: MenuEntry[] = [
+          {
+            label: "ビューアで開く",
+            onClick: () => {
+              openViewer(selectedIndex);
+              closeMenu();
+            },
+          },
+          {
+            label: "スライドショー開始",
+            onClick: () => {
+              void startSlideshow(results.map((r) => r.path), selectedIndex).catch(
+                (e) => console.error("スライドショー起動に失敗しました:", e),
+              );
+              closeMenu();
+            },
+          },
+          { separator: true as const },
+          {
+            label: "Finderで表示",
+            shortcut: "O",
+            onClick: () => {
+              void revealInFinder(target.path).catch((e) =>
+                console.error("Finderで表示に失敗しました:", e),
+              );
+              closeMenu();
+            },
+          },
+          {
+            label: "パスをコピー",
+            shortcut: "C",
+            onClick: () => {
+              void navigator.clipboard
+                .writeText(target.path)
+                .catch((e) => console.error("パスのコピーに失敗しました:", e));
+              closeMenu();
+            },
+          },
+        ];
+        return (
+          <ContextMenu
+            x={menuState.x}
+            y={menuState.y}
+            onClose={closeMenu}
+            items={items}
+          />
+        );
+      })()}
+    </>
   );
 }
