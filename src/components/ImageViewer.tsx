@@ -3,7 +3,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
-import { getImageDetail } from "../api/images";
+import { getImageDetail, revealInFinder } from "../api/images";
 import type { ImageDetail, ZoomMode } from "../types";
 import { MetadataPanel } from "./MetadataPanel";
 
@@ -156,6 +156,24 @@ export function ImageViewer() {
         case "5":
           e.preventDefault();
           applyRating(e.key === "0" ? null : Number(e.key));
+          break;
+        case "o":
+        case "O":
+          e.preventDefault();
+          if (image) {
+            void revealInFinder(image.path).catch((e) =>
+              console.error("Finderで表示に失敗しました:", e),
+            );
+          }
+          break;
+        case "c":
+        case "C":
+          e.preventDefault();
+          if (image) {
+            void navigator.clipboard
+              .writeText(image.path)
+              .catch((e) => console.error("パスのコピーに失敗しました:", e));
+          }
           break;
         default:
           break;
