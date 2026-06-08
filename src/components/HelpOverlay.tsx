@@ -18,6 +18,8 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
       { keys: "PageUp / PageDown", desc: "ページ単位で移動" },
       { keys: "Enter", desc: "ビューアで開く" },
       { keys: "0 - 5", desc: "レーティング設定（0でクリア）" },
+      { keys: "O", desc: "Finderで表示" },
+      { keys: "C", desc: "パスをコピー" },
     ],
   },
   {
@@ -30,6 +32,8 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
       { keys: "I", desc: "情報パネルの開閉" },
       { keys: "F11", desc: "フルスクリーン切替" },
       { keys: "0 - 5", desc: "レーティング設定（0でクリア）" },
+      { keys: "O", desc: "Finderで表示" },
+      { keys: "C", desc: "パスをコピー" },
       { keys: "Enter", desc: "選択して一覧へ戻る" },
       { keys: "Esc", desc: "閉じる" },
     ],
