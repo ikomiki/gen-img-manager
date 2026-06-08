@@ -643,3 +643,48 @@ body,
 .meta-rating-stars .star.filled {
   color: #ffce3d;
 }
+
+/* ---- Context Menu ---- */
+.context-menu {
+  position: fixed;
+  z-index: 2000;
+  min-width: 180px;
+  padding: 4px 0;
+  margin: 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+}
+.context-menu li {
+  padding: 0;
+}
+.context-menu li button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 5px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  gap: 16px;
+}
+.context-menu li button:hover {
+  background: #0066cc;
+  color: #fff;
+}
+.context-menu li button kbd {
+  font-size: 11px;
+  opacity: 0.7;
+  font-family: ui-monospace, monospace;
+}
+.context-menu-separator {
+  height: 1px;
+  background: #e0e0e0;
+  margin: 4px 0;
+}
