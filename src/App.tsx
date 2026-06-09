@@ -8,6 +8,7 @@ import { FilterBar } from "./components/FilterBar";
 import { ImageGridPanel } from "./components/ImageGridPanel";
 import { ImageViewer } from "./components/ImageViewer";
 import { HelpOverlay } from "./components/HelpOverlay";
+import { Toast } from "./components/Toast";
 import type { ZoomMode } from "./types";
 import "./App.css";
 
@@ -18,6 +19,11 @@ function App() {
   const runQuery = useQueryStore((s) => s.runQuery);
   const showFilename = useQueryStore((s) => s.showFilename);
   const toggleShowFilename = useQueryStore((s) => s.toggleShowFilename);
+  const toggleRatingMode = useQueryStore((s) => s.toggleRatingMode);
+  const toggleUnratedOnly = useQueryStore((s) => s.toggleUnratedOnly);
+  const toggleXmpAutoExport = useQueryStore((s) => s.toggleXmpAutoExport);
+  const toggleShowCurrentFilename = useQueryStore((s) => s.toggleShowCurrentFilename);
+  const toggleShowCurrentPosition = useQueryStore((s) => s.toggleShowCurrentPosition);
   const dirCollapsed = useQueryStore((s) => s.dirCollapsed);
   const toggleDirCollapsed = useQueryStore((s) => s.toggleDirCollapsed);
   const helpOpen = useQueryStore((s) => s.helpOpen);
@@ -60,6 +66,16 @@ function App() {
       const id = e.payload;
       if (id === "toggle_filename") {
         void toggleShowFilename();
+      } else if (id === "rating_mode") {
+        void toggleRatingMode();
+      } else if (id === "unrated_only") {
+        void toggleUnratedOnly();
+      } else if (id === "xmp_auto") {
+        void toggleXmpAutoExport();
+      } else if (id === "show_current_filename") {
+        void toggleShowCurrentFilename();
+      } else if (id === "show_current_position") {
+        void toggleShowCurrentPosition();
       } else if (id.startsWith("zoom_")) {
         const mode = id.replace("zoom_", "") as ZoomMode;
         setZoomMode(mode);
@@ -68,7 +84,7 @@ function App() {
     return () => {
       un.then((f) => f());
     };
-  }, [toggleShowFilename, setZoomMode]);
+  }, [toggleShowFilename, setZoomMode, toggleRatingMode, toggleUnratedOnly, toggleXmpAutoExport, toggleShowCurrentFilename, toggleShowCurrentPosition]);
 
   // グローバルキー: B で左パネル折りたたみ、? でヘルプ、Esc でヘルプを閉じる。
   // ビューア表示中は B/? を無効化する（ImageGridPanel と同様）。
@@ -128,6 +144,7 @@ function App() {
         <ImageGridPanel />
       </main>
       <ImageViewer />
+      <Toast />
       {helpOpen && <HelpOverlay onClose={closeHelp} />}
     </div>
   );

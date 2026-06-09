@@ -6,6 +6,7 @@ import { useViewerStore } from "../store/useViewerStore";
 import { getImageDetail, revealInFinder } from "../api/images";
 import type { ImageDetail, ZoomMode } from "../types";
 import { MetadataPanel } from "./MetadataPanel";
+import { isFullscreenToggleKey } from "../util/platform";
 
 const ZOOM_LABELS: Record<ZoomMode, string> = {
   fit: "全体フィット",
@@ -33,6 +34,11 @@ export function ImageViewer() {
 
   const results = useQueryStore((s) => s.results);
   const setRating = useQueryStore((s) => s.setRating);
+  const deleteImage = useQueryStore((s) => s.deleteImage);
+  const ratingMode = useQueryStore((s) => s.ratingMode);
+  const unratedOnly = useQueryStore((s) => s.unratedOnly);
+  const showCurrentFilename = useQueryStore((s) => s.showCurrentFilename);
+  const showCurrentPosition = useQueryStore((s) => s.showCurrentPosition);
   const image = results[index];
 
   const [detail, setDetail] = useState<ImageDetail | null>(null);
@@ -73,20 +79,77 @@ export function ImageViewer() {
     };
   }, [zoomMode, scale]);
 
-  // 現在表示中の画像にレーティングを適用し、detail もその場で更新する。
+  const ratingRef = useRef(false);
+
+  // 現在表示中の画像にレーティングを適用し、detail もその場で更新する。入力モード時は自動で次へ送る。
   const applyRating = useCallback(
-    (rating: number | null) => {
-      if (!image) return;
-      void setRating(image.id, rating);
-      setDetail((d) => (d ? { ...d, rating } : d));
+    async (rating: number | null) => {
+      if (!image || ratingRef.current) return;
+      ratingRef.current = true;
+      try {
+        await setRating(image.id, rating);
+        setDetail((d) => (d ? { ...d, rating } : d));
+        if (!ratingMode) return;
+        if (unratedOnly && rating !== null) {
+          // 評価済みは splice 済み。index 据え置きで次の未入力が表示される。空なら閉じる。
+          const len = useQueryStore.getState().results.length;
+          if (len === 0) {
+            close();
+            return;
+          }
+          if (useViewerStore.getState().index > len - 1) last();
+        } else {
+          // 末尾は据え置き（next() のクランプに従う）。
+          next();
+        }
+      } finally {
+        ratingRef.current = false;
+      }
     },
-    [image, setRating],
+    [image, setRating, ratingMode, unratedOnly, close, last, next],
   );
+
+  const deletingRef = useRef(false);
+
+  // 現在画像をゴミ箱へ移動し、次の画像へ送る。末尾は繰り上げ、空ならビューアを閉じる。
+  const deleteCurrent = useCallback(async () => {
+    if (!image || deletingRef.current) return;
+    deletingRef.current = true;
+    try {
+      await deleteImage(image.id, image.path);
+      const len = useQueryStore.getState().results.length;
+      if (len === 0) {
+        close();
+        return;
+      }
+      if (useViewerStore.getState().index > len - 1) {
+        last();
+      }
+    } finally {
+      deletingRef.current = false;
+    }
+  }, [image, deleteImage, close, last]);
 
   // キーボード操作。
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
+      if (isFullscreenToggleKey(e)) {
+        e.preventDefault();
+        const w = getCurrentWindow();
+        void w
+          .isFullscreen()
+          .then((on) => w.setFullscreen(!on))
+          .catch((err) => console.error("setFullscreen failed:", err));
+        return;
+      }
+      // macOS Finder流: Cmd+Delete でゴミ箱へ（確認なし）。
+      // Mac の delete キーは Backspace を送るため両方受ける。
+      if (e.metaKey && (e.key === "Backspace" || e.key === "Delete")) {
+        e.preventDefault();
+        void deleteCurrent();
+        return;
+      }
       switch (e.key) {
         case "Escape":
           // オーバーレイ表示中は ESC を消費し、OS（macOSネイティブ全画面など）へ伝播させない。
@@ -128,15 +191,6 @@ export function ImageViewer() {
           e.preventDefault();
           toggleMeta();
           break;
-        case "F11": {
-          e.preventDefault();
-          const w = getCurrentWindow();
-          void w
-            .isFullscreen()
-            .then((on) => w.setFullscreen(!on))
-            .catch((err) => console.error("setFullscreen failed:", err));
-          break;
-        }
         case "+":
         case "=":
           zoomBy(1.25);
@@ -155,7 +209,7 @@ export function ImageViewer() {
         case "4":
         case "5":
           e.preventDefault();
-          applyRating(e.key === "0" ? null : Number(e.key));
+          void applyRating(e.key === "0" ? null : Number(e.key));
           break;
         case "o":
         case "O":
@@ -181,7 +235,7 @@ export function ImageViewer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last, toggleMeta, applyRating]);
+  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last, toggleMeta, applyRating, deleteCurrent]);
 
   if (!isOpen || !image) return null;
 
@@ -245,6 +299,17 @@ export function ImageViewer() {
             ‹
           </button>
           <img className={imgClass} style={imgStyle} src={src} alt={image.filename} />
+          {showCurrentFilename && (
+            <div className="viewer-overlay-filename">{image.filename}</div>
+          )}
+          {showCurrentPosition && (
+            <div className="viewer-overlay-position">
+              {index + 1} / {results.length}
+            </div>
+          )}
+          {ratingMode && (
+            <div className="viewer-rating-caption">レーティング入力モード</div>
+          )}
           <button
             className="viewer-nav next"
             onClick={next}

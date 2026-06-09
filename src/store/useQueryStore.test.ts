@@ -2,10 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useQueryStore } from "./useQueryStore";
 import * as imagesApi from "../api/images";
 import * as prefsApi from "../api/prefs";
+import * as fsApi from "../api/fs";
 import type { ImageRow } from "../types";
 
 vi.mock("../api/images");
 vi.mock("../api/prefs");
+vi.mock("../api/fs", () => ({
+  deleteImage: vi.fn().mockResolvedValue(undefined),
+  writeXmpRating: vi.fn().mockResolvedValue(undefined),
+}));
 
 const row = (id: number, filename: string): ImageRow => ({
   id, path: `/d/${filename}`, filename, thumb_path: `/t/${id}.webp`,
@@ -18,10 +23,15 @@ beforeEach(() => {
     query: "", sort: "filename", dir: "asc",
     results: [], total: 0, history: [], showFilename: true,
     dirCollapsed: false, helpOpen: false,
+    toast: null, toastSeq: 0,
   });
   vi.resetAllMocks();
   vi.mocked(prefsApi.syncFilenameMenu).mockResolvedValue(undefined as unknown as void);
   vi.mocked(prefsApi.setSetting).mockResolvedValue(undefined as unknown as void);
+  vi.mocked(prefsApi.syncRatingModeMenu).mockResolvedValue(undefined as unknown as void);
+  vi.mocked(prefsApi.syncUnratedOnlyMenu).mockResolvedValue(undefined as unknown as void);
+  vi.mocked(prefsApi.syncCurrentFilenameMenu).mockResolvedValue(undefined as unknown as void);
+  vi.mocked(prefsApi.syncCurrentPositionMenu).mockResolvedValue(undefined as unknown as void);
 });
 
 describe("useQueryStore", () => {
@@ -131,5 +141,99 @@ describe("useQueryStore", () => {
     await useQueryStore.getState().setRating(1, null);
     expect(imagesApi.setRating).toHaveBeenCalledWith(1, null);
     expect(useQueryStore.getState().results[0].rating).toBeNull();
+  });
+});
+
+describe("toast", () => {
+  it("showToast で toast と toastSeq が更新される", () => {
+    const before = useQueryStore.getState().toastSeq;
+    useQueryStore.getState().showToast("テスト");
+    expect(useQueryStore.getState().toast).toBe("テスト");
+    expect(useQueryStore.getState().toastSeq).toBe(before + 1);
+  });
+  it("clearToast で toast が null になる", () => {
+    useQueryStore.getState().showToast("x");
+    useQueryStore.getState().clearToast();
+    expect(useQueryStore.getState().toast).toBeNull();
+  });
+});
+
+describe("deleteImage", () => {
+  it("results から該当を除去しトーストを出す", async () => {
+    useQueryStore.setState({
+      results: [
+        { id: 1, path: "/a.png", filename: "a.png", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
+        { id: 2, path: "/b.png", filename: "b.png", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
+      ],
+      total: 2,
+      toast: null,
+    });
+    await useQueryStore.getState().deleteImage(1, "/a.png");
+    const st = useQueryStore.getState();
+    expect(st.results.map((r) => r.id)).toEqual([2]);
+    expect(st.total).toBe(1);
+    expect(st.toast).toBe("ゴミ箱に移動しました");
+  });
+});
+
+describe("未入力のみフィルタ", () => {
+  it("ratingMode && unratedOnly で rating!=null を除外する", async () => {
+    vi.mocked(imagesApi.queryImages).mockResolvedValue([
+      { id: 1, path: "/a", filename: "a", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
+      { id: 2, path: "/b", filename: "b", thumb_path: null, width: 1, height: 1, pixels: 1, rating: 4, created_at: null, modified_at: null, source_tool: "x", model: null },
+    ]);
+    useQueryStore.setState({ ratingMode: true, unratedOnly: true });
+    await useQueryStore.getState().runQuery();
+    expect(useQueryStore.getState().results.map((r) => r.id)).toEqual([1]);
+  });
+
+  it("ratingMode OFF なら絞り込まない", async () => {
+    vi.mocked(imagesApi.queryImages).mockResolvedValue([
+      { id: 1, path: "/a", filename: "a", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
+      { id: 2, path: "/b", filename: "b", thumb_path: null, width: 1, height: 1, pixels: 1, rating: 4, created_at: null, modified_at: null, source_tool: "x", model: null },
+    ]);
+    useQueryStore.setState({ ratingMode: false, unratedOnly: true });
+    await useQueryStore.getState().runQuery();
+    expect(useQueryStore.getState().results.length).toBe(2);
+  });
+});
+
+describe("表示トグル", () => {
+  it("toggleShowCurrentFilename で反転し永続化する", async () => {
+    useQueryStore.setState({ showCurrentFilename: false });
+    await useQueryStore.getState().toggleShowCurrentFilename();
+    expect(useQueryStore.getState().showCurrentFilename).toBe(true);
+    expect(prefsApi.setSetting).toHaveBeenCalledWith("show_current_filename", "true");
+  });
+  it("toggleShowCurrentPosition で反転する", async () => {
+    useQueryStore.setState({ showCurrentPosition: false });
+    await useQueryStore.getState().toggleShowCurrentPosition();
+    expect(useQueryStore.getState().showCurrentPosition).toBe(true);
+    expect(prefsApi.setSetting).toHaveBeenCalledWith("show_current_position", "true");
+  });
+});
+
+describe("setRating + XMP 連携", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useQueryStore.setState({
+      results: [{ id: 1, path: "/a.png", filename: "a.png", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null }],
+      xmpAutoExport: false,
+      ratingMode: false,
+      unratedOnly: false,
+    });
+  });
+
+  it("xmpAutoExport OFF のとき writeXmpRating を呼ばない", async () => {
+    vi.mocked(imagesApi.setRating).mockResolvedValue(undefined as unknown as void);
+    await useQueryStore.getState().setRating(1, 3);
+    expect(fsApi.writeXmpRating).not.toHaveBeenCalled();
+  });
+
+  it("xmpAutoExport ON のとき writeXmpRating を呼ぶ", async () => {
+    vi.mocked(imagesApi.setRating).mockResolvedValue(undefined as unknown as void);
+    useQueryStore.setState({ xmpAutoExport: true });
+    await useQueryStore.getState().setRating(1, 3);
+    expect(fsApi.writeXmpRating).toHaveBeenCalledWith("/a.png", 3);
   });
 });

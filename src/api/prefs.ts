@@ -9,3 +9,13 @@ export const setSetting = (key: string, value: string) =>
 
 export const syncZoomMenu = (mode: string) => invoke<void>("sync_zoom_menu", { mode });
 export const syncFilenameMenu = (on: boolean) => invoke<void>("sync_filename_menu", { on });
+export const syncRatingModeMenu = (on: boolean) =>
+  invoke<void>("sync_rating_mode_menu", { on });
+export const syncUnratedOnlyMenu = (on: boolean) =>
+  invoke<void>("sync_unrated_only_menu", { on });
+export const syncXmpAutoMenu = (on: boolean) =>
+  invoke<void>("sync_xmp_auto_menu", { on });
+export const syncCurrentFilenameMenu = (on: boolean) =>
+  invoke<void>("sync_current_filename_menu", { on });
+export const syncCurrentPositionMenu = (on: boolean) =>
+  invoke<void>("sync_current_position_menu", { on });

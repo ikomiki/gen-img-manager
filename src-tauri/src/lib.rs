@@ -65,9 +65,16 @@ pub fn run() {
             commands::view_menu::sync_zoom_menu,
             commands::view_menu::sync_filename_menu,
             commands::view_menu::sync_slideshow_menu,
+            commands::view_menu::sync_rating_mode_menu,
+            commands::view_menu::sync_unrated_only_menu,
+            commands::view_menu::sync_xmp_auto_menu,
+            commands::view_menu::sync_current_filename_menu,
+            commands::view_menu::sync_current_position_menu,
             commands::slideshow::start_slideshow,
             commands::slideshow::get_slideshow_payload,
             commands::fs::reveal_in_finder,
+            commands::fs::delete_image,
+            commands::fs::write_xmp_rating,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

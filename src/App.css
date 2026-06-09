@@ -688,3 +688,66 @@ body,
   background: #e0e0e0;
   margin: 4px 0;
 }
+
+/* グローバルトースト（メインウィンドウ） */
+.app-toast {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 40;
+  pointer-events: none;
+}
+
+/* ビューア: 現在ファイル名（上中央） / 位置（下中央）オーバーレイ */
+.viewer-overlay-filename {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 70%;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  z-index: 3;
+  pointer-events: none;
+}
+.viewer-overlay-position {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* ビューア: レーティング入力モードのキャプション（右上・目立つ背景色） */
+.viewer-rating-caption {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: #d9531e;
+  color: #fff;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  z-index: 3;
+  pointer-events: none;
+}
