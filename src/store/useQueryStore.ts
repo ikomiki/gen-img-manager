@@ -13,6 +13,8 @@ interface QueryState {
   showFilename: boolean;
   dirCollapsed: boolean;
   helpOpen: boolean;
+  toast: string | null;
+  toastSeq: number;
   setQuery: (q: string) => void;
   setSort: (sort: SortKey, dir: SortDir) => void;
   runQuery: () => Promise<void>;
@@ -24,6 +26,8 @@ interface QueryState {
   closeHelp: () => void;
   setRating: (id: number, rating: number | null) => Promise<void>;
   loadSettings: () => Promise<void>;
+  showToast: (msg: string) => void;
+  clearToast: () => void;
 }
 
 export const useQueryStore = create<QueryState>((set, get) => ({
@@ -36,6 +40,8 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   showFilename: true,
   dirCollapsed: false,
   helpOpen: false,
+  toast: null,
+  toastSeq: 0,
   setQuery: (q) => set({ query: q }),
   setSort: (sort, dir) => {
     set({ sort, dir });
@@ -105,4 +111,6 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       set({ dirCollapsed: dirCollapsedRaw === "true" });
     }
   },
+  showToast: (msg) => set({ toast: msg, toastSeq: get().toastSeq + 1 }),
+  clearToast: () => set({ toast: null }),
 }));

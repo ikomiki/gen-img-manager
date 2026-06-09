@@ -133,3 +133,17 @@ describe("useQueryStore", () => {
     expect(useQueryStore.getState().results[0].rating).toBeNull();
   });
 });
+
+describe("toast", () => {
+  it("showToast で toast と toastSeq が更新される", () => {
+    const before = useQueryStore.getState().toastSeq;
+    useQueryStore.getState().showToast("テスト");
+    expect(useQueryStore.getState().toast).toBe("テスト");
+    expect(useQueryStore.getState().toastSeq).toBe(before + 1);
+  });
+  it("clearToast で toast が null になる", () => {
+    useQueryStore.getState().showToast("x");
+    useQueryStore.getState().clearToast();
+    expect(useQueryStore.getState().toast).toBeNull();
+  });
+});
