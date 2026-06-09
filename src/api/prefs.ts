@@ -9,8 +9,6 @@ export const setSetting = (key: string, value: string) =>
 
 export const syncZoomMenu = (mode: string) => invoke<void>("sync_zoom_menu", { mode });
 export const syncFilenameMenu = (on: boolean) => invoke<void>("sync_filename_menu", { on });
-export const syncSlideshowMenu = (fullscreen: boolean) =>
-  invoke<void>("sync_slideshow_menu", { fullscreen });
 export const syncRatingModeMenu = (on: boolean) =>
   invoke<void>("sync_rating_mode_menu", { on });
 export const syncUnratedOnlyMenu = (on: boolean) =>
