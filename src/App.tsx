@@ -8,6 +8,7 @@ import { FilterBar } from "./components/FilterBar";
 import { ImageGridPanel } from "./components/ImageGridPanel";
 import { ImageViewer } from "./components/ImageViewer";
 import { HelpOverlay } from "./components/HelpOverlay";
+import { Toast } from "./components/Toast";
 import type { ZoomMode } from "./types";
 import "./App.css";
 
@@ -128,6 +129,7 @@ function App() {
         <ImageGridPanel />
       </main>
       <ImageViewer />
+      <Toast />
       {helpOpen && <HelpOverlay onClose={closeHelp} />}
     </div>
   );
