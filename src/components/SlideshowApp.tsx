@@ -20,6 +20,8 @@ export function SlideshowApp() {
   const [fullscreen, setFullscreen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [showFilename, setShowFilename] = useState(false);
+  const [showPosition, setShowPosition] = useState(false);
 
   // 最新値を副作用から参照するための ref ミラー。
   const posRef = useRef(0);
@@ -45,11 +47,13 @@ export function SlideshowApp() {
   // 初期化: スナップショットと設定を読み込み、再生順序を組む。
   useEffect(() => {
     void (async () => {
-      const [payload, iv, lp, rnd] = await Promise.all([
+      const [payload, iv, lp, rnd, sf, sp] = await Promise.all([
         getSlideshowPayload(),
         getSetting("slideshow_interval"),
         getSetting("slideshow_loop"),
         getSetting("slideshow_random"),
+        getSetting("show_current_filename"),
+        getSetting("show_current_position"),
       ]);
       const sec = iv ? Math.max(1, Number(iv) || 5) : 5;
       const lpOn = lp === null ? true : lp !== "false";
@@ -57,6 +61,8 @@ export function SlideshowApp() {
       setIntervalSec(sec);
       setLoop(lpOn);
       setRandom(rndOn);
+      setShowFilename(sf === "true");
+      setShowPosition(sp === "true");
 
       const p = payload?.paths ?? [];
       const startImg = Math.min(payload?.start_index ?? 0, Math.max(p.length - 1, 0));
@@ -168,6 +174,8 @@ export function SlideshowApp() {
     const un = listen<string>("menu-action", (e) => {
       if (e.payload === "slideshow_fullscreen") void toggleFullscreen(true);
       else if (e.payload === "slideshow_windowed") void toggleFullscreen(false);
+      else if (e.payload === "show_current_filename") setShowFilename((v) => !v);
+      else if (e.payload === "show_current_position") setShowPosition((v) => !v);
     });
     return () => {
       un.then((f) => f());
@@ -236,6 +244,14 @@ export function SlideshowApp() {
           <div className="ss-empty">{ready ? "表示する画像がありません" : "読み込み中…"}</div>
         )}
       </div>
+      {showFilename && currentPath && (
+        <div className="ss-filename">{currentPath.split(/[\\/]/).pop()}</div>
+      )}
+      {showPosition && (
+        <div className="ss-position">
+          {order.length === 0 ? 0 : pos + 1} / {order.length}
+        </div>
+      )}
       {toast && <div className="ss-toast">{toast}</div>}
       <SlideshowControls
         playing={playing}
