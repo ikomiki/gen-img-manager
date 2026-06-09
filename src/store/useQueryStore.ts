@@ -16,6 +16,9 @@ interface QueryState {
   helpOpen: boolean;
   toast: string | null;
   toastSeq: number;
+  xmpAutoExport: boolean;
+  ratingMode: boolean;
+  unratedOnly: boolean;
   setQuery: (q: string) => void;
   setSort: (sort: SortKey, dir: SortDir) => void;
   runQuery: () => Promise<void>;
@@ -30,6 +33,7 @@ interface QueryState {
   loadSettings: () => Promise<void>;
   showToast: (msg: string) => void;
   clearToast: () => void;
+  toggleXmpAutoExport: () => Promise<void>;
 }
 
 export const useQueryStore = create<QueryState>((set, get) => ({
@@ -44,6 +48,9 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   helpOpen: false,
   toast: null,
   toastSeq: 0,
+  xmpAutoExport: false,
+  ratingMode: false,
+  unratedOnly: false,
   setQuery: (q) => set({ query: q }),
   setSort: (sort, dir) => {
     set({ sort, dir });
@@ -86,9 +93,25 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   closeHelp: () => set({ helpOpen: false }),
   setRating: async (id, rating) => {
     await imagesApi.setRating(id, rating);
-    set({
-      results: get().results.map((r) => (r.id === id ? { ...r, rating } : r)),
-    });
+    const { xmpAutoExport, ratingMode, unratedOnly } = get();
+    if (xmpAutoExport) {
+      const row = get().results.find((r) => r.id === id);
+      if (row) {
+        try {
+          await fsApi.writeXmpRating(row.path, rating);
+        } catch (e) {
+          console.error("XMP書き出しに失敗しました:", e);
+          get().showToast("XMPの書き出しに失敗しました");
+        }
+      }
+    }
+    if (ratingMode && unratedOnly && rating !== null) {
+      // 未入力のみ表示中に評価が付いた画像はリストから除去（=自動送りを兼ねる）。
+      const next = get().results.filter((r) => r.id !== id);
+      set({ results: next, total: next.length });
+    } else {
+      set({ results: get().results.map((r) => (r.id === id ? { ...r, rating } : r)) });
+    }
   },
   deleteImage: async (id, path) => {
     await fsApi.deleteImage(id, path);
@@ -97,11 +120,12 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     get().showToast("ゴミ箱に移動しました");
   },
   loadSettings: async () => {
-    const [sortRaw, showRaw, queryRaw, dirCollapsedRaw] = await Promise.all([
+    const [sortRaw, showRaw, queryRaw, dirCollapsedRaw, xmpAutoRaw] = await Promise.all([
       prefsApi.getSetting("sort"),
       prefsApi.getSetting("show_filename"),
       prefsApi.getSetting("filter_query"),
       prefsApi.getSetting("dir_collapsed"),
+      prefsApi.getSetting("xmp_auto"),
     ]);
     if (sortRaw) {
       const [sort, dir] = sortRaw.split(":");
@@ -118,7 +142,15 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     if (dirCollapsedRaw !== null) {
       set({ dirCollapsed: dirCollapsedRaw === "true" });
     }
+    if (xmpAutoRaw !== null) {
+      set({ xmpAutoExport: xmpAutoRaw === "true" });
+    }
   },
   showToast: (msg) => set({ toast: msg, toastSeq: get().toastSeq + 1 }),
   clearToast: () => set({ toast: null }),
+  toggleXmpAutoExport: async () => {
+    const next = !get().xmpAutoExport;
+    set({ xmpAutoExport: next });
+    await prefsApi.setSetting("xmp_auto", String(next));
+  },
 }));

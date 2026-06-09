@@ -2,11 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useQueryStore } from "./useQueryStore";
 import * as imagesApi from "../api/images";
 import * as prefsApi from "../api/prefs";
+import * as fsApi from "../api/fs";
 import type { ImageRow } from "../types";
 
 vi.mock("../api/images");
 vi.mock("../api/prefs");
-vi.mock("../api/fs", () => ({ deleteImage: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("../api/fs", () => ({
+  deleteImage: vi.fn().mockResolvedValue(undefined),
+  writeXmpRating: vi.fn().mockResolvedValue(undefined),
+}));
 
 const row = (id: number, filename: string): ImageRow => ({
   id, path: `/d/${filename}`, filename, thumb_path: `/t/${id}.webp`,
@@ -165,5 +169,30 @@ describe("deleteImage", () => {
     expect(st.results.map((r) => r.id)).toEqual([2]);
     expect(st.total).toBe(1);
     expect(st.toast).toBe("ゴミ箱に移動しました");
+  });
+});
+
+describe("setRating + XMP 連携", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useQueryStore.setState({
+      results: [{ id: 1, path: "/a.png", filename: "a.png", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null }],
+      xmpAutoExport: false,
+      ratingMode: false,
+      unratedOnly: false,
+    });
+  });
+
+  it("xmpAutoExport OFF のとき writeXmpRating を呼ばない", async () => {
+    vi.mocked(imagesApi.setRating).mockResolvedValue(undefined as unknown as void);
+    await useQueryStore.getState().setRating(1, 3);
+    expect(fsApi.writeXmpRating).not.toHaveBeenCalled();
+  });
+
+  it("xmpAutoExport ON のとき writeXmpRating を呼ぶ", async () => {
+    vi.mocked(imagesApi.setRating).mockResolvedValue(undefined as unknown as void);
+    useQueryStore.setState({ xmpAutoExport: true });
+    await useQueryStore.getState().setRating(1, 3);
+    expect(fsApi.writeXmpRating).toHaveBeenCalledWith("/a.png", 3);
   });
 });
