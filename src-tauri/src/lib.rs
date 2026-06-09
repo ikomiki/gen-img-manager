@@ -68,6 +68,7 @@ pub fn run() {
             commands::slideshow::start_slideshow,
             commands::slideshow::get_slideshow_payload,
             commands::fs::reveal_in_finder,
+            commands::fs::delete_image,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
