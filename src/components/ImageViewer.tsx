@@ -77,24 +77,31 @@ export function ImageViewer() {
     };
   }, [zoomMode, scale]);
 
+  const ratingRef = useRef(false);
+
   // 現在表示中の画像にレーティングを適用し、detail もその場で更新する。入力モード時は自動で次へ送る。
   const applyRating = useCallback(
     async (rating: number | null) => {
-      if (!image) return;
-      await setRating(image.id, rating);
-      setDetail((d) => (d ? { ...d, rating } : d));
-      if (!ratingMode) return;
-      if (unratedOnly && rating !== null) {
-        // 評価済みは splice 済み。index 据え置きで次の未入力が表示される。空なら閉じる。
-        const len = useQueryStore.getState().results.length;
-        if (len === 0) {
-          close();
-          return;
+      if (!image || ratingRef.current) return;
+      ratingRef.current = true;
+      try {
+        await setRating(image.id, rating);
+        setDetail((d) => (d ? { ...d, rating } : d));
+        if (!ratingMode) return;
+        if (unratedOnly && rating !== null) {
+          // 評価済みは splice 済み。index 据え置きで次の未入力が表示される。空なら閉じる。
+          const len = useQueryStore.getState().results.length;
+          if (len === 0) {
+            close();
+            return;
+          }
+          if (useViewerStore.getState().index > len - 1) last();
+        } else {
+          // 末尾は据え置き（next() のクランプに従う）。
+          next();
         }
-        if (useViewerStore.getState().index > len - 1) last();
-      } else {
-        // 末尾は据え置き（next() のクランプに従う）。
-        next();
+      } finally {
+        ratingRef.current = false;
       }
     },
     [image, setRating, ratingMode, unratedOnly, close, last, next],
