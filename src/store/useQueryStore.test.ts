@@ -18,6 +18,7 @@ beforeEach(() => {
     query: "", sort: "filename", dir: "asc",
     results: [], total: 0, history: [], showFilename: true,
     dirCollapsed: false, helpOpen: false,
+    toast: null, toastSeq: 0,
   });
   vi.resetAllMocks();
   vi.mocked(prefsApi.syncFilenameMenu).mockResolvedValue(undefined as unknown as void);
