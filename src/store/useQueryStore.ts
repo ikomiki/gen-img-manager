@@ -156,7 +156,9 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       set({ dirCollapsed: dirCollapsedRaw === "true" });
     }
     if (xmpAutoRaw !== null) {
-      set({ xmpAutoExport: xmpAutoRaw === "true" });
+      const on = xmpAutoRaw === "true";
+      set({ xmpAutoExport: on });
+      prefsApi.syncXmpAutoMenu(on).catch(() => {});
     }
     if (unratedOnlyRaw !== null) {
       set({ unratedOnly: unratedOnlyRaw === "true" });
@@ -179,6 +181,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     const next = !get().xmpAutoExport;
     set({ xmpAutoExport: next });
     await prefsApi.setSetting("xmp_auto", String(next));
+    prefsApi.syncXmpAutoMenu(next).catch((e) => console.error("syncXmpAutoMenu failed:", e));
   },
   toggleRatingMode: async () => {
     const next = !get().ratingMode;
