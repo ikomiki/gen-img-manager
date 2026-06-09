@@ -24,7 +24,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
     let zoom_fill = CheckMenuItem::with_id(app, "zoom_fill", "Fill", true, false, None::<&str>)?;
     let zoom_custom = CheckMenuItem::with_id(app, "zoom_custom", "任意倍率", true, false, None::<&str>)?;
     let show_filename =
-        CheckMenuItem::with_id(app, "toggle_filename", "ファイル名を表示", true, true, None::<&str>)?;
+        CheckMenuItem::with_id(app, "toggle_filename", "一覧のファイル名を表示", true, true, None::<&str>)?;
     let slideshow_windowed =
         CheckMenuItem::with_id(app, "slideshow_windowed", "ウィンドウ全体", true, true, None::<&str>)?;
     let slideshow_fullscreen =
