@@ -34,6 +34,7 @@ export function ImageViewer() {
 
   const results = useQueryStore((s) => s.results);
   const setRating = useQueryStore((s) => s.setRating);
+  const deleteImage = useQueryStore((s) => s.deleteImage);
   const image = results[index];
 
   const [detail, setDetail] = useState<ImageDetail | null>(null);
@@ -84,6 +85,20 @@ export function ImageViewer() {
     [image, setRating],
   );
 
+  // 現在画像をゴミ箱へ移動し、次の画像へ送る。末尾は繰り上げ、空ならビューアを閉じる。
+  const deleteCurrent = useCallback(async () => {
+    if (!image) return;
+    await deleteImage(image.id, image.path);
+    const len = useQueryStore.getState().results.length;
+    if (len === 0) {
+      close();
+      return;
+    }
+    if (useViewerStore.getState().index > len - 1) {
+      last();
+    }
+  }, [image, deleteImage, close, last]);
+
   // キーボード操作。
   useEffect(() => {
     if (!isOpen) return;
@@ -95,6 +110,13 @@ export function ImageViewer() {
           .isFullscreen()
           .then((on) => w.setFullscreen(!on))
           .catch((err) => console.error("setFullscreen failed:", err));
+        return;
+      }
+      // macOS Finder流: Cmd+Delete でゴミ箱へ（確認なし）。
+      // Mac の delete キーは Backspace を送るため両方受ける。
+      if (e.metaKey && (e.key === "Backspace" || e.key === "Delete")) {
+        e.preventDefault();
+        void deleteCurrent();
         return;
       }
       switch (e.key) {
@@ -182,7 +204,7 @@ export function ImageViewer() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last, toggleMeta, applyRating]);
+  }, [isOpen, index, close, next, prev, select, zoomBy, cycleZoom, first, last, toggleMeta, applyRating, deleteCurrent]);
 
   if (!isOpen || !image) return null;
 
