@@ -34,6 +34,8 @@ interface QueryState {
   showToast: (msg: string) => void;
   clearToast: () => void;
   toggleXmpAutoExport: () => Promise<void>;
+  toggleRatingMode: () => Promise<void>;
+  toggleUnratedOnly: () => Promise<void>;
 }
 
 export const useQueryStore = create<QueryState>((set, get) => ({
@@ -60,11 +62,13 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       .catch((e) => console.error("setSetting(sort) failed:", e));
   },
   runQuery: async () => {
-    const { query, sort, dir } = get();
-    // 全件取得（LIMIT -1）。total は取得件数から導出する。
-    const results = await imagesApi.queryImages(query, sort, dir, -1, 0);
+    const { query, sort, dir, ratingMode, unratedOnly } = get();
+    let results = await imagesApi.queryImages(query, sort, dir, -1, 0);
+    if (ratingMode && unratedOnly) {
+      // 「未入力のみ表示」: rating が null の画像だけに共有リストを絞り込む。
+      results = results.filter((r) => r.rating == null);
+    }
     set({ results, total: results.length });
-    // 直前に効いていたフィルタを永続化する（次回起動時に復元する）。
     prefsApi
       .setSetting("filter_query", query)
       .catch((e) => console.error("setSetting(filter_query) failed:", e));
@@ -120,12 +124,13 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     get().showToast("ゴミ箱に移動しました");
   },
   loadSettings: async () => {
-    const [sortRaw, showRaw, queryRaw, dirCollapsedRaw, xmpAutoRaw] = await Promise.all([
+    const [sortRaw, showRaw, queryRaw, dirCollapsedRaw, xmpAutoRaw, unratedOnlyRaw] = await Promise.all([
       prefsApi.getSetting("sort"),
       prefsApi.getSetting("show_filename"),
       prefsApi.getSetting("filter_query"),
       prefsApi.getSetting("dir_collapsed"),
       prefsApi.getSetting("xmp_auto"),
+      prefsApi.getSetting("unrated_only"),
     ]);
     if (sortRaw) {
       const [sort, dir] = sortRaw.split(":");
@@ -145,6 +150,10 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     if (xmpAutoRaw !== null) {
       set({ xmpAutoExport: xmpAutoRaw === "true" });
     }
+    if (unratedOnlyRaw !== null) {
+      set({ unratedOnly: unratedOnlyRaw === "true" });
+      prefsApi.syncUnratedOnlyMenu(unratedOnlyRaw === "true").catch(() => {});
+    }
   },
   showToast: (msg) => set({ toast: msg, toastSeq: get().toastSeq + 1 }),
   clearToast: () => set({ toast: null }),
@@ -152,5 +161,19 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     const next = !get().xmpAutoExport;
     set({ xmpAutoExport: next });
     await prefsApi.setSetting("xmp_auto", String(next));
+  },
+  toggleRatingMode: async () => {
+    const next = !get().ratingMode;
+    set({ ratingMode: next });
+    // 非永続。メニューのチェック更新＋未入力項目の有効/無効を同期し、フィルタを反映する。
+    prefsApi.syncRatingModeMenu(next).catch((e) => console.error("syncRatingModeMenu failed:", e));
+    await get().runQuery();
+  },
+  toggleUnratedOnly: async () => {
+    const next = !get().unratedOnly;
+    set({ unratedOnly: next });
+    await prefsApi.setSetting("unrated_only", String(next));
+    prefsApi.syncUnratedOnlyMenu(next).catch((e) => console.error("syncUnratedOnlyMenu failed:", e));
+    await get().runQuery();
   },
 }));

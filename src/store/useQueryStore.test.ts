@@ -172,6 +172,28 @@ describe("deleteImage", () => {
   });
 });
 
+describe("未入力のみフィルタ", () => {
+  it("ratingMode && unratedOnly で rating!=null を除外する", async () => {
+    vi.mocked(imagesApi.queryImages).mockResolvedValue([
+      { id: 1, path: "/a", filename: "a", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
+      { id: 2, path: "/b", filename: "b", thumb_path: null, width: 1, height: 1, pixels: 1, rating: 4, created_at: null, modified_at: null, source_tool: "x", model: null },
+    ]);
+    useQueryStore.setState({ ratingMode: true, unratedOnly: true });
+    await useQueryStore.getState().runQuery();
+    expect(useQueryStore.getState().results.map((r) => r.id)).toEqual([1]);
+  });
+
+  it("ratingMode OFF なら絞り込まない", async () => {
+    vi.mocked(imagesApi.queryImages).mockResolvedValue([
+      { id: 1, path: "/a", filename: "a", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
+      { id: 2, path: "/b", filename: "b", thumb_path: null, width: 1, height: 1, pixels: 1, rating: 4, created_at: null, modified_at: null, source_tool: "x", model: null },
+    ]);
+    useQueryStore.setState({ ratingMode: false, unratedOnly: true });
+    await useQueryStore.getState().runQuery();
+    expect(useQueryStore.getState().results.length).toBe(2);
+  });
+});
+
 describe("setRating + XMP 連携", () => {
   beforeEach(() => {
     vi.clearAllMocks();
