@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getSlideshowPayload, syncSlideshowMenu } from "../api/slideshow";
 import { getSetting, setSetting } from "../api/prefs";
 import { buildOrder, mulberry32, step } from "../util/playlist";
+import { isFullscreenToggleKey } from "../util/platform";
 import { SlideshowControls } from "./SlideshowControls";
 import "../SlideshowApp.css";
 
@@ -124,6 +125,11 @@ export function SlideshowApp() {
   // キーボード操作。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (isFullscreenToggleKey(e)) {
+        e.preventDefault();
+        void toggleFullscreen(!fullscreenRef.current);
+        return;
+      }
       switch (e.key) {
         case "ArrowRight":
           e.preventDefault();
@@ -148,10 +154,6 @@ export function SlideshowApp() {
         case "End":
           e.preventDefault();
           if (orderRef.current.length > 0) setPos(orderRef.current.length - 1);
-          break;
-        case "F11":
-          e.preventDefault();
-          void toggleFullscreen(!fullscreenRef.current);
           break;
         default:
           break;
