@@ -703,3 +703,19 @@ body,
   z-index: 40;
   pointer-events: none;
 }
+
+/* ビューア: レーティング入力モードのキャプション（右上・目立つ背景色） */
+.viewer-rating-caption {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: #d9531e;
+  color: #fff;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  z-index: 3;
+  pointer-events: none;
+}

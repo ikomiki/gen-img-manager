@@ -35,6 +35,8 @@ export function ImageViewer() {
   const results = useQueryStore((s) => s.results);
   const setRating = useQueryStore((s) => s.setRating);
   const deleteImage = useQueryStore((s) => s.deleteImage);
+  const ratingMode = useQueryStore((s) => s.ratingMode);
+  const unratedOnly = useQueryStore((s) => s.unratedOnly);
   const image = results[index];
 
   const [detail, setDetail] = useState<ImageDetail | null>(null);
@@ -75,14 +77,27 @@ export function ImageViewer() {
     };
   }, [zoomMode, scale]);
 
-  // 現在表示中の画像にレーティングを適用し、detail もその場で更新する。
+  // 現在表示中の画像にレーティングを適用し、detail もその場で更新する。入力モード時は自動で次へ送る。
   const applyRating = useCallback(
-    (rating: number | null) => {
+    async (rating: number | null) => {
       if (!image) return;
-      void setRating(image.id, rating);
+      await setRating(image.id, rating);
       setDetail((d) => (d ? { ...d, rating } : d));
+      if (!ratingMode) return;
+      if (unratedOnly && rating !== null) {
+        // 評価済みは splice 済み。index 据え置きで次の未入力が表示される。空なら閉じる。
+        const len = useQueryStore.getState().results.length;
+        if (len === 0) {
+          close();
+          return;
+        }
+        if (useViewerStore.getState().index > len - 1) last();
+      } else {
+        // 末尾は据え置き（next() のクランプに従う）。
+        next();
+      }
     },
-    [image, setRating],
+    [image, setRating, ratingMode, unratedOnly, close, last, next],
   );
 
   const deletingRef = useRef(false);
@@ -185,7 +200,7 @@ export function ImageViewer() {
         case "4":
         case "5":
           e.preventDefault();
-          applyRating(e.key === "0" ? null : Number(e.key));
+          void applyRating(e.key === "0" ? null : Number(e.key));
           break;
         case "o":
         case "O":
@@ -275,6 +290,9 @@ export function ImageViewer() {
             ‹
           </button>
           <img className={imgClass} style={imgStyle} src={src} alt={image.filename} />
+          {ratingMode && (
+            <div className="viewer-rating-caption">レーティング入力モード</div>
+          )}
           <button
             className="viewer-nav next"
             onClick={next}
