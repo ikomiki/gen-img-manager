@@ -85,6 +85,39 @@ pub fn read_rating_sidecar(image_path: &Path) -> Option<i64> {
     None
 }
 
+/// 書き込み先サイドカーパスを決める。
+/// 既存の image.ext.xmp / image.xmp があればそれを優先し、無ければ image.ext.xmp を返す。
+fn sidecar_write_path(image_path: &Path) -> PathBuf {
+    let mut with_suffix = image_path.as_os_str().to_os_string();
+    with_suffix.push(".xmp");
+    let with_suffix = PathBuf::from(with_suffix);
+    if with_suffix.exists() {
+        return with_suffix;
+    }
+    let bare = image_path.with_extension("xmp");
+    if bare.exists() {
+        return bare;
+    }
+    with_suffix
+}
+
+/// 画像に対応する .xmp サイドカーへ Rating を書き出す（None でクリア）。
+/// 既存ファイルがあれば xmp:Rating のみマージ更新し、無ければ最小XMPを新規作成する。
+/// None かつ既存ファイルが無い場合は何もしない。
+pub fn write_rating_sidecar(image_path: &Path, rating: Option<i64>) -> std::io::Result<()> {
+    let target = sidecar_write_path(image_path);
+    let existing = std::fs::read_to_string(&target).unwrap_or_default();
+    if rating.is_none() && existing.trim().is_empty() {
+        return Ok(());
+    }
+    let updated = upsert_rating_in_xmp(&existing, rating);
+    if updated.trim().is_empty() {
+        // 何も書くものが無い（空のままクリア）→ ファイルがあれば内容を空更新せず触らない。
+        return Ok(());
+    }
+    std::fs::write(&target, updated)
+}
+
 const MINIMAL_TEMPLATE_HEAD: &str =
     "<?xpacket begin=\"\u{feff}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n\
      <x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n\
@@ -250,6 +283,36 @@ mod tests {
     fn upsert_empty_doc_none_is_empty() {
         let out = upsert_rating_in_xmp("", None);
         assert!(parse_rating(&out).is_none());
+    }
+
+    #[test]
+    fn write_creates_sidecar_with_suffix_when_absent() {
+        let dir = std::env::temp_dir().join(format!("gim_xmpw_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let img = dir.join("pic.png");
+        std::fs::write(&img, b"x").unwrap();
+        write_rating_sidecar(&img, Some(4)).unwrap();
+        assert_eq!(read_rating_sidecar(&img), Some(4));
+        assert!(dir.join("pic.png.xmp").exists());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn write_updates_existing_bare_sidecar() {
+        let dir = std::env::temp_dir().join(format!("gim_xmpw_bare_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let img = dir.join("pic.png");
+        std::fs::write(&img, b"x").unwrap();
+        std::fs::write(
+            dir.join("pic.xmp"),
+            r#"<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="1"/>"#,
+        )
+        .unwrap();
+        write_rating_sidecar(&img, Some(5)).unwrap();
+        // 既存 image.xmp を更新（image.png.xmp は作らない）。
+        assert!(!dir.join("pic.png.xmp").exists());
+        assert_eq!(read_rating_sidecar(&img), Some(5));
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
