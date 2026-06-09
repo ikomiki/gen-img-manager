@@ -133,6 +133,28 @@ fn minimal_xmp(rating: i64) -> String {
     )
 }
 
+/// rdf:Description（Start/Empty）の属性を走査し、xmp:Rating を
+/// 置換（Some）または除去（None）した新しい開始タグを構築する。
+/// 戻り値 `(out, had_rating)` の had_rating は元タグに xmp:Rating 属性が
+/// 存在したかを示す。Start形式では呼び出し側で属性注入は行わない
+/// （注入は子要素として End 直前に行う）。
+fn rewrite_description_attrs(e: &BytesStart, rating: Option<i64>) -> (BytesStart<'static>, bool) {
+    let mut out = BytesStart::new(String::from_utf8_lossy(e.name().as_ref()).into_owned());
+    let mut had_rating = false;
+    for attr in e.attributes().flatten() {
+        if attr.key.as_ref() == b"xmp:Rating" {
+            had_rating = true;
+            if let Some(r) = rating {
+                out.push_attribute(("xmp:Rating", r.clamp(0, 5).to_string().as_str()));
+            }
+            // None のときは属性を落とす（除去）。
+        } else {
+            out.push_attribute(attr);
+        }
+    }
+    (out, had_rating)
+}
+
 /// XMP文字列中の xmp:Rating を更新（Some）または除去（None）したXMLを返す。
 /// 属性形式 `xmp:Rating="N"` と要素形式 `<xmp:Rating>N</xmp:Rating>` の双方に対応する。
 /// どちらも存在しない場合、Some なら最初の rdf:Description 終了直前に要素を挿入する。
@@ -162,6 +184,17 @@ pub fn upsert_rating_in_xmp(xml: &str, rating: Option<i64>) -> String {
                 }
                 // None のときは Start を書かない（除去）。
             }
+            Ok(Event::Start(e)) if e.name().as_ref() == b"rdf:Description" => {
+                // Adobe が出力する compact 形式: 属性 xmp:Rating を持つが子要素も持つ
+                // Start 形式の Description。属性を置換/除去するが、属性注入はしない
+                // （無い場合は End 直前に子要素として注入する）。
+                let (out, had_rating) = rewrite_description_attrs(&e, rating);
+                if had_rating {
+                    // 属性が存在した → 置換/除去済み。要素注入は不要。
+                    found = true;
+                }
+                let _ = writer.write_event(WEvent::Start(out));
+            }
             Ok(Event::End(e)) if e.name().as_ref() == b"xmp:Rating" => {
                 in_rating_element = false;
                 if rating.is_some() {
@@ -172,29 +205,24 @@ pub fn upsert_rating_in_xmp(xml: &str, rating: Option<i64>) -> String {
             Ok(Event::Text(_)) if in_rating_element => {
                 // 旧Ratingのテキストは捨てる（Some時は上で新値を出力済み）。
             }
-            Ok(Event::Empty(e)) => {
-                // 属性に xmp:Rating を持つ自己完結要素を書き換える。
-                let mut out = BytesStart::new(String::from_utf8_lossy(e.name().as_ref()).into_owned());
-                let mut had_rating = false;
-                for attr in e.attributes().flatten() {
-                    if attr.key.as_ref() == b"xmp:Rating" {
-                        had_rating = true;
-                        found = true;
-                        if let Some(r) = rating {
-                            out.push_attribute(("xmp:Rating", r.clamp(0, 5).to_string().as_str()));
-                        }
-                        // None のときは属性を落とす。
-                    } else {
-                        out.push_attribute(attr);
-                    }
+            Ok(Event::Empty(e)) if e.name().as_ref() == b"xmp:Rating" => {
+                // 自己完結タグ <xmp:Rating/> を置換（Some）または除去（None）する。
+                // 元タグはそのまま通さない（二重挿入を防ぐ）。
+                found = true;
+                if let Some(r) = rating {
+                    let _ = writer.write_event(WEvent::Start(BytesStart::new("xmp:Rating")));
+                    let _ = writer.write_event(WEvent::Text(BytesText::new(&r.clamp(0, 5).to_string())));
+                    let _ = writer.write_event(WEvent::End(BytesEnd::new("xmp:Rating")));
                 }
-                // Rating属性が無く、まだ挿入していない rdf:Description で Some の場合は属性を足す。
-                if !had_rating
-                    && rating.is_some()
-                    && !found
-                    && !injected
-                    && e.name().as_ref() == b"rdf:Description"
-                {
+                // None のときは何も書かない（除去）。
+            }
+            Ok(Event::Empty(e)) if e.name().as_ref() == b"rdf:Description" => {
+                // 子要素を持たない Description。属性 xmp:Rating を置換/除去し、
+                // 無くて Some なら属性を注入する（Empty 形式のみ属性注入する）。
+                let (mut out, had_rating) = rewrite_description_attrs(&e, rating);
+                if had_rating {
+                    found = true;
+                } else if rating.is_some() && !found && !injected {
                     out.push_attribute(("xmp:Rating", rating.unwrap().clamp(0, 5).to_string().as_str()));
                     injected = true;
                 }
@@ -221,10 +249,9 @@ pub fn upsert_rating_in_xmp(xml: &str, rating: Option<i64>) -> String {
 
     let bytes = writer.into_inner().into_inner();
     let result = String::from_utf8_lossy(&bytes).into_owned();
-    // Description が無くて挿入できず、Some の場合は最小XMPにフォールバック。
-    if rating.is_some() && !found && !injected {
-        return minimal_xmp(rating.unwrap().clamp(0, 5));
-    }
+    // 非空入力に Description が無い場合でも内容を破棄せず、ラウンドトリップ結果を返す
+    // （minimal_xmp で上書きするとユーザーの手書き内容を失うため）。
+    // 空入力時の minimal 生成は関数冒頭で処理済み。
     result
 }
 
@@ -364,6 +391,75 @@ mod tests {
         // <xmp:Rating/> の後の兄弟テキストをレーティングと誤認しないこと。
         let xml = r#"<root xmlns:xmp="http://ns.adobe.com/xap/1.0/"><xmp:Rating/><foo>3</foo></root>"#;
         assert_eq!(parse_rating(xml), None);
+    }
+
+    #[test]
+    fn upsert_replaces_attribute_on_start_form_description() {
+        // Adobe compact 形式: 属性 xmp:Rating を持つ Start 形式 Description（子あり）。
+        let xml = r#"<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmp:Rating="2"><dc:title>t</dc:title></rdf:Description>"#;
+        let out = upsert_rating_in_xmp(xml, Some(4));
+        assert_eq!(parse_rating(&out), Some(4));
+        assert!(out.contains("dc:title"));
+        // 古い値の属性は残らない。
+        assert!(!out.contains(r#"xmp:Rating="2""#));
+        // 新値の属性で書き換わっている。
+        assert!(out.contains(r#"xmp:Rating="4""#));
+
+        // クリア（None）→ 属性が消え、parse は None。
+        let out_none = upsert_rating_in_xmp(xml, None);
+        assert_eq!(parse_rating(&out_none), None);
+        assert!(!out_none.contains("xmp:Rating=\""));
+        assert!(out_none.contains("dc:title"));
+    }
+
+    #[test]
+    fn upsert_self_closing_rating_some_and_none() {
+        let xml = r#"<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xmp="http://ns.adobe.com/xap/1.0/"><xmp:Rating/></rdf:Description>"#;
+        let out = upsert_rating_in_xmp(xml, Some(3));
+        assert_eq!(parse_rating(&out), Some(3));
+        // 二重挿入が無いこと（rating 要素は1つ）。
+        assert_eq!(out.matches("<xmp:Rating>").count(), 1);
+
+        let out_none = upsert_rating_in_xmp(xml, None);
+        assert_eq!(parse_rating(&out_none), None);
+    }
+
+    #[test]
+    fn upsert_preserves_content_when_no_description() {
+        let xml = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><customStuff>IMPORTANT</customStuff></x:xmpmeta>"#;
+        let out = upsert_rating_in_xmp(xml, Some(4));
+        // Description が無くても内容は破棄しない（データ消失防止）。
+        assert!(out.contains("IMPORTANT"));
+    }
+
+    #[test]
+    fn upsert_realistic_sidecar_roundtrip() {
+        let xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+            <?xpacket begin=\"\u{feff}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n\
+            <x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n\
+            <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n\
+            <rdf:Description xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmp:Rating=\"2\"><dc:title>My Photo</dc:title></rdf:Description>\n\
+            </rdf:RDF>\n</x:xmpmeta>\n<?xpacket end=\"w\"?>";
+        let out = upsert_rating_in_xmp(xml, Some(5));
+        assert_eq!(parse_rating(&out), Some(5));
+        assert!(out.contains("My Photo"));
+        // 古い rating は残らない。
+        assert!(!out.contains(r#"xmp:Rating="2""#));
+    }
+
+    #[test]
+    fn upsert_both_forms_present() {
+        // 属性と要素の両方に rating が存在する病的なケース。
+        let xml = r#"<rdf:Description xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="2"><xmp:Rating>2</xmp:Rating></rdf:Description>"#;
+        let out = upsert_rating_in_xmp(xml, Some(4));
+        assert_eq!(parse_rating(&out), Some(4));
+        // 古い属性も古い要素値も残らない。
+        assert!(!out.contains(r#"xmp:Rating="2""#));
+        assert!(!out.contains(">2<"));
+
+        let out_none = upsert_rating_in_xmp(xml, None);
+        assert_eq!(parse_rating(&out_none), None);
+        assert!(!out_none.contains("xmp:Rating=\""));
     }
 
     #[test]
