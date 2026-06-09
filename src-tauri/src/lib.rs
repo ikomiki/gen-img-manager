@@ -69,6 +69,7 @@ pub fn run() {
             commands::slideshow::get_slideshow_payload,
             commands::fs::reveal_in_finder,
             commands::fs::delete_image,
+            commands::fs::write_xmp_rating,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

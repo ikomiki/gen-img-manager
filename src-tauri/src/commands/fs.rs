@@ -36,3 +36,10 @@ pub fn delete_image(db: State<Db>, id: i64, path: String) -> Result<(), String> 
     crate::db::images::mark_missing(&conn, id, true).map_err(|e| e.to_string())?;
     Ok(())
 }
+
+/// 画像パスに対応する .xmp サイドカーへ Rating を書き出す（None でクリア）。
+#[tauri::command]
+pub fn write_xmp_rating(path: String, rating: Option<i64>) -> Result<(), String> {
+    crate::parser::xmp::write_rating_sidecar(std::path::Path::new(&path), rating)
+        .map_err(|e| e.to_string())
+}
