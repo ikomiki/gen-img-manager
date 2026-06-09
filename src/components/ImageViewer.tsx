@@ -6,6 +6,7 @@ import { useViewerStore } from "../store/useViewerStore";
 import { getImageDetail, revealInFinder } from "../api/images";
 import type { ImageDetail, ZoomMode } from "../types";
 import { MetadataPanel } from "./MetadataPanel";
+import { isFullscreenToggleKey } from "../util/platform";
 
 const ZOOM_LABELS: Record<ZoomMode, string> = {
   fit: "全体フィット",
@@ -87,6 +88,15 @@ export function ImageViewer() {
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
+      if (isFullscreenToggleKey(e)) {
+        e.preventDefault();
+        const w = getCurrentWindow();
+        void w
+          .isFullscreen()
+          .then((on) => w.setFullscreen(!on))
+          .catch((err) => console.error("setFullscreen failed:", err));
+        return;
+      }
       switch (e.key) {
         case "Escape":
           // オーバーレイ表示中は ESC を消費し、OS（macOSネイティブ全画面など）へ伝播させない。
@@ -128,15 +138,6 @@ export function ImageViewer() {
           e.preventDefault();
           toggleMeta();
           break;
-        case "F11": {
-          e.preventDefault();
-          const w = getCurrentWindow();
-          void w
-            .isFullscreen()
-            .then((on) => w.setFullscreen(!on))
-            .catch((err) => console.error("setFullscreen failed:", err));
-          break;
-        }
         case "+":
         case "=":
           zoomBy(1.25);
