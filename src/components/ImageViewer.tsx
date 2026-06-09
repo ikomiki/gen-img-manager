@@ -37,6 +37,8 @@ export function ImageViewer() {
   const deleteImage = useQueryStore((s) => s.deleteImage);
   const ratingMode = useQueryStore((s) => s.ratingMode);
   const unratedOnly = useQueryStore((s) => s.unratedOnly);
+  const showCurrentFilename = useQueryStore((s) => s.showCurrentFilename);
+  const showCurrentPosition = useQueryStore((s) => s.showCurrentPosition);
   const image = results[index];
 
   const [detail, setDetail] = useState<ImageDetail | null>(null);
@@ -297,6 +299,14 @@ export function ImageViewer() {
             ‹
           </button>
           <img className={imgClass} style={imgStyle} src={src} alt={image.filename} />
+          {showCurrentFilename && (
+            <div className="viewer-overlay-filename">{image.filename}</div>
+          )}
+          {showCurrentPosition && (
+            <div className="viewer-overlay-position">
+              {index + 1} / {results.length}
+            </div>
+          )}
           {ratingMode && (
             <div className="viewer-rating-caption">レーティング入力モード</div>
           )}
