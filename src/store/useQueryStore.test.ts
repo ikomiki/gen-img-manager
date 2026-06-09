@@ -157,11 +157,13 @@ describe("deleteImage", () => {
         { id: 1, path: "/a.png", filename: "a.png", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
         { id: 2, path: "/b.png", filename: "b.png", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
       ],
+      total: 2,
       toast: null,
     });
     await useQueryStore.getState().deleteImage(1, "/a.png");
     const st = useQueryStore.getState();
     expect(st.results.map((r) => r.id)).toEqual([2]);
+    expect(st.total).toBe(1);
     expect(st.toast).toBe("ゴミ箱に移動しました");
   });
 });

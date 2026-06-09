@@ -85,17 +85,24 @@ export function ImageViewer() {
     [image, setRating],
   );
 
+  const deletingRef = useRef(false);
+
   // 現在画像をゴミ箱へ移動し、次の画像へ送る。末尾は繰り上げ、空ならビューアを閉じる。
   const deleteCurrent = useCallback(async () => {
-    if (!image) return;
-    await deleteImage(image.id, image.path);
-    const len = useQueryStore.getState().results.length;
-    if (len === 0) {
-      close();
-      return;
-    }
-    if (useViewerStore.getState().index > len - 1) {
-      last();
+    if (!image || deletingRef.current) return;
+    deletingRef.current = true;
+    try {
+      await deleteImage(image.id, image.path);
+      const len = useQueryStore.getState().results.length;
+      if (len === 0) {
+        close();
+        return;
+      }
+      if (useViewerStore.getState().index > len - 1) {
+        last();
+      }
+    } finally {
+      deletingRef.current = false;
     }
   }, [image, deleteImage, close, last]);
 

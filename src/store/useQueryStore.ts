@@ -92,7 +92,8 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   },
   deleteImage: async (id, path) => {
     await fsApi.deleteImage(id, path);
-    set({ results: get().results.filter((r) => r.id !== id) });
+    const next = get().results.filter((r) => r.id !== id);
+    set({ results: next, total: next.length });
     get().showToast("ゴミ箱に移動しました");
   },
   loadSettings: async () => {
