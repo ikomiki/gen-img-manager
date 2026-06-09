@@ -6,6 +6,7 @@ import type { ImageRow } from "../types";
 
 vi.mock("../api/images");
 vi.mock("../api/prefs");
+vi.mock("../api/fs", () => ({ deleteImage: vi.fn().mockResolvedValue(undefined) }));
 
 const row = (id: number, filename: string): ImageRow => ({
   id, path: `/d/${filename}`, filename, thumb_path: `/t/${id}.webp`,
@@ -146,5 +147,21 @@ describe("toast", () => {
     useQueryStore.getState().showToast("x");
     useQueryStore.getState().clearToast();
     expect(useQueryStore.getState().toast).toBeNull();
+  });
+});
+
+describe("deleteImage", () => {
+  it("results から該当を除去しトーストを出す", async () => {
+    useQueryStore.setState({
+      results: [
+        { id: 1, path: "/a.png", filename: "a.png", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
+        { id: 2, path: "/b.png", filename: "b.png", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
+      ],
+      toast: null,
+    });
+    await useQueryStore.getState().deleteImage(1, "/a.png");
+    const st = useQueryStore.getState();
+    expect(st.results.map((r) => r.id)).toEqual([2]);
+    expect(st.toast).toBe("ゴミ箱に移動しました");
   });
 });

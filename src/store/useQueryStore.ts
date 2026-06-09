@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { ImageRow, SortKey, SortDir } from "../types";
 import * as imagesApi from "../api/images";
 import * as prefsApi from "../api/prefs";
+import * as fsApi from "../api/fs";
 
 interface QueryState {
   query: string;
@@ -25,6 +26,7 @@ interface QueryState {
   toggleHelp: () => void;
   closeHelp: () => void;
   setRating: (id: number, rating: number | null) => Promise<void>;
+  deleteImage: (id: number, path: string) => Promise<void>;
   loadSettings: () => Promise<void>;
   showToast: (msg: string) => void;
   clearToast: () => void;
@@ -87,6 +89,11 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     set({
       results: get().results.map((r) => (r.id === id ? { ...r, rating } : r)),
     });
+  },
+  deleteImage: async (id, path) => {
+    await fsApi.deleteImage(id, path);
+    set({ results: get().results.filter((r) => r.id !== id) });
+    get().showToast("ゴミ箱に移動しました");
   },
   loadSettings: async () => {
     const [sortRaw, showRaw, queryRaw, dirCollapsedRaw] = await Promise.all([
