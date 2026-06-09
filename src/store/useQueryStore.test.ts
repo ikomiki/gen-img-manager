@@ -203,11 +203,13 @@ describe("表示トグル", () => {
     useQueryStore.setState({ showCurrentFilename: false });
     await useQueryStore.getState().toggleShowCurrentFilename();
     expect(useQueryStore.getState().showCurrentFilename).toBe(true);
+    expect(prefsApi.setSetting).toHaveBeenCalledWith("show_current_filename", "true");
   });
   it("toggleShowCurrentPosition で反転する", async () => {
     useQueryStore.setState({ showCurrentPosition: false });
     await useQueryStore.getState().toggleShowCurrentPosition();
     expect(useQueryStore.getState().showCurrentPosition).toBe(true);
+    expect(prefsApi.setSetting).toHaveBeenCalledWith("show_current_position", "true");
   });
 });
 
