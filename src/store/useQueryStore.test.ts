@@ -28,6 +28,10 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(prefsApi.syncFilenameMenu).mockResolvedValue(undefined as unknown as void);
   vi.mocked(prefsApi.setSetting).mockResolvedValue(undefined as unknown as void);
+  vi.mocked(prefsApi.syncRatingModeMenu).mockResolvedValue(undefined as unknown as void);
+  vi.mocked(prefsApi.syncUnratedOnlyMenu).mockResolvedValue(undefined as unknown as void);
+  vi.mocked(prefsApi.syncCurrentFilenameMenu).mockResolvedValue(undefined as unknown as void);
+  vi.mocked(prefsApi.syncCurrentPositionMenu).mockResolvedValue(undefined as unknown as void);
 });
 
 describe("useQueryStore", () => {
@@ -191,6 +195,19 @@ describe("未入力のみフィルタ", () => {
     useQueryStore.setState({ ratingMode: false, unratedOnly: true });
     await useQueryStore.getState().runQuery();
     expect(useQueryStore.getState().results.length).toBe(2);
+  });
+});
+
+describe("表示トグル", () => {
+  it("toggleShowCurrentFilename で反転し永続化する", async () => {
+    useQueryStore.setState({ showCurrentFilename: false });
+    await useQueryStore.getState().toggleShowCurrentFilename();
+    expect(useQueryStore.getState().showCurrentFilename).toBe(true);
+  });
+  it("toggleShowCurrentPosition で反転する", async () => {
+    useQueryStore.setState({ showCurrentPosition: false });
+    await useQueryStore.getState().toggleShowCurrentPosition();
+    expect(useQueryStore.getState().showCurrentPosition).toBe(true);
   });
 });
 

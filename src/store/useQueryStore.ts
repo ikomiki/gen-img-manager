@@ -36,6 +36,10 @@ interface QueryState {
   toggleXmpAutoExport: () => Promise<void>;
   toggleRatingMode: () => Promise<void>;
   toggleUnratedOnly: () => Promise<void>;
+  showCurrentFilename: boolean;
+  showCurrentPosition: boolean;
+  toggleShowCurrentFilename: () => Promise<void>;
+  toggleShowCurrentPosition: () => Promise<void>;
 }
 
 export const useQueryStore = create<QueryState>((set, get) => ({
@@ -53,6 +57,8 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   xmpAutoExport: false,
   ratingMode: false,
   unratedOnly: false,
+  showCurrentFilename: false,
+  showCurrentPosition: false,
   setQuery: (q) => set({ query: q }),
   setSort: (sort, dir) => {
     set({ sort, dir });
@@ -124,13 +130,15 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     get().showToast("ゴミ箱に移動しました");
   },
   loadSettings: async () => {
-    const [sortRaw, showRaw, queryRaw, dirCollapsedRaw, xmpAutoRaw, unratedOnlyRaw] = await Promise.all([
+    const [sortRaw, showRaw, queryRaw, dirCollapsedRaw, xmpAutoRaw, unratedOnlyRaw, showCurFnameRaw, showCurPosRaw] = await Promise.all([
       prefsApi.getSetting("sort"),
       prefsApi.getSetting("show_filename"),
       prefsApi.getSetting("filter_query"),
       prefsApi.getSetting("dir_collapsed"),
       prefsApi.getSetting("xmp_auto"),
       prefsApi.getSetting("unrated_only"),
+      prefsApi.getSetting("show_current_filename"),
+      prefsApi.getSetting("show_current_position"),
     ]);
     if (sortRaw) {
       const [sort, dir] = sortRaw.split(":");
@@ -154,6 +162,16 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       set({ unratedOnly: unratedOnlyRaw === "true" });
       prefsApi.syncUnratedOnlyMenu(unratedOnlyRaw === "true").catch(() => {});
     }
+    if (showCurFnameRaw !== null) {
+      const on = showCurFnameRaw === "true";
+      set({ showCurrentFilename: on });
+      prefsApi.syncCurrentFilenameMenu(on).catch(() => {});
+    }
+    if (showCurPosRaw !== null) {
+      const on = showCurPosRaw === "true";
+      set({ showCurrentPosition: on });
+      prefsApi.syncCurrentPositionMenu(on).catch(() => {});
+    }
   },
   showToast: (msg) => set({ toast: msg, toastSeq: get().toastSeq + 1 }),
   clearToast: () => set({ toast: null }),
@@ -175,5 +193,17 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     await prefsApi.setSetting("unrated_only", String(next));
     prefsApi.syncUnratedOnlyMenu(next).catch((e) => console.error("syncUnratedOnlyMenu failed:", e));
     await get().runQuery();
+  },
+  toggleShowCurrentFilename: async () => {
+    const next = !get().showCurrentFilename;
+    set({ showCurrentFilename: next });
+    await prefsApi.setSetting("show_current_filename", String(next));
+    prefsApi.syncCurrentFilenameMenu(next).catch((e) => console.error("syncCurrentFilenameMenu failed:", e));
+  },
+  toggleShowCurrentPosition: async () => {
+    const next = !get().showCurrentPosition;
+    set({ showCurrentPosition: next });
+    await prefsApi.setSetting("show_current_position", String(next));
+    prefsApi.syncCurrentPositionMenu(next).catch((e) => console.error("syncCurrentPositionMenu failed:", e));
   },
 }));
