@@ -526,6 +526,15 @@ body,
 .filter-fields .field-input input {
   padding-right: 1.8em;
 }
+.filter-fields .field-input input[type="number"] {
+  appearance: textfield;
+  -webkit-appearance: textfield;
+}
+.filter-fields .field-input input[type="number"]::-webkit-outer-spin-button,
+.filter-fields .field-input input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 .filter-fields .field-clear {
   position: absolute;
   right: 4px;
