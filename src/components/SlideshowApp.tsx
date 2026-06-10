@@ -159,6 +159,7 @@ export function SlideshowApp() {
           } catch (e) {
             console.error("XMP書き出しに失敗しました:", e);
             showToast("XMPの書き出しに失敗しました");
+            return; // DB は成功済み。XMP 失敗を見せるため成功トーストで上書きしない。
           }
         }
         showToast(rating === null ? "レーティングをクリア" : `★${rating} を設定`);
