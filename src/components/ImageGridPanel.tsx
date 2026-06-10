@@ -4,6 +4,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
 import { moveIndex } from "../util/gridNav";
+import { nextUnratedIndex } from "../util/ratingNav";
 import { ContextMenu } from "./ContextMenu";
 import type { MenuEntry } from "./ContextMenu";
 import { useContextMenu } from "../hooks/useContextMenu";
@@ -18,6 +19,8 @@ export function ImageGridPanel() {
   const results = useQueryStore((s) => s.results);
   const showFilename = useQueryStore((s) => s.showFilename);
   const setRating = useQueryStore((s) => s.setRating);
+  const ratingMode = useQueryStore((s) => s.ratingMode);
+  const unratedOnly = useQueryStore((s) => s.unratedOnly);
   const { menuState, showMenu, closeMenu } = useContextMenu();
 
   const selectedIndex = useViewerStore((s) => s.selectedIndex);
@@ -119,7 +122,15 @@ export function ImageGridPanel() {
           e.preventDefault();
           const target = results[cur];
           if (target) {
-            void setRating(target.id, e.key === "0" ? null : Number(e.key));
+            const rating = e.key === "0" ? null : Number(e.key);
+            void setRating(target.id, rating);
+            if (ratingMode && unratedOnly && rating !== null) {
+              const ni = nextUnratedIndex(results, cur);
+              if (ni >= 0) {
+                selectImage(ni);
+                rowVirtualizer.scrollToIndex(Math.floor(ni / columns));
+              }
+            }
           }
           return;
         }
@@ -160,7 +171,7 @@ export function ImageGridPanel() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [viewerOpen, results, selectedIndex, columns, rowHeight, selectImage, openViewer, rowVirtualizer, setRating]);
+  }, [viewerOpen, results, selectedIndex, columns, rowHeight, selectImage, openViewer, rowVirtualizer, setRating, ratingMode, unratedOnly]);
 
   if (width === 0) {
     return <div className="image-grid" ref={parentRef} />;
@@ -262,9 +273,11 @@ export function ImageGridPanel() {
           {
             label: "スライドショー開始",
             onClick: () => {
-              void startSlideshow(results.map((r) => r.path), selectedIndex).catch(
-                (e) => console.error("スライドショー起動に失敗しました:", e),
-              );
+              void startSlideshow(
+                results.map((r) => r.path),
+                results.map((r) => r.id),
+                selectedIndex,
+              ).catch((e) => console.error("スライドショー起動に失敗しました:", e));
               closeMenu();
             },
           },

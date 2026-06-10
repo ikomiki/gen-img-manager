@@ -80,6 +80,7 @@ export function FilterBar() {
     const start = selectedIndex >= 0 ? selectedIndex : 0;
     void startSlideshow(
       results.map((r) => r.path),
+      results.map((r) => r.id),
       start,
     ).catch((e) => console.error("スライドショー起動に失敗しました:", e));
   };

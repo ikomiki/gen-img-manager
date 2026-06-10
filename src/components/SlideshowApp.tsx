@@ -4,6 +4,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { getSlideshowPayload, syncSlideshowMenu } from "../api/slideshow";
 import { getSetting, setSetting } from "../api/prefs";
+import { setRating as setRatingApi } from "../api/images";
+import { writeXmpRating } from "../api/fs";
 import { buildOrder, mulberry32, step } from "../util/playlist";
 import { isFullscreenToggleKey } from "../util/platform";
 import { SlideshowControls } from "./SlideshowControls";
@@ -12,6 +14,7 @@ import "../SlideshowApp.css";
 
 export function SlideshowApp() {
   const [paths, setPaths] = useState<string[]>([]);
+  const [ids, setIds] = useState<number[]>([]);
   const [order, setOrder] = useState<number[]>([]);
   const [pos, setPos] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -23,6 +26,7 @@ export function SlideshowApp() {
   const [ready, setReady] = useState(false);
   const [showFilename, setShowFilename] = useState(false);
   const [showPosition, setShowPosition] = useState(false);
+  const [xmpAuto, setXmpAuto] = useState(false);
 
   // 最新値を副作用から参照するための ref ミラー。
   const posRef = useRef(0);
@@ -32,6 +36,7 @@ export function SlideshowApp() {
   const fullscreenRef = useRef(false);
   const errorsRef = useRef(0);
   const toastTimer = useRef<number | null>(null);
+  const ratingBusy = useRef(false);
 
   useEffect(() => { posRef.current = pos; }, [pos]);
   useEffect(() => { orderRef.current = order; }, [order]);
@@ -48,13 +53,14 @@ export function SlideshowApp() {
   // 初期化: スナップショットと設定を読み込み、再生順序を組む。
   useEffect(() => {
     void (async () => {
-      const [payload, iv, lp, rnd, sf, sp] = await Promise.all([
+      const [payload, iv, lp, rnd, sf, sp, xa] = await Promise.all([
         getSlideshowPayload(),
         getSetting("slideshow_interval"),
         getSetting("slideshow_loop"),
         getSetting("slideshow_random"),
         getSetting("show_current_filename"),
         getSetting("show_current_position"),
+        getSetting("xmp_auto"),
       ]);
       const sec = iv ? Math.max(1, Number(iv) || 5) : 5;
       const lpOn = lp === null ? true : lp !== "false";
@@ -64,6 +70,7 @@ export function SlideshowApp() {
       setRandom(rndOn);
       setShowFilename(sf === "true");
       setShowPosition(sp === "true");
+      setXmpAuto(xa === "true");
 
       const p = payload?.paths ?? [];
       const startImg = Math.min(payload?.start_index ?? 0, Math.max(p.length - 1, 0));
@@ -79,6 +86,7 @@ export function SlideshowApp() {
         startPos = 0;
       }
       setPaths(p);
+      setIds(payload?.ids ?? []);
       setOrder(ord);
       setPos(startPos);
       setReady(true);
@@ -133,6 +141,38 @@ export function SlideshowApp() {
     }
   }, []);
 
+  // 現在表示中の画像にレーティングを適用（DB + XMP）。一覧へは即時反映しない。
+  const applyRating = useCallback(
+    async (rating: number | null) => {
+      if (ratingBusy.current) return;
+      const ord = orderRef.current;
+      const imgIndex = ord[posRef.current];
+      const id = ids[imgIndex];
+      const path = paths[imgIndex];
+      if (id == null) return;
+      ratingBusy.current = true;
+      try {
+        await setRatingApi(id, rating);
+        if (xmpAuto && path) {
+          try {
+            await writeXmpRating(path, rating);
+          } catch (e) {
+            console.error("XMP書き出しに失敗しました:", e);
+            showToast("XMPの書き出しに失敗しました");
+            return; // DB は成功済み。XMP 失敗を見せるため成功トーストで上書きしない。
+          }
+        }
+        showToast(rating === null ? "レーティングをクリア" : `★${rating} を設定`);
+      } catch (e) {
+        console.error("レーティング設定に失敗しました:", e);
+        showToast("レーティング設定に失敗しました");
+      } finally {
+        ratingBusy.current = false;
+      }
+    },
+    [ids, paths, xmpAuto, showToast],
+  );
+
   // キーボード操作。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -141,6 +181,10 @@ export function SlideshowApp() {
         void toggleFullscreen(!fullscreenRef.current);
         return;
       }
+      const ae = document.activeElement;
+      const typing =
+        ae instanceof HTMLElement &&
+        (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable);
       switch (e.key) {
         case "ArrowRight":
           e.preventDefault();
@@ -166,13 +210,36 @@ export function SlideshowApp() {
           e.preventDefault();
           if (orderRef.current.length > 0) setPos(orderRef.current.length - 1);
           break;
+        case "0":
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+        case "5":
+          if (typing) break;
+          e.preventDefault();
+          void applyRating(e.key === "0" ? null : Number(e.key));
+          break;
+        case "c":
+        case "C": {
+          if (typing) break;
+          e.preventDefault();
+          const cur = orderRef.current.length > 0 ? paths[orderRef.current[posRef.current]] : undefined;
+          if (cur) {
+            void navigator.clipboard
+              .writeText(cur)
+              .catch((err) => console.error("パスのコピーに失敗しました:", err));
+            showToast("パスをコピーしました");
+          }
+          break;
+        }
         default:
           break;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [advance, toggleFullscreen]);
+  }, [advance, toggleFullscreen, applyRating, paths, showToast]);
 
   // メニュー「表示 ▸ スライドショー」連携。
   useEffect(() => {

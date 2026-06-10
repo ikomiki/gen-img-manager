@@ -58,6 +58,28 @@ describe("FilterDialog", () => {
     expect(setQuery).toHaveBeenCalledWith("created:2025-01-01..2025-01-03");
   });
 
+  it("✕ ボタンでプロンプト入力をクリアできる", () => {
+    render(<FilterDialog onClose={() => {}} />);
+    const input = screen.getByLabelText("プロンプト") as HTMLInputElement;
+    expect(input.value).toBe("best quality");
+    fireEvent.click(screen.getByLabelText("プロンプトをクリア"));
+    expect(input.value).toBe("");
+  });
+
+  it("背景クリックでは閉じない", () => {
+    const onClose = vi.fn();
+    const { container } = render(<FilterDialog onClose={onClose} />);
+    fireEvent.click(container.querySelector(".dialog-backdrop")!);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("ESC で閉じる", () => {
+    const onClose = vi.fn();
+    render(<FilterDialog onClose={onClose} />);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("clears the created-from value when クリア is clicked", () => {
     const setQuery = vi.fn();
     useQueryStore.setState({
