@@ -138,3 +138,21 @@ describe("useViewerStore", () => {
     expect(useViewerStore.getState().scale).toBe(1);
   });
 });
+
+describe("goTo", () => {
+  it("index を範囲内にクランプして設定する", () => {
+    useQueryStore.setState({
+      results: [
+        { id: 1, path: "/a", filename: "a", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
+        { id: 2, path: "/b", filename: "b", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
+        { id: 3, path: "/c", filename: "c", thumb_path: null, width: 1, height: 1, pixels: 1, rating: null, created_at: null, modified_at: null, source_tool: "x", model: null },
+      ],
+    });
+    useViewerStore.getState().goTo(1);
+    expect(useViewerStore.getState().index).toBe(1);
+    useViewerStore.getState().goTo(99);
+    expect(useViewerStore.getState().index).toBe(2);
+    useViewerStore.getState().goTo(-5);
+    expect(useViewerStore.getState().index).toBe(0);
+  });
+});
