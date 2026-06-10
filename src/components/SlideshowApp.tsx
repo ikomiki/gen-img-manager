@@ -7,6 +7,7 @@ import { getSetting, setSetting } from "../api/prefs";
 import { buildOrder, mulberry32, step } from "../util/playlist";
 import { isFullscreenToggleKey } from "../util/platform";
 import { SlideshowControls } from "./SlideshowControls";
+import { useSlideTimer } from "../hooks/useSlideTimer";
 import "../SlideshowApp.css";
 
 export function SlideshowApp() {
@@ -99,12 +100,16 @@ export function SlideshowApp() {
     setPos(r.pos);
   }, []);
 
-  // 自動再生タイマー。playing / 間隔 / 現在位置の変化で貼り直す。
-  useEffect(() => {
-    if (!ready || !playing || order.length === 0) return;
-    const id = window.setTimeout(() => advance(1), intervalSec * 1000);
-    return () => window.clearTimeout(id);
-  }, [ready, playing, intervalSec, pos, order, advance]);
+  // 自動再生タイマー。rAF 駆動 + keep-alive 描画でイベント処理を妨げない
+  // （設計理由は useSlideTimer のコメント参照）。表示中の画像の読み込み完了
+  // （onImgLoad → markLoaded）から間隔を数える。
+  const onElapsed = useCallback(() => advance(1), [advance]);
+  const { keepAliveRef, markLoaded } = useSlideTimer(
+    ready && playing && order.length > 0,
+    intervalSec * 1000,
+    pos,
+    onElapsed,
+  );
 
   // 次の1枚をプリロード（デコード済みで保持）。
   useEffect(() => {
@@ -225,6 +230,7 @@ export function SlideshowApp() {
   };
   const onImgLoad = () => {
     errorsRef.current = 0;
+    markLoaded();
   };
 
   const currentPath = order.length > 0 ? paths[order[pos]] : undefined;
@@ -253,6 +259,7 @@ export function SlideshowApp() {
         </div>
       )}
       {toast && <div className="ss-toast">{toast}</div>}
+      <div ref={keepAliveRef} className="ss-keepalive" aria-hidden="true" />
       <SlideshowControls
         playing={playing}
         intervalSec={intervalSec}
