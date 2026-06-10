@@ -58,6 +58,14 @@ describe("FilterDialog", () => {
     expect(setQuery).toHaveBeenCalledWith("created:2025-01-01..2025-01-03");
   });
 
+  it("✕ ボタンでプロンプト入力をクリアできる", () => {
+    render(<FilterDialog onClose={() => {}} />);
+    const input = screen.getByLabelText("プロンプト") as HTMLInputElement;
+    expect(input.value).toBe("best quality");
+    fireEvent.click(screen.getByLabelText("プロンプトをクリア"));
+    expect(input.value).toBe("");
+  });
+
   it("clears the created-from value when クリア is clicked", () => {
     const setQuery = vi.fn();
     useQueryStore.setState({

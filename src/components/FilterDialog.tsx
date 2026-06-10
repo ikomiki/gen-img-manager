@@ -91,45 +91,96 @@ export function FilterDialog({ onClose }: Props) {
       <div className="dialog filter-dialog" onClick={(e) => e.stopPropagation()}>
         <h3>詳細フィルタ</h3>
 
-        <label>
-          レーティング下限
-          <select value={minRating} onChange={(e) => setMinRating(e.target.value)} aria-label="レーティング下限">
-            <option value="">指定なし</option>
-            {[1, 2, 3, 4, 5].map((n) => (
-              <option key={n} value={n}>★{n}以上</option>
-            ))}
-          </select>
-        </label>
+        <div className="filter-fields">
+          <label>
+            <span className="field-label">レーティング下限</span>
+            <span className="field-input">
+              <select value={minRating} onChange={(e) => setMinRating(e.target.value)} aria-label="レーティング下限">
+                <option value="">指定なし</option>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>★{n}以上</option>
+                ))}
+              </select>
+            </span>
+          </label>
 
-        <label>
-          幅下限(px)
-          <input type="number" min="0" step="1" value={minWidth} onChange={(e) => setMinWidth(e.target.value)} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
-        </label>
-        <label>
-          高さ下限(px)
-          <input type="number" min="0" step="1" value={minHeight} onChange={(e) => setMinHeight(e.target.value)} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
-        </label>
+          <label>
+            <span className="field-label">幅下限(px)</span>
+            <span className="field-input">
+              <input type="number" min="0" step="1" value={minWidth} onChange={(e) => setMinWidth(e.target.value)}
+                aria-label="幅下限(px)" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
+              {minWidth && (
+                <button type="button" className="field-clear" aria-label="幅下限(px)をクリア" onClick={() => setMinWidth("")}>✕</button>
+              )}
+            </span>
+          </label>
 
-        <label>
-          プロンプト
-          <input type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} aria-label="プロンプト" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
-        </label>
-        <label>
-          ネガティブ
-          <input type="text" value={negative} onChange={(e) => setNegative(e.target.value)} aria-label="ネガティブ" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
-        </label>
-        <label>
-          モデル名
-          <input type="text" value={model} onChange={(e) => setModel(e.target.value)} aria-label="モデル名" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
-        </label>
-        <label>
-          サンプラー
-          <input type="text" value={sampler} onChange={(e) => setSampler(e.target.value)} aria-label="サンプラー" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
-        </label>
-        <label>
-          ツール
-          <input type="text" value={tool} onChange={(e) => setTool(e.target.value)} aria-label="ツール" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
-        </label>
+          <label>
+            <span className="field-label">高さ下限(px)</span>
+            <span className="field-input">
+              <input type="number" min="0" step="1" value={minHeight} onChange={(e) => setMinHeight(e.target.value)}
+                aria-label="高さ下限(px)" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
+              {minHeight && (
+                <button type="button" className="field-clear" aria-label="高さ下限(px)をクリア" onClick={() => setMinHeight("")}>✕</button>
+              )}
+            </span>
+          </label>
+
+          <label>
+            <span className="field-label">プロンプト</span>
+            <span className="field-input">
+              <input type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)}
+                aria-label="プロンプト" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
+              {prompt && (
+                <button type="button" className="field-clear" aria-label="プロンプトをクリア" onClick={() => setPrompt("")}>✕</button>
+              )}
+            </span>
+          </label>
+
+          <label>
+            <span className="field-label">ネガティブ</span>
+            <span className="field-input">
+              <input type="text" value={negative} onChange={(e) => setNegative(e.target.value)}
+                aria-label="ネガティブ" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
+              {negative && (
+                <button type="button" className="field-clear" aria-label="ネガティブをクリア" onClick={() => setNegative("")}>✕</button>
+              )}
+            </span>
+          </label>
+
+          <label>
+            <span className="field-label">モデル名</span>
+            <span className="field-input">
+              <input type="text" value={model} onChange={(e) => setModel(e.target.value)}
+                aria-label="モデル名" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
+              {model && (
+                <button type="button" className="field-clear" aria-label="モデル名をクリア" onClick={() => setModel("")}>✕</button>
+              )}
+            </span>
+          </label>
+
+          <label>
+            <span className="field-label">サンプラー</span>
+            <span className="field-input">
+              <input type="text" value={sampler} onChange={(e) => setSampler(e.target.value)}
+                aria-label="サンプラー" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
+              {sampler && (
+                <button type="button" className="field-clear" aria-label="サンプラーをクリア" onClick={() => setSampler("")}>✕</button>
+              )}
+            </span>
+          </label>
+
+          <label>
+            <span className="field-label">ツール</span>
+            <span className="field-input">
+              <input type="text" value={tool} onChange={(e) => setTool(e.target.value)}
+                aria-label="ツール" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
+              {tool && (
+                <button type="button" className="field-clear" aria-label="ツールをクリア" onClick={() => setTool("")}>✕</button>
+              )}
+            </span>
+          </label>
+        </div>
 
         <div className="date-fields">
           <div className="date-field">

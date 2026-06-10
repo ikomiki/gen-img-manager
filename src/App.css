@@ -505,16 +505,39 @@ body,
   overflow-y: auto;
   min-width: 360px;
 }
-.filter-dialog label {
+.filter-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  align-items: center;
+  gap: 8px 12px;
+}
+.filter-fields label { display: contents; }
+.filter-fields .field-label { white-space: nowrap; }
+.filter-fields .field-input {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
 }
-.filter-dialog input[type="text"],
-.filter-dialog input[type="number"] {
+.filter-fields .field-input input,
+.filter-fields .field-input select {
   flex: 1;
   min-width: 0;
+}
+.filter-fields .field-input input {
+  padding-right: 1.8em;
+}
+.filter-fields .field-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  color: #666;
 }
 .date-fields {
   display: flex;
