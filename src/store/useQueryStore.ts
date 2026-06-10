@@ -68,12 +68,8 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       .catch((e) => console.error("setSetting(sort) failed:", e));
   },
   runQuery: async () => {
-    const { query, sort, dir, ratingMode, unratedOnly } = get();
-    let results = await imagesApi.queryImages(query, sort, dir, -1, 0);
-    if (ratingMode && unratedOnly) {
-      // 「未入力のみ表示」: rating が null の画像だけに共有リストを絞り込む。
-      results = results.filter((r) => r.rating == null);
-    }
+    const { query, sort, dir } = get();
+    const results = await imagesApi.queryImages(query, sort, dir, -1, 0);
     set({ results, total: results.length });
     prefsApi
       .setSetting("filter_query", query)
@@ -103,7 +99,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   closeHelp: () => set({ helpOpen: false }),
   setRating: async (id, rating) => {
     await imagesApi.setRating(id, rating);
-    const { xmpAutoExport, ratingMode, unratedOnly } = get();
+    const { xmpAutoExport } = get();
     if (xmpAutoExport) {
       const row = get().results.find((r) => r.id === id);
       if (row) {
@@ -115,13 +111,8 @@ export const useQueryStore = create<QueryState>((set, get) => ({
         }
       }
     }
-    if (ratingMode && unratedOnly && rating !== null) {
-      // 未入力のみ表示中に評価が付いた画像はリストから除去（=自動送りを兼ねる）。
-      const next = get().results.filter((r) => r.id !== id);
-      set({ results: next, total: next.length });
-    } else {
-      set({ results: get().results.map((r) => (r.id === id ? { ...r, rating } : r)) });
-    }
+    // ratingMode/unratedOnly でもリストからは除去しない（送り制御は呼び出し側で行う）。
+    set({ results: get().results.map((r) => (r.id === id ? { ...r, rating } : r)) });
   },
   deleteImage: async (id, path) => {
     await fsApi.deleteImage(id, path);
