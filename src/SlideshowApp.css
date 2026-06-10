@@ -101,3 +101,16 @@
   z-index: 3;
   pointer-events: none;
 }
+/* 描画パイプライン維持用の不可視 1px レイヤー。
+   useSlideTimer が毎フレーム transform をサブピクセル移動させ、
+   WKWebView がアイドル化して入力イベントの配送が止まるのを防ぐ。削除しないこと。 */
+.ss-keepalive {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0.01;
+  pointer-events: none;
+  will-change: transform;
+}
