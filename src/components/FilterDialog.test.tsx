@@ -66,6 +66,20 @@ describe("FilterDialog", () => {
     expect(input.value).toBe("");
   });
 
+  it("背景クリックでは閉じない", () => {
+    const onClose = vi.fn();
+    const { container } = render(<FilterDialog onClose={onClose} />);
+    fireEvent.click(container.querySelector(".dialog-backdrop")!);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("ESC で閉じる", () => {
+    const onClose = vi.fn();
+    render(<FilterDialog onClose={onClose} />);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("clears the created-from value when クリア is clicked", () => {
     const setQuery = vi.fn();
     useQueryStore.setState({

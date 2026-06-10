@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import { useQueryStore } from "../store/useQueryStore";
@@ -83,12 +83,24 @@ export function FilterDialog({ onClose }: Props) {
     }
   };
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();   // フルスクリーン解除抑止（ベストエフォート）
+        e.stopPropagation();  // App グローバルキーへ伝播させない
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [onClose]);
+
   const modifiers = { hasImages: highlighted };
   const modifiersClassNames = { hasImages: "rdp-has-images" };
 
   return (
-    <div className="dialog-backdrop" onClick={onClose}>
-      <div className="dialog filter-dialog" onClick={(e) => e.stopPropagation()}>
+    <div className="dialog-backdrop">
+      <div className="dialog filter-dialog">
         <h3>詳細フィルタ</h3>
 
         <div className="filter-fields">
