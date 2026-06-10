@@ -45,6 +45,8 @@ const SECTIONS: { title: string; rows: Row[] }[] = [
       { keys: "← / →", desc: "前へ / 次へ" },
       { keys: "Space", desc: "再生 / 一時停止" },
       { keys: "Home / End", desc: "先頭 / 末尾の画像" },
+      { keys: "0 - 5", desc: "レーティング設定（0でクリア）" },
+      { keys: "C", desc: "パスをコピー" },
       { keys: "⌥⌘F (macOS) / F11", desc: "フルスクリーン切替" },
       { keys: "Esc", desc: "閉じる" },
     ],
