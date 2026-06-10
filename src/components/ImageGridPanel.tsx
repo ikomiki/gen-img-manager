@@ -273,9 +273,11 @@ export function ImageGridPanel() {
           {
             label: "スライドショー開始",
             onClick: () => {
-              void startSlideshow(results.map((r) => r.path), selectedIndex).catch(
-                (e) => console.error("スライドショー起動に失敗しました:", e),
-              );
+              void startSlideshow(
+                results.map((r) => r.path),
+                results.map((r) => r.id),
+                selectedIndex,
+              ).catch((e) => console.error("スライドショー起動に失敗しました:", e));
               closeMenu();
             },
           },
