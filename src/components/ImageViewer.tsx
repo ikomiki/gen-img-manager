@@ -7,6 +7,7 @@ import { getImageDetail, revealInFinder } from "../api/images";
 import type { ImageDetail, ZoomMode } from "../types";
 import { MetadataPanel } from "./MetadataPanel";
 import { isFullscreenToggleKey } from "../util/platform";
+import { nextUnratedIndex } from "../util/ratingNav";
 
 const ZOOM_LABELS: Record<ZoomMode, string> = {
   fit: "全体フィット",
@@ -31,6 +32,7 @@ export function ImageViewer() {
   const cycleZoom = useViewerStore((s) => s.cycleZoom);
   const first = useViewerStore((s) => s.first);
   const last = useViewerStore((s) => s.last);
+  const goTo = useViewerStore((s) => s.goTo);
 
   const results = useQueryStore((s) => s.results);
   const setRating = useQueryStore((s) => s.setRating);
@@ -90,23 +92,19 @@ export function ImageViewer() {
         await setRating(image.id, rating);
         setDetail((d) => (d ? { ...d, rating } : d));
         if (!ratingMode) return;
-        if (unratedOnly && rating !== null) {
-          // 評価済みは splice 済み。index 据え置きで次の未入力が表示される。空なら閉じる。
-          const len = useQueryStore.getState().results.length;
-          if (len === 0) {
-            close();
-            return;
-          }
-          if (useViewerStore.getState().index > len - 1) last();
+        if (unratedOnly) {
+          if (rating === null) return; // クリアは留まる
+          const results = useQueryStore.getState().results;
+          const ni = nextUnratedIndex(results, useViewerStore.getState().index);
+          if (ni >= 0) goTo(ni); // 見つからなければ留まる
         } else {
-          // 末尾は据え置き（next() のクランプに従う）。
-          next();
+          next(); // 従来どおり
         }
       } finally {
         ratingRef.current = false;
       }
     },
-    [image, setRating, ratingMode, unratedOnly, close, last, next],
+    [image, setRating, ratingMode, unratedOnly, next, goTo],
   );
 
   const deletingRef = useRef(false);
