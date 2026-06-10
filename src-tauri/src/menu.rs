@@ -34,7 +34,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
         CheckMenuItem::with_id(app, "rating_mode", "レーティング入力モード", true, false, None::<&str>)?;
     // 入力モードOFFの初期状態では未入力のみ表示は無効化する。
     let unrated_only =
-        CheckMenuItem::with_id(app, "unrated_only", "未入力の画像のみ表示", false, false, None::<&str>)?;
+        CheckMenuItem::with_id(app, "unrated_only", "レーティング後に未入力へ送る", false, false, None::<&str>)?;
     let xmp_auto =
         CheckMenuItem::with_id(app, "xmp_auto", "XMPへ自動書き出し", true, false, None::<&str>)?;
     let show_current_filename = CheckMenuItem::with_id(
