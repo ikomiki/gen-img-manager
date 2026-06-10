@@ -103,32 +103,32 @@ export function FilterDialog({ onClose }: Props) {
 
         <label>
           幅下限(px)
-          <input type="number" min="0" step="1" value={minWidth} onChange={(e) => setMinWidth(e.target.value)} />
+          <input type="number" min="0" step="1" value={minWidth} onChange={(e) => setMinWidth(e.target.value)} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
         </label>
         <label>
           高さ下限(px)
-          <input type="number" min="0" step="1" value={minHeight} onChange={(e) => setMinHeight(e.target.value)} />
+          <input type="number" min="0" step="1" value={minHeight} onChange={(e) => setMinHeight(e.target.value)} spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
         </label>
 
         <label>
           プロンプト
-          <input type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} aria-label="プロンプト" />
+          <input type="text" value={prompt} onChange={(e) => setPrompt(e.target.value)} aria-label="プロンプト" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
         </label>
         <label>
           ネガティブ
-          <input type="text" value={negative} onChange={(e) => setNegative(e.target.value)} aria-label="ネガティブ" />
+          <input type="text" value={negative} onChange={(e) => setNegative(e.target.value)} aria-label="ネガティブ" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
         </label>
         <label>
           モデル名
-          <input type="text" value={model} onChange={(e) => setModel(e.target.value)} aria-label="モデル名" />
+          <input type="text" value={model} onChange={(e) => setModel(e.target.value)} aria-label="モデル名" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
         </label>
         <label>
           サンプラー
-          <input type="text" value={sampler} onChange={(e) => setSampler(e.target.value)} aria-label="サンプラー" />
+          <input type="text" value={sampler} onChange={(e) => setSampler(e.target.value)} aria-label="サンプラー" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
         </label>
         <label>
           ツール
-          <input type="text" value={tool} onChange={(e) => setTool(e.target.value)} aria-label="ツール" />
+          <input type="text" value={tool} onChange={(e) => setTool(e.target.value)} aria-label="ツール" spellCheck={false} autoCorrect="off" autoCapitalize="off" autoComplete="off" />
         </label>
 
         <div className="date-fields">
