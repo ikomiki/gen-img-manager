@@ -125,10 +125,25 @@ body,
 /* フィルタバー */
 .filter-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   flex: 1;
   min-width: 0;
+}
+.fb-group-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 360px;
+  min-width: 0;
+}
+.fb-group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
 }
 .filter-input {
   width: 100%;
@@ -417,7 +432,10 @@ body,
 }
 
 /* フィルタバー: 履歴ドロップダウン（固定幅ボタン） */
-.filter-bar > button,
+.fb-group-input > button,
+.fb-group-actions > button,
+.fb-group-actions > .sort-control,
+.fb-group-actions > .result-count,
 .history-btn {
   flex-shrink: 0;
 }

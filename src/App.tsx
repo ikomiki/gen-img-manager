@@ -17,7 +17,6 @@ function App() {
   const loadSettings = useQueryStore((s) => s.loadSettings);
   const loadHistory = useQueryStore((s) => s.loadHistory);
   const runQuery = useQueryStore((s) => s.runQuery);
-  const showFilename = useQueryStore((s) => s.showFilename);
   const toggleShowFilename = useQueryStore((s) => s.toggleShowFilename);
   const toggleRatingMode = useQueryStore((s) => s.toggleRatingMode);
   const toggleUnratedOnly = useQueryStore((s) => s.toggleUnratedOnly);
@@ -122,13 +121,6 @@ function App() {
     >
       <header className="filter-bar-slot">
         <FilterBar />
-        <button
-          className="filename-toggle"
-          onClick={() => void toggleShowFilename()}
-          aria-pressed={showFilename}
-        >
-          ファイル名{showFilename ? "：表示" : "：非表示"}
-        </button>
       </header>
       {!dirCollapsed && <DirectoryPanel />}
       {!dirCollapsed && (
