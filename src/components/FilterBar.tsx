@@ -25,6 +25,8 @@ export function FilterBar() {
   const total = useQueryStore((s) => s.total);
   const results = useQueryStore((s) => s.results);
   const selectedIndex = useViewerStore((s) => s.selectedIndex);
+  const showFilename = useQueryStore((s) => s.showFilename);
+  const toggleShowFilename = useQueryStore((s) => s.toggleShowFilename);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -83,6 +85,10 @@ export function FilterBar() {
       results.map((r) => r.id),
       start,
     ).catch((e) => console.error("スライドショー起動に失敗しました:", e));
+  };
+
+  const reload = () => {
+    void runQuery().catch((e) => console.error("再読込に失敗しました:", e));
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -150,97 +156,116 @@ export function FilterBar() {
 
   return (
     <div className="filter-bar">
-      <div className="filter-combo" ref={comboRef}>
-        <div className="filter-input-wrap">
-          <input
-            ref={inputRef}
-            className="filter-input"
-            value={query}
-            placeholder='例: prompt:1girl rating:>=4 -blurry'
-            spellCheck={false}
-            autoCorrect="off"
-            autoCapitalize="off"
-            autoComplete="off"
-            onChange={(e) => {
-              const v = e.target.value;
-              setQuery(v);
-              setDraft(v);
+      <div className="fb-group-input">
+        <div className="filter-combo" ref={comboRef}>
+          <div className="filter-input-wrap">
+            <input
+              ref={inputRef}
+              className="filter-input"
+              value={query}
+              placeholder='例: prompt:1girl rating:>=4 -blurry'
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="off"
+              autoComplete="off"
+              onChange={(e) => {
+                const v = e.target.value;
+                setQuery(v);
+                setDraft(v);
+                setHistoryIndex(-1);
+                // 非空入力かつマッチ候補が1件以上ある間だけ自動表示する。
+                const items = v.trim() === "" ? [] : matchHistory(v, history);
+                setAcItems(items);
+                setHistoryOpen(items.length > 0);
+              }}
+              onKeyDown={onKeyDown}
+              aria-label="フィルタクエリ"
+            />
+            {historyOpen && acItems.length > 0 && (
+              <ul className="history-dropdown">
+                {acItems.map((h, i) => (
+                  <li key={h}>
+                    <button
+                      className={i === historyIndex ? "active" : ""}
+                      onClick={() => pickHistory(h)}
+                      title={h}
+                    >
+                      {h}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <button
+            className="history-btn"
+            onClick={() => {
+              const nextOpen = !historyOpen;
+              setHistoryOpen(nextOpen);
               setHistoryIndex(-1);
-              // 非空入力かつマッチ候補が1件以上ある間だけ自動表示する。
-              const items = v.trim() === "" ? [] : matchHistory(v, history);
-              setAcItems(items);
-              setHistoryOpen(items.length > 0);
+              if (nextOpen) {
+                // 全件ブラウズ: 現在の入力に関係なく全履歴を表示する。
+                setDraft(query);
+                setAcItems(history);
+              }
             }}
-            onKeyDown={onKeyDown}
-            aria-label="フィルタクエリ"
-          />
-          {historyOpen && acItems.length > 0 && (
-            <ul className="history-dropdown">
-              {acItems.map((h, i) => (
-                <li key={h}>
-                  <button
-                    className={i === historyIndex ? "active" : ""}
-                    onClick={() => pickHistory(h)}
-                    title={h}
-                  >
-                    {h}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+            disabled={history.length === 0}
+            aria-label="検索履歴"
+            aria-expanded={historyOpen}
+          >
+            ▾
+          </button>
         </div>
+        <button onClick={() => setDialogOpen(true)} aria-label="詳細フィルタを開く">詳細…</button>
+      </div>
+      <div className="fb-group-actions">
+        <button onClick={() => void submit()} aria-label="検索">
+          検索
+        </button>
         <button
-          className="history-btn"
-          onClick={() => {
-            const nextOpen = !historyOpen;
-            setHistoryOpen(nextOpen);
-            setHistoryIndex(-1);
-            if (nextOpen) {
-              // 全件ブラウズ: 現在の入力に関係なく全履歴を表示する。
-              setDraft(query);
-              setAcItems(history);
-            }
-          }}
-          disabled={history.length === 0}
-          aria-label="検索履歴"
-          aria-expanded={historyOpen}
+          className="reload-btn"
+          onClick={reload}
+          aria-label="再読込"
+          title="再読込"
         >
-          ▾
+          ⟳
+        </button>
+        <button
+          onClick={launchSlideshow}
+          disabled={results.length === 0}
+          aria-label="スライドショーを開始"
+        >
+          スライドショー▶
+        </button>
+        <label className="sort-control">
+          並べ替え:
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey, dir)}
+            aria-label="ソートキー"
+          >
+            {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+              <option key={k} value={k}>
+                {SORT_LABELS[k]}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => setSort(sort, dir === "asc" ? "desc" : "asc")}
+            aria-label="昇順降順切替"
+          >
+            {dir === "asc" ? "↑" : "↓"}
+          </button>
+        </label>
+        <span className="result-count">{total} 件</span>
+        <button
+          className="filename-toggle"
+          onClick={() => void toggleShowFilename()}
+          aria-pressed={showFilename}
+        >
+          ファイル名{showFilename ? "：表示" : "：非表示"}
         </button>
       </div>
-      <button onClick={() => void submit()} aria-label="検索">
-        検索
-      </button>
-      <button onClick={() => setDialogOpen(true)} aria-label="詳細フィルタを開く">詳細…</button>
-      <button
-        onClick={launchSlideshow}
-        disabled={results.length === 0}
-        aria-label="スライドショーを開始"
-      >
-        スライドショー▶
-      </button>
-      <label className="sort-control">
-        並べ替え:
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value as SortKey, dir)}
-          aria-label="ソートキー"
-        >
-          {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
-            <option key={k} value={k}>
-              {SORT_LABELS[k]}
-            </option>
-          ))}
-        </select>
-        <button
-          onClick={() => setSort(sort, dir === "asc" ? "desc" : "asc")}
-          aria-label="昇順降順切替"
-        >
-          {dir === "asc" ? "↑" : "↓"}
-        </button>
-      </label>
-      <span className="result-count">{total} 件</span>
       {dialogOpen && <FilterDialog onClose={() => setDialogOpen(false)} />}
     </div>
   );
