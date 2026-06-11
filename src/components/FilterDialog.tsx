@@ -4,6 +4,12 @@ import "react-day-picker/style.css";
 import { useQueryStore } from "../store/useQueryStore";
 import { extractField, upsertField } from "../util/queryTokens";
 import { imageDateInfo, localDateToDate, dateToLocalString } from "../util/imageDates";
+import {
+  parseRatingToken,
+  buildRatingToken,
+  RATING_VALUES,
+  type RatingValue,
+} from "../util/ratingFilter";
 
 interface Props {
   onClose: () => void;
@@ -39,13 +45,20 @@ function parseMin(v: string | null): string {
   return m ? m[1] : "";
 }
 
+/** レーティングボタンのラベル（"なし" / "★N"）。 */
+function ratingLabel(v: RatingValue): string {
+  return v === "none" ? "なし" : `★${v}`;
+}
+
 export function FilterDialog({ onClose }: Props) {
   const query = useQueryStore((s) => s.query);
   const setQuery = useQueryStore((s) => s.setQuery);
   const runQuery = useQueryStore((s) => s.runQuery);
   const results = useQueryStore((s) => s.results);
 
-  const [minRating, setMinRating] = useState(() => parseMin(extractField(query, "rating")));
+  const [ratings, setRatings] = useState<Set<RatingValue>>(
+    () => parseRatingToken(extractField(query, "rating")),
+  );
   const [minWidth, setMinWidth] = useState(() => parseMin(extractField(query, "width")));
   const [minHeight, setMinHeight] = useState(() => parseMin(extractField(query, "height")));
   const [createdFrom, setCreatedFrom] = useState(() => parseCreated(extractField(query, "created")).from);
@@ -64,7 +77,7 @@ export function FilterDialog({ onClose }: Props) {
 
   const apply = async () => {
     let q = query;
-    q = upsertField(q, "rating", minRating ? `>=${minRating}` : null);
+    q = upsertField(q, "rating", buildRatingToken(ratings));
     q = upsertField(q, "width", minWidth ? `>=${minWidth}` : null);
     q = upsertField(q, "height", minHeight ? `>=${minHeight}` : null);
     q = upsertField(q, "created", buildCreated(createdFrom, createdTo));
@@ -95,6 +108,23 @@ export function FilterDialog({ onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [onClose]);
 
+  // レーティングボタンのトグル。
+  const toggleRating = (v: RatingValue) => {
+    setRatings((prev) => {
+      const next = new Set(prev);
+      if (next.has(v)) next.delete(v);
+      else next.add(v);
+      return next;
+    });
+  };
+
+  // 下限セレクト（入力補助）。N〜5 を ON・他を OFF に一括置換する。
+  const applyMinRating = (n: number) => {
+    const next = new Set<RatingValue>();
+    for (let r = n; r <= 5; r++) next.add(r as RatingValue);
+    setRatings(next);
+  };
+
   const modifiers = { hasImages: highlighted };
   const modifiersClassNames = { hasImages: "rdp-has-images" };
 
@@ -105,10 +135,32 @@ export function FilterDialog({ onClose }: Props) {
 
         <div className="filter-fields">
           <label>
-            <span className="field-label">レーティング下限</span>
-            <span className="field-input">
-              <select value={minRating} onChange={(e) => setMinRating(e.target.value)} aria-label="レーティング下限">
-                <option value="">指定なし</option>
+            <span className="field-label">レーティング</span>
+            <span className="field-input rating-field">
+              <span className="rating-buttons" role="group" aria-label="レーティング">
+                {RATING_VALUES.map((v) => (
+                  <button
+                    key={String(v)}
+                    type="button"
+                    className={`rating-toggle${ratings.has(v) ? " on" : ""}`}
+                    aria-label={`レーティング: ${ratingLabel(v)}`}
+                    aria-pressed={ratings.has(v)}
+                    onClick={() => toggleRating(v)}
+                  >
+                    {ratingLabel(v)}
+                  </button>
+                ))}
+              </span>
+              <select
+                className="rating-min-helper"
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) applyMinRating(Number(e.target.value));
+                }}
+                aria-label="レーティング下限"
+                title="下限を選ぶとそれ以上を一括ON"
+              >
+                <option value="">下限で一括選択…</option>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <option key={n} value={n}>★{n}以上</option>
                 ))}

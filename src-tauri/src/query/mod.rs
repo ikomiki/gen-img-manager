@@ -11,6 +11,9 @@ pub enum CondOp {
     Lt(i64),
     Eq(i64),
     Range(i64, i64), // 両端含む
+    /// 集合メンバーシップ。`values` は許可する数値、`include_null` は NULL を含めるか。
+    /// レーティングの「なし(none)＋1,3」のような任意の部分集合に使う。
+    InSet { values: Vec<i64>, include_null: bool },
 }
 
 /// 1つの構造化条件（FTS対象外の列に対する条件）。
