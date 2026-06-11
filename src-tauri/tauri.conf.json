@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "gen-img-manager",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "identifier": "com.technonet.genimgmanager",
   "build": {
     "beforeDevCommand": "npm run dev",
