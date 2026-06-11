@@ -6,6 +6,8 @@ AI 生成画像（Stable Diffusion WebUI / ComfyUI など）をローカルで�
 - **Tauri 2**（Rust バックエンド）＋ **React 19 + TypeScript + Vite**
 - ライブラリはローカル **SQLite**（FTS5 全文検索）。外部サービスへの送信は一切なし
 
+![gen-img-manager のメイン画面（左：ディレクトリパネル／上：ツールバー／中央：サムネイルグリッド。サムネイルはぼかしています）](docs/screenshot.png)
+
 ## 主な機能
 
 - **取り込み**: 登録ディレクトリを走査し、PNG（tEXt）/ JPEG / WebP（EXIF UserComment）から A1111・ComfyUI のメタデータを抽出。サムネイル自動生成
