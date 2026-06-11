@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { FilterBar } from "./FilterBar";
 import { useQueryStore } from "../store/useQueryStore";
 
@@ -38,5 +38,20 @@ describe("FilterBar", () => {
     const actions = container.querySelector(".fb-group-actions");
     expect(actions?.querySelector(".filename-toggle")).not.toBeNull();
     expect(screen.getByText(/ファイル名/)).toBeTruthy();
+  });
+
+  it("再読込ボタンのクリックで runQuery を呼ぶ", () => {
+    const runQuery = vi.fn().mockResolvedValue(undefined);
+    useQueryStore.setState({ runQuery });
+    render(<FilterBar />);
+    fireEvent.click(screen.getByLabelText("再読込"));
+    expect(runQuery).toHaveBeenCalledTimes(1);
+  });
+
+  it("再読込ボタンはそれ以外グループの検索ボタン直後に置く", () => {
+    const { container } = render(<FilterBar />);
+    const actions = container.querySelector(".fb-group-actions");
+    const search = actions?.querySelector('[aria-label="検索"]');
+    expect(search?.nextElementSibling?.getAttribute("aria-label")).toBe("再読込");
   });
 });

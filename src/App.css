@@ -455,6 +455,11 @@ body,
 .history-btn {
   width: 32px;
 }
+.reload-btn {
+  width: 32px;
+  font-size: 15px;
+  line-height: 1;
+}
 .history-dropdown {
   position: absolute;
   top: 100%;

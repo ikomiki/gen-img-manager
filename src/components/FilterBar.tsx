@@ -87,6 +87,10 @@ export function FilterBar() {
     ).catch((e) => console.error("スライドショー起動に失敗しました:", e));
   };
 
+  const reload = () => {
+    void runQuery().catch((e) => console.error("再読込に失敗しました:", e));
+  };
+
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       if (historyOpen && historyIndex >= 0 && acItems[historyIndex] !== undefined) {
@@ -217,6 +221,14 @@ export function FilterBar() {
       <div className="fb-group-actions">
         <button onClick={() => void submit()} aria-label="検索">
           検索
+        </button>
+        <button
+          className="reload-btn"
+          onClick={reload}
+          aria-label="再読込"
+          title="再読込"
+        >
+          ⟳
         </button>
         <button
           onClick={launchSlideshow}
