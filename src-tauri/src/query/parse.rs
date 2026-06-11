@@ -126,13 +126,33 @@ fn parse_value_op(value: &str, is_date: bool) -> Option<CondOp> {
         };
     }
     if is_date {
-        match (date_to_epoch(value, false), date_to_epoch(value, true)) {
+        return match (date_to_epoch(value, false), date_to_epoch(value, true)) {
             (Some(lo), Some(hi)) => Some(CondOp::Range(lo, hi)),
             _ => None,
-        }
-    } else {
-        to_num(value).map(CondOp::Eq)
+        };
     }
+    // 集合構文（"none"・カンマ区切り）。"none" は NULL を含める指定。
+    // 単一の bare 整数は従来どおり Eq として扱う（ここには来ない）。
+    if value == "none" || value.contains(',') {
+        let mut values = Vec::new();
+        let mut include_null = false;
+        for part in value.split(',') {
+            let p = part.trim();
+            if p == "none" {
+                include_null = true;
+            } else {
+                match p.parse::<i64>() {
+                    Ok(n) => values.push(n),
+                    Err(_) => return None, // 不正メンバーはトークンごと無視
+                }
+            }
+        }
+        if values.is_empty() && !include_null {
+            return None;
+        }
+        return Some(CondOp::InSet { values, include_null });
+    }
+    to_num(value).map(CondOp::Eq)
 }
 
 /// "YYYY-MM-DD" をローカルTZの epoch 秒へ。end_of_day=true なら同日 23:59:59。
@@ -321,6 +341,52 @@ mod tests {
         let pq = parse("rating:abc");
         assert!(pq.conds.is_empty());
         assert_eq!(pq.fts_include, None);
+    }
+
+    #[test]
+    fn rating_comma_set_parses_to_inset() {
+        let pq = parse("rating:none,1,3");
+        assert_eq!(
+            pq.conds,
+            vec![Cond {
+                column: "rating",
+                op: CondOp::InSet { values: vec![1, 3], include_null: true },
+                negate: false,
+            }]
+        );
+    }
+
+    #[test]
+    fn rating_bare_none_is_null_only_inset() {
+        let pq = parse("rating:none");
+        assert_eq!(
+            pq.conds,
+            vec![Cond {
+                column: "rating",
+                op: CondOp::InSet { values: vec![], include_null: true },
+                negate: false,
+            }]
+        );
+    }
+
+    #[test]
+    fn numeric_comma_set_without_none() {
+        let pq = parse("rating:2,4");
+        assert_eq!(
+            pq.conds,
+            vec![Cond {
+                column: "rating",
+                op: CondOp::InSet { values: vec![2, 4], include_null: false },
+                negate: false,
+            }]
+        );
+    }
+
+    #[test]
+    fn invalid_set_member_makes_token_ignored() {
+        // 集合の一部でも数値化できなければトークンごと無視。
+        let pq = parse("rating:1,abc");
+        assert!(pq.conds.is_empty());
     }
 
     #[test]

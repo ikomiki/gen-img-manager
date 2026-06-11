@@ -223,6 +223,19 @@ mod tests {
     }
 
     #[test]
+    fn rating_set_with_none_matches_null_and_listed() {
+        let c = conn();
+        seed(&c); // 5, 3, 4
+        crate::db::images::upsert(&c, &img("/d/u.png", "unrated", None, 256)).unwrap();
+        // なし(NULL) + 3 を選択 → u.png と b.png の 2件。
+        assert_eq!(count_query(&c, "rating:none,3").unwrap(), 2);
+        // なしのみ → u.png の 1件。
+        assert_eq!(count_query(&c, "rating:none").unwrap(), 1);
+        // 数値集合のみ（NULLは含まない） → 3 と 5 の 2件。
+        assert_eq!(count_query(&c, "rating:3,5").unwrap(), 2);
+    }
+
+    #[test]
     fn sort_asc_desc_by_filename() {
         let c = conn();
         seed(&c);

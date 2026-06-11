@@ -548,6 +548,42 @@ body,
   padding: 2px 4px;
   color: #666;
 }
+/* レーティング: なし/1〜5 の独立トグル + 下限一括選択の補助セレクト。 */
+.filter-fields .field-input.rating-field {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rating-buttons {
+  display: flex;
+  gap: 4px;
+}
+.rating-toggle {
+  min-width: 2.6em;
+  padding: 3px 6px;
+  border: 1px solid #b9b9b9;
+  border-radius: 5px;
+  background: #f3f3f3;
+  color: #555;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.rating-toggle:hover {
+  border-color: #8a8a8a;
+}
+.rating-toggle.on {
+  background: #2f6feb;
+  border-color: #2f6feb;
+  color: #fff;
+  font-weight: 600;
+}
+/* 補助セレクトは伸ばさずコンパクトに（field-input select の flex:1 を打ち消す）。 */
+.filter-fields .field-input.rating-field .rating-min-helper {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
 .date-fields {
   display: flex;
   flex-wrap: wrap;

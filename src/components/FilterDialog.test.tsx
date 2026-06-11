@@ -22,11 +22,18 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
+const pressed = (label: string) =>
+  screen.getByLabelText(label).getAttribute("aria-pressed");
+
 describe("FilterDialog", () => {
   it("populates controls from the current query on open", () => {
     render(<FilterDialog onClose={() => {}} />);
     expect((screen.getByLabelText("プロンプト") as HTMLInputElement).value).toBe("best quality");
-    expect((screen.getByLabelText("レーティング下限") as HTMLSelectElement).value).toBe("4");
+    // rating:>=4 → ★4,★5 が ON、なし/★1/★2/★3 は OFF。
+    expect(pressed("レーティング: ★4")).toBe("true");
+    expect(pressed("レーティング: ★5")).toBe("true");
+    expect(pressed("レーティング: ★3")).toBe("false");
+    expect(pressed("レーティング: なし")).toBe("false");
   });
 
   it("upserts managed fields and preserves the rest on apply", async () => {
@@ -40,8 +47,55 @@ describe("FilterDialog", () => {
     expect(setQuery).toHaveBeenCalled();
     const q = setQuery.mock.calls[0][0] as string;
     expect(q).toContain("1girl");
-    expect(q).toContain("rating:>=4");
+    expect(q).toContain("rating:>=4"); // ★4,★5 のまま → >=4
     expect(q).toContain('prompt:"forest cabin"');
+  });
+
+  it("レーティングボタンのトグルで aria-pressed が切り替わる", () => {
+    render(<FilterDialog onClose={() => {}} />);
+    expect(pressed("レーティング: ★1")).toBe("false");
+    fireEvent.click(screen.getByLabelText("レーティング: ★1"));
+    expect(pressed("レーティング: ★1")).toBe("true");
+    fireEvent.click(screen.getByLabelText("レーティング: ★1"));
+    expect(pressed("レーティング: ★1")).toBe("false");
+  });
+
+  it("下限セレクトは N〜5 を ON・他を OFF に一括設定する", () => {
+    render(<FilterDialog onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText("レーティング下限"), { target: { value: "3" } });
+    expect(pressed("レーティング: ★3")).toBe("true");
+    expect(pressed("レーティング: ★4")).toBe("true");
+    expect(pressed("レーティング: ★5")).toBe("true");
+    expect(pressed("レーティング: ★2")).toBe("false");
+    expect(pressed("レーティング: なし")).toBe("false");
+    // セレクトは一瞬のアクションでプレースホルダへ戻る。
+    expect((screen.getByLabelText("レーティング下限") as HTMLSelectElement).value).toBe("");
+  });
+
+  it("なし＋低評価の選択は集合構文 none,.. で書き出す", () => {
+    const setQuery = vi.fn();
+    useQueryStore.setState({
+      query: "",
+      setQuery,
+      runQuery: vi.fn().mockResolvedValue(undefined),
+    });
+    render(<FilterDialog onClose={() => {}} />);
+    fireEvent.click(screen.getByLabelText("レーティング: なし"));
+    fireEvent.click(screen.getByLabelText("レーティング: ★1"));
+    fireEvent.click(screen.getByText("適用"));
+    expect(setQuery).toHaveBeenCalledWith("rating:none,1");
+  });
+
+  it("全ボタン OFF なら rating トークンを出さない", () => {
+    const setQuery = vi.fn();
+    useQueryStore.setState({ setQuery, runQuery: vi.fn().mockResolvedValue(undefined) });
+    render(<FilterDialog onClose={() => {}} />);
+    // 既存の ★4,★5 を OFF にする。
+    fireEvent.click(screen.getByLabelText("レーティング: ★4"));
+    fireEvent.click(screen.getByLabelText("レーティング: ★5"));
+    fireEvent.click(screen.getByText("適用"));
+    const q = setQuery.mock.calls[0][0] as string;
+    expect(q).not.toContain("rating:");
   });
 
   it("round-trips a created date range unchanged on apply", () => {
