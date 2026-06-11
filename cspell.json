@@ -1,0 +1,22 @@
+{
+  "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+  "version": "0.2",
+  "dictionaryDefinitions": [
+    {
+      "name": "project-words",
+      "path": "./project-words.txt",
+      "addWords": true
+    }
+  ],
+  "dictionaries": ["project-words"],
+  "ignorePaths": [
+    "node_modules",
+    "dist",
+    "src-tauri/target",
+    "/project-words.txt",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "package-lock.json",
+    "pnpm-workspace.yaml"
+  ]
+}
