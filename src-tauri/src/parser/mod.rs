@@ -2,6 +2,7 @@ pub mod a1111;
 pub mod comfyui;
 pub mod png;
 pub mod raster_exif;
+pub mod tags;
 pub mod xmp;
 
 use std::path::Path;
