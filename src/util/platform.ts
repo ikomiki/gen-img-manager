@@ -16,3 +16,14 @@ export function isFullscreenToggleKey(
   }
   return e.key === "F11";
 }
+
+/**
+ * Command（macOS）/ Ctrl（その他）の主修飾キーを伴う入力かを判定する。
+ * 単独キーのアプリショートカット（c=パスコピー等）は、Cmd+C による選択テキストの
+ * コピーなどブラウザ標準操作を奪わないよう、これが true の間は発火させない。
+ */
+export function hasPrimaryModifier(
+  e: Pick<KeyboardEvent, "metaKey" | "ctrlKey">,
+): boolean {
+  return e.metaKey || e.ctrlKey;
+}

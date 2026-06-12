@@ -7,7 +7,7 @@ import { getSetting, setSetting } from "../api/prefs";
 import { setRating as setRatingApi } from "../api/images";
 import { writeXmpRating } from "../api/fs";
 import { buildOrder, mulberry32, step } from "../util/playlist";
-import { isFullscreenToggleKey } from "../util/platform";
+import { hasPrimaryModifier, isFullscreenToggleKey } from "../util/platform";
 import { SlideshowControls } from "./SlideshowControls";
 import { useSlideTimer } from "../hooks/useSlideTimer";
 import "../SlideshowApp.css";
@@ -185,6 +185,8 @@ export function SlideshowApp() {
       const typing =
         ae instanceof HTMLElement &&
         (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable);
+      // Cmd/Ctrl 併用のキー（Cmd+C による選択テキストのコピー等）は標準動作へ委ねる。
+      if (hasPrimaryModifier(e)) return;
       switch (e.key) {
         case "ArrowRight":
           e.preventDefault();

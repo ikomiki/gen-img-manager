@@ -6,7 +6,7 @@ import { useViewerStore } from "../store/useViewerStore";
 import { getImageDetail, revealInFinder } from "../api/images";
 import type { ImageDetail, ZoomMode } from "../types";
 import { MetadataPanel } from "./MetadataPanel";
-import { isFullscreenToggleKey } from "../util/platform";
+import { hasPrimaryModifier, isFullscreenToggleKey } from "../util/platform";
 import { nextUnratedIndex } from "../util/ratingNav";
 
 const ZOOM_LABELS: Record<ZoomMode, string> = {
@@ -148,6 +148,9 @@ export function ImageViewer() {
         void deleteCurrent();
         return;
       }
+      // Cmd/Ctrl 併用のキー（Cmd+C による選択テキストのコピー等）は、単独キーの
+      // アプリショートカットとして奪わず、ブラウザ標準動作へ委ねる。
+      if (hasPrimaryModifier(e)) return;
       switch (e.key) {
         case "Escape":
           // オーバーレイ表示中は ESC を消費し、OS（macOSネイティブ全画面など）へ伝播させない。

@@ -5,6 +5,7 @@ import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
 import { moveIndex } from "../util/gridNav";
 import { nextUnratedIndex } from "../util/ratingNav";
+import { hasPrimaryModifier } from "../util/platform";
 import { ContextMenu } from "./ContextMenu";
 import type { MenuEntry } from "./ContextMenu";
 import { useContextMenu } from "../hooks/useContextMenu";
@@ -87,6 +88,8 @@ export function ImageGridPanel() {
         Math.floor((parentRef.current?.clientHeight ?? rowHeight) / rowHeight),
       );
       const pageDelta = visibleRows * columns;
+      // Cmd/Ctrl 併用のキー（Cmd+C による選択テキストのコピー等）は標準動作へ委ねる。
+      if (hasPrimaryModifier(e)) return;
       switch (e.key) {
         case "ArrowRight":
           nextIndex = Math.min(cur + 1, len - 1);

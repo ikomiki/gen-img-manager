@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { isMac, isFullscreenToggleKey } from "./platform";
+import { isMac, isFullscreenToggleKey, hasPrimaryModifier } from "./platform";
 
 function setUA(ua: string) {
   vi.stubGlobal("navigator", { userAgent: ua });
@@ -44,5 +44,17 @@ describe("isFullscreenToggleKey", () => {
     expect(
       isFullscreenToggleKey({ altKey: true, metaKey: true, code: "KeyF", key: "f" } as KeyboardEvent),
     ).toBe(false);
+  });
+});
+
+describe("hasPrimaryModifier", () => {
+  it("Command (metaKey) 併用で true（Cmd+C 等は標準動作へ委ねる）", () => {
+    expect(hasPrimaryModifier({ metaKey: true, ctrlKey: false })).toBe(true);
+  });
+  it("Ctrl (ctrlKey) 併用で true", () => {
+    expect(hasPrimaryModifier({ metaKey: false, ctrlKey: true })).toBe(true);
+  });
+  it("修飾キーなしの単独キーは false（c=パスコピー等のアプリショートカット対象）", () => {
+    expect(hasPrimaryModifier({ metaKey: false, ctrlKey: false })).toBe(false);
   });
 });
