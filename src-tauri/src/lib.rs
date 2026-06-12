@@ -13,8 +13,26 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    // ウィンドウ状態（位置・サイズ・最大化・フルスクリーン）の保存/復元。
+    // ビルダーチェーンで登録する: 設定ファイル定義の main ウィンドウは setup クロージャより
+    // 前に生成され、その生成時に同期発火する on_window_ready を取りこぼさないため。
+    // setup 内で app.handle().plugin(...) すると復元が機能しない。
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::POSITION
+                        | tauri_plugin_window_state::StateFlags::SIZE
+                        | tauri_plugin_window_state::StateFlags::MAXIMIZED
+                        | tauri_plugin_window_state::StateFlags::FULLSCREEN,
+                )
+                .with_denylist(&["slideshow"])
+                .build(),
+        );
+    }
+    builder
         .setup(|app| {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
@@ -40,18 +58,6 @@ pub fn run() {
             app.set_menu(app_menu)?;
             app.manage(crate::commands::slideshow::SlideshowState::default());
             app.manage(view_menu);
-            #[cfg(desktop)]
-            app.handle().plugin(
-                tauri_plugin_window_state::Builder::default()
-                    .with_state_flags(
-                        tauri_plugin_window_state::StateFlags::POSITION
-                            | tauri_plugin_window_state::StateFlags::SIZE
-                            | tauri_plugin_window_state::StateFlags::MAXIMIZED
-                            | tauri_plugin_window_state::StateFlags::FULLSCREEN,
-                    )
-                    .with_denylist(&["slideshow"])
-                    .build(),
-            )?;
             Ok(())
         })
         .on_menu_event(|app, event| {
