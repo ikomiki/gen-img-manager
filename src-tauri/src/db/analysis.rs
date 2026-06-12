@@ -128,6 +128,90 @@ pub fn rating_lift(conn: &Connection, direction: &str, limit: i64) -> rusqlite::
     rows.collect()
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct RatingBucket {
+    pub rating: Option<i64>,
+    pub cnt: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TagRatingAnalysis {
+    pub has: Vec<RatingBucket>,
+    pub without: Vec<RatingBucket>,
+    pub has_avg: Option<f64>,
+    pub without_avg: Option<f64>,
+}
+
+/// 特定タグの「ある/ない」レーティング別件数と平均（評価済みのみ平均）。
+pub fn tag_rating_analysis(conn: &Connection, tag_id: i64) -> rusqlite::Result<TagRatingAnalysis> {
+    use std::collections::HashMap;
+    let mut has_map: HashMap<Option<i64>, i64> = HashMap::new();
+    {
+        let mut stmt =
+            conn.prepare("SELECT rating, cnt FROM tag_rating_distribution WHERE tag_id = ?1")?;
+        let rows = stmt.query_map([tag_id], |r| Ok((r.get::<_, Option<i64>>(0)?, r.get::<_, i64>(1)?)))?;
+        for row in rows {
+            let (rt, cnt) = row?;
+            has_map.insert(rt, cnt);
+        }
+    }
+    let mut scope_map: HashMap<Option<i64>, i64> = HashMap::new();
+    {
+        let mut stmt = conn.prepare("SELECT rating, cnt FROM scope_rating_distribution")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, Option<i64>>(0)?, r.get::<_, i64>(1)?)))?;
+        for row in rows {
+            let (rt, cnt) = row?;
+            scope_map.insert(rt, cnt);
+        }
+    }
+    let mut keys: Vec<Option<i64>> = scope_map.keys().chain(has_map.keys()).cloned().collect();
+    keys.sort();
+    keys.dedup();
+
+    let mut has = Vec::new();
+    let mut without = Vec::new();
+    for k in keys {
+        let h = *has_map.get(&k).unwrap_or(&0);
+        let s = *scope_map.get(&k).unwrap_or(&0);
+        let w = (s - h).max(0);
+        has.push(RatingBucket { rating: k, cnt: h });
+        without.push(RatingBucket { rating: k, cnt: w });
+    }
+    let avg = |buckets: &[RatingBucket]| -> Option<f64> {
+        let mut sum = 0i64;
+        let mut n = 0i64;
+        for b in buckets {
+            if let Some(r) = b.rating {
+                sum += r * b.cnt;
+                n += b.cnt;
+            }
+        }
+        if n > 0 { Some(sum as f64 / n as f64) } else { None }
+    };
+    let has_avg = avg(&has);
+    let without_avg = avg(&without);
+    Ok(TagRatingAnalysis { has, without, has_avg, without_avg })
+}
+
+/// 除外タグ一覧（名前昇順）。
+pub fn list_excluded(conn: &Connection) -> rusqlite::Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT name FROM analysis_excluded_tags ORDER BY name")?;
+    let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+    rows.collect()
+}
+
+/// 除外タグを追加する（既存なら無視）。
+pub fn add_excluded(conn: &Connection, name: &str) -> rusqlite::Result<()> {
+    conn.execute("INSERT OR IGNORE INTO analysis_excluded_tags(name) VALUES (?1)", params![name])?;
+    Ok(())
+}
+
+/// 除外タグを削除する。
+pub fn remove_excluded(conn: &Connection, name: &str) -> rusqlite::Result<()> {
+    conn.execute("DELETE FROM analysis_excluded_tags WHERE name = ?1", params![name])?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,5 +328,34 @@ mod tests {
         let adj = high[0].adjusted_avg.unwrap();
         assert!((adj - 4.7333333).abs() < 1e-4, "adjusted_avg = {adj}");
         assert!((high[0].overall_avg.unwrap() - 4.2).abs() < 1e-9);
+    }
+
+    #[test]
+    fn tag_rating_analysis_has_and_without() {
+        let c = conn();
+        add(&c, "/d/a.png", Some(5), &["forest"]);
+        add(&c, "/d/b.png", Some(3), &["forest"]);
+        add(&c, "/d/c.png", Some(4), &["mountain"]);
+        add(&c, "/d/d.png", None, &["mountain"]);
+        set_scope(&c, None).unwrap();
+        set_params(&c, true, 1, 10.0).unwrap();
+        let forest_id: i64 = c.query_row("SELECT id FROM tags WHERE name='forest'", [], |r| r.get(0)).unwrap();
+        let a = tag_rating_analysis(&c, forest_id).unwrap();
+        assert!((a.has_avg.unwrap() - 4.0).abs() < 1e-9);
+        assert!((a.without_avg.unwrap() - 4.0).abs() < 1e-9);
+        let has_total: i64 = a.has.iter().map(|b| b.cnt).sum();
+        let without_total: i64 = a.without.iter().map(|b| b.cnt).sum();
+        assert_eq!(has_total, 2);
+        assert_eq!(without_total, 2);
+    }
+
+    #[test]
+    fn excluded_list_crud() {
+        let c = conn();
+        add_excluded(&c, "score 9").unwrap();
+        add_excluded(&c, "score 9").unwrap();
+        assert!(list_excluded(&c).unwrap().contains(&"score 9".to_string()));
+        remove_excluded(&c, "masterpiece").unwrap();
+        assert!(!list_excluded(&c).unwrap().contains(&"masterpiece".to_string()));
     }
 }
