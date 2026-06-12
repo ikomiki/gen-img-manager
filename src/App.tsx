@@ -9,6 +9,8 @@ import { ImageGridPanel } from "./components/ImageGridPanel";
 import { ImageViewer } from "./components/ImageViewer";
 import { HelpOverlay } from "./components/HelpOverlay";
 import { Toast } from "./components/Toast";
+import { AnalysisView } from "./components/AnalysisView";
+import { useAnalysisStore } from "./store/useAnalysisStore";
 import type { ZoomMode } from "./types";
 import "./App.css";
 
@@ -78,6 +80,8 @@ function App() {
         void toggleShowCurrentPosition();
       } else if (id === "show_current_rating") {
         void toggleShowCurrentRating();
+      } else if (id === "open_analysis") {
+        useAnalysisStore.getState().toggleOpen();
       } else if (id.startsWith("zoom_")) {
         const mode = id.replace("zoom_", "") as ZoomMode;
         setZoomMode(mode);
@@ -140,6 +144,7 @@ function App() {
       </main>
       <ImageViewer />
       <Toast />
+      <AnalysisView />
       {helpOpen && <HelpOverlay onClose={closeHelp} />}
     </div>
   );
