@@ -6,6 +6,7 @@ import { useViewerStore } from "../store/useViewerStore";
 import { getImageDetail, revealInFinder } from "../api/images";
 import type { ImageDetail, ZoomMode } from "../types";
 import { MetadataPanel } from "./MetadataPanel";
+import { RatingStars } from "./RatingStars";
 import { hasPrimaryModifier, isFullscreenToggleKey } from "../util/platform";
 import { nextUnratedIndex } from "../util/ratingNav";
 
@@ -41,6 +42,7 @@ export function ImageViewer() {
   const unratedOnly = useQueryStore((s) => s.unratedOnly);
   const showCurrentFilename = useQueryStore((s) => s.showCurrentFilename);
   const showCurrentPosition = useQueryStore((s) => s.showCurrentPosition);
+  const showCurrentRating = useQueryStore((s) => s.showCurrentRating);
   const image = results[index];
 
   const [detail, setDetail] = useState<ImageDetail | null>(null);
@@ -306,6 +308,11 @@ export function ImageViewer() {
           {showCurrentPosition && (
             <div className="viewer-overlay-position">
               {index + 1} / {results.length}
+            </div>
+          )}
+          {showCurrentRating && (
+            <div className="viewer-overlay-rating">
+              <RatingStars rating={image.rating} />
             </div>
           )}
           {ratingMode && (

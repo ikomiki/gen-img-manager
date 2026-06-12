@@ -70,6 +70,7 @@ pub fn run() {
             commands::view_menu::sync_xmp_auto_menu,
             commands::view_menu::sync_current_filename_menu,
             commands::view_menu::sync_current_position_menu,
+            commands::view_menu::sync_current_rating_menu,
             commands::slideshow::start_slideshow,
             commands::slideshow::get_slideshow_payload,
             commands::fs::reveal_in_finder,

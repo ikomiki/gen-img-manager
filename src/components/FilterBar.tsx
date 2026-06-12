@@ -83,6 +83,7 @@ export function FilterBar() {
     void startSlideshow(
       results.map((r) => r.path),
       results.map((r) => r.id),
+      results.map((r) => r.rating),
       start,
     ).catch((e) => console.error("スライドショー起動に失敗しました:", e));
   };

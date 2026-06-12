@@ -68,5 +68,6 @@ export type ZoomMode = "fit" | "actual" | "fill" | "custom";
 export interface SlideshowPayload {
   paths: string[];
   ids: number[];
+  ratings: (number | null)[];
   start_index: number;
 }

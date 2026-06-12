@@ -38,8 +38,10 @@ interface QueryState {
   toggleUnratedOnly: () => Promise<void>;
   showCurrentFilename: boolean;
   showCurrentPosition: boolean;
+  showCurrentRating: boolean;
   toggleShowCurrentFilename: () => Promise<void>;
   toggleShowCurrentPosition: () => Promise<void>;
+  toggleShowCurrentRating: () => Promise<void>;
 }
 
 export const useQueryStore = create<QueryState>((set, get) => ({
@@ -59,6 +61,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   unratedOnly: false,
   showCurrentFilename: false,
   showCurrentPosition: false,
+  showCurrentRating: false,
   setQuery: (q) => set({ query: q }),
   setSort: (sort, dir) => {
     set({ sort, dir });
@@ -121,7 +124,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     get().showToast("ゴミ箱に移動しました");
   },
   loadSettings: async () => {
-    const [sortRaw, showRaw, queryRaw, dirCollapsedRaw, xmpAutoRaw, unratedOnlyRaw, showCurFnameRaw, showCurPosRaw] = await Promise.all([
+    const [sortRaw, showRaw, queryRaw, dirCollapsedRaw, xmpAutoRaw, unratedOnlyRaw, showCurFnameRaw, showCurPosRaw, showCurRatingRaw] = await Promise.all([
       prefsApi.getSetting("sort"),
       prefsApi.getSetting("show_filename"),
       prefsApi.getSetting("filter_query"),
@@ -130,6 +133,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       prefsApi.getSetting("unrated_only"),
       prefsApi.getSetting("show_current_filename"),
       prefsApi.getSetting("show_current_position"),
+      prefsApi.getSetting("show_current_rating"),
     ]);
     if (sortRaw) {
       const [sort, dir] = sortRaw.split(":");
@@ -165,6 +169,11 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       set({ showCurrentPosition: on });
       prefsApi.syncCurrentPositionMenu(on).catch(() => {});
     }
+    if (showCurRatingRaw !== null) {
+      const on = showCurRatingRaw === "true";
+      set({ showCurrentRating: on });
+      prefsApi.syncCurrentRatingMenu(on).catch(() => {});
+    }
   },
   showToast: (msg) => set({ toast: msg, toastSeq: get().toastSeq + 1 }),
   clearToast: () => set({ toast: null }),
@@ -199,5 +208,11 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     set({ showCurrentPosition: next });
     await prefsApi.setSetting("show_current_position", String(next));
     prefsApi.syncCurrentPositionMenu(next).catch((e) => console.error("syncCurrentPositionMenu failed:", e));
+  },
+  toggleShowCurrentRating: async () => {
+    const next = !get().showCurrentRating;
+    set({ showCurrentRating: next });
+    await prefsApi.setSetting("show_current_rating", String(next));
+    prefsApi.syncCurrentRatingMenu(next).catch((e) => console.error("syncCurrentRatingMenu failed:", e));
   },
 }));

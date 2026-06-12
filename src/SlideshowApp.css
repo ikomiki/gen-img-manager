@@ -101,6 +101,18 @@
   z-index: 3;
   pointer-events: none;
 }
+.ss-rating {
+  position: absolute;
+  bottom: 64px;
+  left: 16px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1;
+  z-index: 3;
+  pointer-events: none;
+}
 /* 描画パイプライン維持用の不可視 1px レイヤー。
    useSlideTimer が毎フレーム transform をサブピクセル移動させ、
    WKWebView がアイドル化して入力イベントの配送が止まるのを防ぐ。削除しないこと。 */

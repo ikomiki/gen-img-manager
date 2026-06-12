@@ -2,8 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import type { SlideshowPayload } from "../types";
 
 /** 現在のリストのスナップショットを保存し、スライドショーウィンドウを起動する。 */
-export const startSlideshow = (paths: string[], ids: number[], startIndex: number) =>
-  invoke<void>("start_slideshow", { paths, ids, startIndex });
+export const startSlideshow = (
+  paths: string[],
+  ids: number[],
+  ratings: (number | null)[],
+  startIndex: number,
+) => invoke<void>("start_slideshow", { paths, ids, ratings, startIndex });
 
 /** スライドショーウィンドウがマウント時に取得するスナップショット。 */
 export const getSlideshowPayload = () =>

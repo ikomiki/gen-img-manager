@@ -7,6 +7,7 @@ use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
 pub struct SlideshowPayload {
     pub paths: Vec<String>,
     pub ids: Vec<i64>,
+    pub ratings: Vec<Option<i64>>,
     pub start_index: usize,
 }
 
@@ -36,9 +37,10 @@ pub fn start_slideshow(
     state: State<SlideshowState>,
     paths: Vec<String>,
     ids: Vec<i64>,
+    ratings: Vec<Option<i64>>,
     start_index: usize,
 ) -> Result<(), String> {
-    set_payload(&state, SlideshowPayload { paths, ids, start_index });
+    set_payload(&state, SlideshowPayload { paths, ids, ratings, start_index });
     if let Some(w) = app.get_webview_window("slideshow") {
         w.set_focus().map_err(|e| e.to_string())?;
     } else {
@@ -76,16 +78,29 @@ mod tests {
         let state = SlideshowState::default();
         set_payload(
             &state,
-            SlideshowPayload { paths: vec!["/a.png".into(), "/b.png".into()], ids: vec![1, 2], start_index: 1 },
+            SlideshowPayload {
+                paths: vec!["/a.png".into(), "/b.png".into()],
+                ids: vec![1, 2],
+                ratings: vec![Some(3), None],
+                start_index: 1,
+            },
         );
         assert_eq!(
             get_payload(&state),
-            Some(SlideshowPayload { paths: vec!["/a.png".into(), "/b.png".into()], ids: vec![1, 2], start_index: 1 })
+            Some(SlideshowPayload {
+                paths: vec!["/a.png".into(), "/b.png".into()],
+                ids: vec![1, 2],
+                ratings: vec![Some(3), None],
+                start_index: 1,
+            })
         );
-        set_payload(&state, SlideshowPayload { paths: vec!["/c.png".into()], ids: vec![3], start_index: 0 });
+        set_payload(
+            &state,
+            SlideshowPayload { paths: vec!["/c.png".into()], ids: vec![3], ratings: vec![None], start_index: 0 },
+        );
         assert_eq!(
             get_payload(&state),
-            Some(SlideshowPayload { paths: vec!["/c.png".into()], ids: vec![3], start_index: 0 })
+            Some(SlideshowPayload { paths: vec!["/c.png".into()], ids: vec![3], ratings: vec![None], start_index: 0 })
         );
     }
 }

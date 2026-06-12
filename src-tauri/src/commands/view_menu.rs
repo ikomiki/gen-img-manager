@@ -39,3 +39,7 @@ pub fn sync_current_filename_menu(menu: State<ViewMenu>, on: bool) {
 pub fn sync_current_position_menu(menu: State<ViewMenu>, on: bool) {
     menu.sync_current_position(on);
 }
+#[tauri::command]
+pub fn sync_current_rating_menu(menu: State<ViewMenu>, on: bool) {
+    menu.sync_current_rating(on);
+}

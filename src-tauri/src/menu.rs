@@ -15,6 +15,7 @@ pub struct ViewMenu {
     pub xmp_auto: CheckMenuItem<Wry>,
     pub show_current_filename: CheckMenuItem<Wry>,
     pub show_current_position: CheckMenuItem<Wry>,
+    pub show_current_rating: CheckMenuItem<Wry>,
 }
 
 /// アプリメニューを構築し、ViewMenu（チェック項目ハンドル）を返す。
@@ -43,6 +44,9 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
     let show_current_position = CheckMenuItem::with_id(
         app, "show_current_position", "現在のファイル位置を表示", true, false, None::<&str>,
     )?;
+    let show_current_rating = CheckMenuItem::with_id(
+        app, "show_current_rating", "現在のレーティングを表示", true, false, None::<&str>,
+    )?;
 
     let rating_submenu = SubmenuBuilder::new(app, "レーティング")
         .item(&rating_mode)
@@ -70,6 +74,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
         .item(&show_filename)
         .item(&show_current_filename)
         .item(&show_current_position)
+        .item(&show_current_rating)
         .build()?;
 
     // macOS既定メニュー（アプリ名/Quit・編集/コピー&ペースト・Window等）を保持し、
@@ -93,6 +98,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
             xmp_auto,
             show_current_filename,
             show_current_position,
+            show_current_rating,
         },
     ))
 }
@@ -145,5 +151,8 @@ impl ViewMenu {
     }
     pub fn sync_current_position(&self, on: bool) {
         let _ = self.show_current_position.set_checked(on);
+    }
+    pub fn sync_current_rating(&self, on: bool) {
+        let _ = self.show_current_rating.set_checked(on);
     }
 }

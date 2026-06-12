@@ -23,6 +23,7 @@ function App() {
   const toggleXmpAutoExport = useQueryStore((s) => s.toggleXmpAutoExport);
   const toggleShowCurrentFilename = useQueryStore((s) => s.toggleShowCurrentFilename);
   const toggleShowCurrentPosition = useQueryStore((s) => s.toggleShowCurrentPosition);
+  const toggleShowCurrentRating = useQueryStore((s) => s.toggleShowCurrentRating);
   const dirCollapsed = useQueryStore((s) => s.dirCollapsed);
   const toggleDirCollapsed = useQueryStore((s) => s.toggleDirCollapsed);
   const helpOpen = useQueryStore((s) => s.helpOpen);
@@ -75,6 +76,8 @@ function App() {
         void toggleShowCurrentFilename();
       } else if (id === "show_current_position") {
         void toggleShowCurrentPosition();
+      } else if (id === "show_current_rating") {
+        void toggleShowCurrentRating();
       } else if (id.startsWith("zoom_")) {
         const mode = id.replace("zoom_", "") as ZoomMode;
         setZoomMode(mode);
@@ -83,7 +86,7 @@ function App() {
     return () => {
       un.then((f) => f());
     };
-  }, [toggleShowFilename, setZoomMode, toggleRatingMode, toggleUnratedOnly, toggleXmpAutoExport, toggleShowCurrentFilename, toggleShowCurrentPosition]);
+  }, [toggleShowFilename, setZoomMode, toggleRatingMode, toggleUnratedOnly, toggleXmpAutoExport, toggleShowCurrentFilename, toggleShowCurrentPosition, toggleShowCurrentRating]);
 
   // グローバルキー: B で左パネル折りたたみ、? でヘルプ、Esc でヘルプを閉じる。
   // ビューア表示中は B/? を無効化する（ImageGridPanel と同様）。

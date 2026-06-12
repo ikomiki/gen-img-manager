@@ -19,3 +19,5 @@ export const syncCurrentFilenameMenu = (on: boolean) =>
   invoke<void>("sync_current_filename_menu", { on });
 export const syncCurrentPositionMenu = (on: boolean) =>
   invoke<void>("sync_current_position_menu", { on });
+export const syncCurrentRatingMenu = (on: boolean) =>
+  invoke<void>("sync_current_rating_menu", { on });

@@ -827,6 +827,20 @@ body,
   pointer-events: none;
 }
 
+/* ビューア: 現在レーティング（左下・暗ピル）。サイズは位置表示と同程度。 */
+.viewer-overlay-rating {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1;
+  z-index: 3;
+  pointer-events: none;
+}
+
 /* ビューア: レーティング入力モードのキャプション（右上・目立つ背景色） */
 .viewer-rating-caption {
   position: absolute;

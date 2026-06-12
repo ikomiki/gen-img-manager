@@ -9,12 +9,14 @@ import { writeXmpRating } from "../api/fs";
 import { buildOrder, mulberry32, step } from "../util/playlist";
 import { hasPrimaryModifier, isFullscreenToggleKey } from "../util/platform";
 import { SlideshowControls } from "./SlideshowControls";
+import { RatingStars } from "./RatingStars";
 import { useSlideTimer } from "../hooks/useSlideTimer";
 import "../SlideshowApp.css";
 
 export function SlideshowApp() {
   const [paths, setPaths] = useState<string[]>([]);
   const [ids, setIds] = useState<number[]>([]);
+  const [ratings, setRatings] = useState<(number | null)[]>([]);
   const [order, setOrder] = useState<number[]>([]);
   const [pos, setPos] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -26,6 +28,7 @@ export function SlideshowApp() {
   const [ready, setReady] = useState(false);
   const [showFilename, setShowFilename] = useState(false);
   const [showPosition, setShowPosition] = useState(false);
+  const [showRating, setShowRating] = useState(false);
   const [xmpAuto, setXmpAuto] = useState(false);
 
   // 最新値を副作用から参照するための ref ミラー。
@@ -53,13 +56,14 @@ export function SlideshowApp() {
   // 初期化: スナップショットと設定を読み込み、再生順序を組む。
   useEffect(() => {
     void (async () => {
-      const [payload, iv, lp, rnd, sf, sp, xa] = await Promise.all([
+      const [payload, iv, lp, rnd, sf, sp, sr, xa] = await Promise.all([
         getSlideshowPayload(),
         getSetting("slideshow_interval"),
         getSetting("slideshow_loop"),
         getSetting("slideshow_random"),
         getSetting("show_current_filename"),
         getSetting("show_current_position"),
+        getSetting("show_current_rating"),
         getSetting("xmp_auto"),
       ]);
       const sec = iv ? Math.max(1, Number(iv) || 5) : 5;
@@ -70,6 +74,7 @@ export function SlideshowApp() {
       setRandom(rndOn);
       setShowFilename(sf === "true");
       setShowPosition(sp === "true");
+      setShowRating(sr === "true");
       setXmpAuto(xa === "true");
 
       const p = payload?.paths ?? [];
@@ -87,6 +92,7 @@ export function SlideshowApp() {
       }
       setPaths(p);
       setIds(payload?.ids ?? []);
+      setRatings(payload?.ratings ?? []);
       setOrder(ord);
       setPos(startPos);
       setReady(true);
@@ -153,6 +159,12 @@ export function SlideshowApp() {
       ratingBusy.current = true;
       try {
         await setRatingApi(id, rating);
+        // 表示用のローカル値を即時更新（スナップショットのため一覧側へは波及しない）。
+        setRatings((prev) => {
+          const n = [...prev];
+          n[imgIndex] = rating;
+          return n;
+        });
         if (xmpAuto && path) {
           try {
             await writeXmpRating(path, rating);
@@ -250,6 +262,7 @@ export function SlideshowApp() {
       else if (e.payload === "slideshow_windowed") void toggleFullscreen(false);
       else if (e.payload === "show_current_filename") setShowFilename((v) => !v);
       else if (e.payload === "show_current_position") setShowPosition((v) => !v);
+      else if (e.payload === "show_current_rating") setShowRating((v) => !v);
     });
     return () => {
       un.then((f) => f());
@@ -325,6 +338,11 @@ export function SlideshowApp() {
       {showPosition && (
         <div className="ss-position">
           {order.length === 0 ? 0 : pos + 1} / {order.length}
+        </div>
+      )}
+      {showRating && currentPath && (
+        <div className="ss-rating">
+          <RatingStars rating={order.length > 0 ? (ratings[order[pos]] ?? null) : null} />
         </div>
       )}
       {toast && <div className="ss-toast">{toast}</div>}
