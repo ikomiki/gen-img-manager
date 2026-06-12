@@ -29,26 +29,34 @@ cargo add tauri-plugin-window-state --target 'cfg(any(target_os = "macos", windo
 
 ### 2. `src-tauri/src/lib.rs`
 
-`setup` クロージャ内でプラグインを登録する（公式ドキュメント準拠）。`#[cfg(desktop)]` でガードする。
+プラグインは **ビルダーチェーン**（`.setup(...)` より前）で登録する。`#[cfg(desktop)]` でガードする。
 
 ```rust
+let mut builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
 #[cfg(desktop)]
-app.handle().plugin(
-    tauri_plugin_window_state::Builder::default()
-        .with_state_flags(
-            tauri_plugin_window_state::StateFlags::POSITION
-                | tauri_plugin_window_state::StateFlags::SIZE
-                | tauri_plugin_window_state::StateFlags::MAXIMIZED
-                | tauri_plugin_window_state::StateFlags::FULLSCREEN,
-        )
-        .with_denylist(&["slideshow"])
-        .build(),
-)?;
+{
+    builder = builder.plugin(
+        tauri_plugin_window_state::Builder::default()
+            .with_state_flags(
+                tauri_plugin_window_state::StateFlags::POSITION
+                    | tauri_plugin_window_state::StateFlags::SIZE
+                    | tauri_plugin_window_state::StateFlags::MAXIMIZED
+                    | tauri_plugin_window_state::StateFlags::FULLSCREEN,
+            )
+            .with_denylist(&["slideshow"])
+            .build(),
+    );
+}
+builder
+    .setup(|app| { /* 既存の setup 処理 */ })
+    // .on_menu_event(...) / .invoke_handler(...) / .run(...) は従来どおり
 ```
 
 - `with_state_flags(...)`：要件どおり「位置・サイズ・最大化・フルスクリーン」のみを対象とし、`VISIBLE` / `DECORATIONS` は除外する。
 - `with_denylist(&["slideshow"])`：スライドショーウィンドウを保存・復元の対象から除外する。
-- 登録位置は、既存の DB 初期化・メニュー構築などと並ぶ `setup` 内とする（実際の挿入箇所は実装時に確定。`use` の追加方法も含め周囲のスタイルに合わせる）。
+- **登録位置がビルダーチェーンである理由（重要）**：Tauri は `tauri.conf.json` 定義の `main` ウィンドウを、ユーザーの `setup` クロージャより**前**に生成する（`app.rs` の `fn setup`：先に config ウィンドウを `build()` → その後 `setup` クロージャ実行）。ウィンドウ生成時の `on_window_ready` は、メインスレッド上では `run_on_main_thread` 経由で**同期発火**する（`send_user_message` がメインスレッドでは即時実行）。そのため `setup` 内で `app.handle().plugin(...)` と遅延登録すると、`main` の `on_window_ready` を取りこぼし、保存・復元が一切機能しない（公式ドキュメントの setup 内登録スニペットは、この config ウィンドウのケースで実際にハマる）。ビルダーチェーンで登録すれば config ウィンドウ生成前にプラグインがストアへ入るため、`on_window_ready` が確実に届く。
+- 後続の保守で `setup` 内へ戻されないよう、登録箇所に理由をコメントで明記する。
+- `Builder::plugin` は `Self` を返す（`Result` ではない）ため `?` は付けない。`use` は追加せずフルパスで記述する。
 
 ### 3. `src-tauri/capabilities/default.json`
 

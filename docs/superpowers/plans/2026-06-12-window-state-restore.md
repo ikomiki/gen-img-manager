@@ -49,32 +49,55 @@ git commit -m "build(tauri): tauri-plugin-window-state を依存に追加"
 ### Task 2: `lib.rs` でプラグインを登録する
 
 **Files:**
-- Modify: `src-tauri/src/lib.rs`（`setup` クロージャ内、`app.manage(view_menu);` の直後・`Ok(())` の直前に追加）
+- Modify: `src-tauri/src/lib.rs`（`pub fn run()` のビルダーチェーン。`.setup(...)` より前にプラグインを登録する）
 
-- [ ] **Step 1: setup 内にプラグイン登録を追加**
+- [ ] **Step 1: ビルダーチェーンでプラグインを登録する**
 
-`src-tauri/src/lib.rs` の `setup` クロージャ末尾、既存の `app.manage(view_menu);` の直後に以下を挿入する。`use` は追加せず、衝突や `#[cfg(desktop)]` 非該当時の未使用警告を避けるためフルパスで記述する。
+`src-tauri/src/lib.rs` の `pub fn run()` 冒頭を、`builder` 束縛＋`#[cfg(desktop)]` ブロックでの登録に変更する。`use` は追加せずフルパスで記述する。
 
+> **重要 — なぜ `setup` 内ではなくビルダーチェーンか**：Tauri は `tauri.conf.json` 定義の `main` ウィンドウをユーザーの `setup` クロージャより**前**に生成し、その生成時の `on_window_ready` はメインスレッド上で**同期発火**する。`setup` 内で `app.handle().plugin(...)` と遅延登録すると `main` の `on_window_ready` を取りこぼし、保存・復元が機能しない。ビルダーチェーン登録なら config ウィンドウ生成前にプラグインが登録済みとなり確実に届く。
+
+変更前:
 ```rust
-            app.manage(view_menu);
-            #[cfg(desktop)]
-            app.handle().plugin(
-                tauri_plugin_window_state::Builder::default()
-                    .with_state_flags(
-                        tauri_plugin_window_state::StateFlags::POSITION
-                            | tauri_plugin_window_state::StateFlags::SIZE
-                            | tauri_plugin_window_state::StateFlags::MAXIMIZED
-                            | tauri_plugin_window_state::StateFlags::FULLSCREEN,
-                    )
-                    .with_denylist(&["slideshow"])
-                    .build(),
-            )?;
-            Ok(())
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
 ```
+
+変更後:
+```rust
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    // ウィンドウ状態（位置・サイズ・最大化・フルスクリーン）の保存/復元。
+    // ビルダーチェーンで登録する: 設定ファイル定義の main ウィンドウは setup クロージャより
+    // 前に生成され、その生成時に同期発火する on_window_ready を取りこぼさないため。
+    // setup 内で app.handle().plugin(...) すると復元が機能しない。
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(
+                    tauri_plugin_window_state::StateFlags::POSITION
+                        | tauri_plugin_window_state::StateFlags::SIZE
+                        | tauri_plugin_window_state::StateFlags::MAXIMIZED
+                        | tauri_plugin_window_state::StateFlags::FULLSCREEN,
+                )
+                .with_denylist(&["slideshow"])
+                .build(),
+        );
+    }
+    builder
+        .setup(|app| {
+```
+
+`.setup(...)` 以降のチェーン（`.on_menu_event(...)` / `.invoke_handler(...)` / `.run(...)` / `.expect(...)`）は従来どおり `builder` から続ける。`.plugin(tauri_plugin_dialog::init())` を二重に書かないこと。
 
 - `with_state_flags(...)`：要件どおり「位置・サイズ・最大化・フルスクリーン」のみを対象とし、`VISIBLE` / `DECORATIONS` は含めない。
 - `with_denylist(&["slideshow"])`：スライドショーウィンドウ（label `slideshow`）を保存・復元対象から除外する。
-- `?`：`setup` の戻り値は `Result<(), Box<dyn Error>>` で、`plugin()` の `tauri::Result` を `?` で伝播できる。
+- `Builder::plugin` は `Self` を返す（`Result` ではない）ため `?` は付けない。
 
 - [ ] **Step 2: コンパイルが通ることを確認**
 
