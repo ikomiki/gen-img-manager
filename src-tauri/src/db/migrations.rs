@@ -77,6 +77,70 @@ const MIGRATIONS: &[&str] = &[
     );",
     // v4: directories.visible（目玉トグルの表示/非表示状態。既存は全て可視=1）
     "ALTER TABLE directories ADD COLUMN visible INTEGER NOT NULL DEFAULT 1;",
+    // v5: tags / image_tags / 分析用テーブル + 分析View
+    "CREATE TABLE tags (
+        id   INTEGER PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE
+    );
+    CREATE TABLE image_tags (
+        image_id INTEGER NOT NULL REFERENCES images(id) ON DELETE CASCADE,
+        tag_id   INTEGER NOT NULL REFERENCES tags(id)   ON DELETE CASCADE,
+        kind     TEXT NOT NULL,
+        PRIMARY KEY (image_id, tag_id, kind)
+    );
+    CREATE INDEX idx_image_tags_tag   ON image_tags(tag_id, kind);
+    CREATE TABLE analysis_params (
+        id              INTEGER PRIMARY KEY CHECK (id = 1),
+        apply_exclusion INTEGER NOT NULL DEFAULT 1,
+        min_rated_count INTEGER NOT NULL DEFAULT 10,
+        prior_weight    REAL    NOT NULL DEFAULT 10
+    );
+    INSERT INTO analysis_params(id) VALUES (1);
+    CREATE TABLE analysis_excluded_tags ( name TEXT PRIMARY KEY );
+    INSERT INTO analysis_excluded_tags(name) VALUES
+        ('masterpiece'),('best quality'),('worst quality'),('low quality'),
+        ('normal quality'),('high quality'),('lowres'),('highres'),('absurdres'),
+        ('ultra detailed'),('very detailed'),('8k'),('4k'),
+        ('score 9'),('score 8 up'),('score 7 up'),('score 6 up'),('score 5 up'),('score 4 up');
+    CREATE TABLE analysis_scope ( image_id INTEGER PRIMARY KEY REFERENCES images(id) ON DELETE CASCADE );
+    CREATE VIEW analysis_images AS
+        SELECT i.id, i.rating FROM images i
+        WHERE i.missing = 0
+          AND i.directory_id IN (SELECT id FROM directories WHERE visible = 1)
+          AND (NOT EXISTS(SELECT 1 FROM analysis_scope)
+               OR i.id IN (SELECT image_id FROM analysis_scope));
+    CREATE VIEW analysis_tag_occurrence AS
+        SELECT it.image_id, it.tag_id, t.name, ai.rating
+        FROM image_tags it
+        JOIN tags t             ON t.id  = it.tag_id
+        JOIN analysis_images ai ON ai.id = it.image_id
+        WHERE it.kind IN ('prompt','unclassified')
+          AND ((SELECT apply_exclusion FROM analysis_params) = 0
+               OR t.name NOT IN (SELECT name FROM analysis_excluded_tags));
+    CREATE VIEW tag_frequency AS
+        SELECT tag_id, name, COUNT(DISTINCT image_id) AS image_count
+        FROM analysis_tag_occurrence GROUP BY tag_id, name;
+    CREATE VIEW analysis_rating_baseline AS
+        SELECT AVG(rating) AS mean_rating FROM analysis_images WHERE rating IS NOT NULL;
+    CREATE VIEW tag_rating_lift AS
+        SELECT * FROM (
+            SELECT tag_id, name,
+                COUNT(DISTINCT CASE WHEN rating IS NOT NULL THEN image_id END) AS rated_count,
+                AVG(rating) AS raw_avg,
+                ( COUNT(DISTINCT CASE WHEN rating IS NOT NULL THEN image_id END) * AVG(rating)
+                  + (SELECT prior_weight FROM analysis_params)
+                    * (SELECT mean_rating FROM analysis_rating_baseline) )
+                / ( COUNT(DISTINCT CASE WHEN rating IS NOT NULL THEN image_id END)
+                    + (SELECT prior_weight FROM analysis_params) ) AS adjusted_avg,
+                (SELECT mean_rating FROM analysis_rating_baseline) AS overall_avg
+            FROM analysis_tag_occurrence GROUP BY tag_id, name
+        )
+        WHERE rated_count >= (SELECT min_rated_count FROM analysis_params);
+    CREATE VIEW tag_rating_distribution AS
+        SELECT tag_id, name, rating, COUNT(DISTINCT image_id) AS cnt
+        FROM analysis_tag_occurrence GROUP BY tag_id, name, rating;
+    CREATE VIEW scope_rating_distribution AS
+        SELECT rating, COUNT(*) AS cnt FROM analysis_images GROUP BY rating;",
 ];
 
 /// 未適用のマイグレーションを順に適用し PRAGMA user_version を更新する。
@@ -107,7 +171,7 @@ mod tests {
         let v: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 4);
+        assert_eq!(v, 5);
 
         let count: i64 = conn
             .query_row(
@@ -127,7 +191,7 @@ mod tests {
         let v: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 4);
+        assert_eq!(v, 5);
     }
 
     #[test]
@@ -135,7 +199,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 4);
+        assert_eq!(v, 5);
         for name in ["images", "images_fts"] {
             let c: i64 = conn
                 .query_row(
@@ -220,7 +284,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 4);
+        assert_eq!(v, 5);
         for name in ["filter_history", "settings"] {
             let c: i64 = conn
                 .query_row("SELECT count(*) FROM sqlite_master WHERE name = ?1", [name], |r| r.get(0))
@@ -234,7 +298,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 4);
+        assert_eq!(v, 5);
         conn.execute(
             "INSERT INTO directories (path, label, recursive) VALUES ('/d', 'd', 1)",
             [],
@@ -244,5 +308,30 @@ mod tests {
             .query_row("SELECT visible FROM directories WHERE path = '/d'", [], |r| r.get(0))
             .unwrap();
         assert_eq!(visible, 1, "new directories must default to visible");
+    }
+
+    #[test]
+    fn v5_creates_tag_and_analysis_objects() {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(v, 5);
+        for name in [
+            "tags", "image_tags", "analysis_params", "analysis_excluded_tags",
+            "analysis_scope", "tag_frequency", "tag_rating_lift",
+            "tag_rating_distribution", "scope_rating_distribution",
+            "analysis_images", "analysis_tag_occurrence", "analysis_rating_baseline",
+        ] {
+            let c: i64 = conn
+                .query_row("SELECT count(*) FROM sqlite_master WHERE name = ?1", [name], |r| r.get(0))
+                .unwrap();
+            assert!(c >= 1, "missing object: {name}");
+        }
+        let p: i64 = conn.query_row("SELECT count(*) FROM analysis_params", [], |r| r.get(0)).unwrap();
+        assert_eq!(p, 1);
+        let masterpiece: i64 = conn
+            .query_row("SELECT count(*) FROM analysis_excluded_tags WHERE name='masterpiece'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(masterpiece, 1);
     }
 }
