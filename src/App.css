@@ -856,3 +856,40 @@ body,
   z-index: 3;
   pointer-events: none;
 }
+
+.analysis-view {
+  position: fixed;
+  inset: 0;
+  background: #1e1e1e;
+  color: #eee;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.analysis-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 12px;
+  border-bottom: 1px solid #444;
+}
+.analysis-tabs button[aria-pressed="true"] {
+  font-weight: bold;
+  text-decoration: underline;
+}
+.analysis-body {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+}
+.analysis-body table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.analysis-body th,
+.analysis-body td {
+  border: 1px solid #444;
+  padding: 4px 8px;
+  text-align: left;
+}
