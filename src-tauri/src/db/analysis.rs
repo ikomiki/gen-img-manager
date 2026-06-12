@@ -176,9 +176,13 @@ pub fn list_excluded(conn: &Connection) -> rusqlite::Result<Vec<String>> {
     rows.collect()
 }
 
-/// 除外タグを追加する（既存なら無視）。
+/// 除外タグを追加する（正規化名で保存。既存なら無視）。
 pub fn add_excluded(conn: &Connection, name: &str) -> rusqlite::Result<()> {
-    conn.execute("INSERT OR IGNORE INTO analysis_excluded_tags(name) VALUES (?1)", params![name])?;
+    let normalized = crate::parser::tags::normalize_tag_name(name);
+    if normalized.is_empty() {
+        return Ok(());
+    }
+    conn.execute("INSERT OR IGNORE INTO analysis_excluded_tags(name) VALUES (?1)", params![normalized])?;
     Ok(())
 }
 
@@ -369,5 +373,19 @@ mod tests {
         assert!(list_excluded(&c).unwrap().contains(&"score 9".to_string()));
         remove_excluded(&c, "masterpiece").unwrap();
         assert!(!list_excluded(&c).unwrap().contains(&"masterpiece".to_string()));
+    }
+
+    #[test]
+    fn add_excluded_normalizes_name() {
+        let c = conn();
+        add(&c, "/d/a.png", Some(5), &["cat ears"]); // 保存タグは正規化済み "cat ears"
+        set_scope(&c, None).unwrap();
+        set_params(&c, true, 1, 10.0).unwrap();
+        let before = tag_frequency(&c, None, "count", 100, 0).unwrap();
+        assert!(before.iter().any(|f| f.name == "cat ears"), "除外前は出るはず");
+        add_excluded(&c, "Cat_Ears").unwrap(); // 大文字/アンダースコア入力
+        let after = tag_frequency(&c, None, "count", 100, 0).unwrap();
+        assert!(after.iter().all(|f| f.name != "cat ears"), "正規化された除外名が効くべき");
+        assert!(list_excluded(&c).unwrap().contains(&"cat ears".to_string()));
     }
 }

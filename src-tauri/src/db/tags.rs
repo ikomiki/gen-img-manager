@@ -24,6 +24,7 @@ pub fn replace_image_tags(
 }
 
 /// backfill 用: 全画像の (id, positive, negative, source_tool)。
+#[allow(clippy::type_complexity)]
 pub fn image_tag_sources(
     conn: &Connection,
 ) -> rusqlite::Result<Vec<(i64, Option<String>, Option<String>, String)>> {

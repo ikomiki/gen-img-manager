@@ -121,6 +121,11 @@ fn split_trailing_weight(inner: &str) -> Option<(&str, f64)> {
     Some((&inner[..idx], w))
 }
 
+/// 単一のタグ名（除外リスト入力など）を、保存済みタグと同じ正準形へ正規化する。
+pub fn normalize_tag_name(s: &str) -> String {
+    finalize(s)
+}
+
 /// 小文字化 + アンダースコア→空白 + 連続空白の畳み込み。
 fn finalize(s: &str) -> String {
     s.to_ascii_lowercase()
@@ -199,5 +204,11 @@ mod tests {
     fn empty_tokens_dropped() {
         let v = extract_tags(Some("cat, , ,dog,"), None, "a1111");
         assert_eq!(names(&v, TagKind::Prompt), vec!["cat", "dog"]);
+    }
+
+    #[test]
+    fn normalize_tag_name_matches_stored_form() {
+        assert_eq!(normalize_tag_name("Score_9"), "score 9");
+        assert_eq!(normalize_tag_name("  Masterpiece  "), "masterpiece");
     }
 }

@@ -68,7 +68,7 @@ pub fn analysis_list_excluded(db: State<Db>) -> Result<Vec<String>, String> {
 #[tauri::command]
 pub fn analysis_add_excluded(db: State<Db>, name: String) -> Result<(), String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
-    analysis::add_excluded(&conn, name.trim()).map_err(|e| e.to_string())
+    analysis::add_excluded(&conn, &name).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
