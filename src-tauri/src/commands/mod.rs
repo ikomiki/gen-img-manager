@@ -1,3 +1,4 @@
+pub mod analysis;
 pub mod directories;
 pub mod prefs;
 pub mod query;

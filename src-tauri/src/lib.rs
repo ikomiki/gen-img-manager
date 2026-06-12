@@ -97,6 +97,12 @@ pub fn run() {
             commands::fs::reveal_in_finder,
             commands::fs::delete_image,
             commands::fs::write_xmp_rating,
+            commands::analysis::analysis_tag_frequency,
+            commands::analysis::analysis_rating_lift,
+            commands::analysis::analysis_tag_rating,
+            commands::analysis::analysis_list_excluded,
+            commands::analysis::analysis_add_excluded,
+            commands::analysis::analysis_remove_excluded,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
