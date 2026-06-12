@@ -4,6 +4,7 @@ pub mod image_query;
 pub mod images;
 pub mod migrations;
 pub mod settings;
+pub mod tags;
 
 use rusqlite::Connection;
 use std::path::Path;
