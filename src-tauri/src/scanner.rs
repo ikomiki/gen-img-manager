@@ -93,8 +93,11 @@ fn created_secs(meta: &std::fs::Metadata, fallback: i64) -> i64 {
 enum FileOutcome {
     /// 未変更。was_missing が真なら missing フラグ解除のみ必要。
     Unchanged { id: i64, was_missing: bool },
-    /// 新規/変更。parse + サムネ済み。
-    Upsert(Box<images::NewImage>),
+    /// 新規/変更。parse + サムネ済み。タグ紐付けは writer で行う。
+    Upsert {
+        image: Box<images::NewImage>,
+        tags: Vec<(String, crate::parser::tags::TagKind)>,
+    },
     /// stat / parse 失敗（集計しない＝現状踏襲）。
     Failed,
 }
@@ -130,30 +133,39 @@ fn process_one(
                 .and_then(|s| s.to_str())
                 .unwrap_or("")
                 .to_string();
-            FileOutcome::Upsert(Box::new(images::NewImage {
-                directory_id: 0, // writer 側で dir.id を設定する
-                path: path_str.to_string(),
-                filename,
-                size,
-                mtime,
-                created_at: Some(created),
-                modified_at: Some(mtime),
-                width: parsed.width as i64,
-                height: parsed.height as i64,
-                rating,
-                format: parsed.format,
-                thumb_path,
-                raw_parameters: parsed.raw_parameters,
-                positive: parsed.positive,
-                negative: parsed.negative,
-                model: parsed.model,
-                sampler: parsed.sampler,
-                steps: parsed.steps,
-                seed: parsed.seed,
-                cfg: parsed.cfg,
-                source_tool: parsed.source_tool,
-                comfy_workflow: parsed.comfy_workflow,
-            }))
+            // NewImage に move する前にタグを抽出する。
+            let tags = parser::tags::extract_tags(
+                parsed.positive.as_deref(),
+                parsed.negative.as_deref(),
+                &parsed.source_tool,
+            );
+            FileOutcome::Upsert {
+                image: Box::new(images::NewImage {
+                    directory_id: 0, // writer 側で dir.id を設定する
+                    path: path_str.to_string(),
+                    filename,
+                    size,
+                    mtime,
+                    created_at: Some(created),
+                    modified_at: Some(mtime),
+                    width: parsed.width as i64,
+                    height: parsed.height as i64,
+                    rating,
+                    format: parsed.format,
+                    thumb_path,
+                    raw_parameters: parsed.raw_parameters,
+                    positive: parsed.positive,
+                    negative: parsed.negative,
+                    model: parsed.model,
+                    sampler: parsed.sampler,
+                    steps: parsed.steps,
+                    seed: parsed.seed,
+                    cfg: parsed.cfg,
+                    source_tool: parsed.source_tool,
+                    comfy_workflow: parsed.comfy_workflow,
+                }),
+                tags,
+            }
         }
     }
 }
@@ -258,9 +270,12 @@ pub fn scan_directory<F: Fn(ScanProgress) + Sync>(
                     }
                     summary.skipped += 1;
                 }
-                FileOutcome::Upsert(mut img) => {
-                    img.directory_id = dir.id;
-                    images::upsert(&c, &img)?;
+                FileOutcome::Upsert { mut image, tags } => {
+                    image.directory_id = dir.id;
+                    let image_id = images::upsert(&c, &image)?;
+                    let pairs: Vec<(&str, &str)> =
+                        tags.iter().map(|(n, k)| (n.as_str(), k.as_str())).collect();
+                    crate::db::tags::replace_image_tags(&c, image_id, &pairs)?;
                     summary.added_or_updated += 1;
                 }
                 FileOutcome::Failed => {}
@@ -449,6 +464,29 @@ mod tests {
         })
         .unwrap();
         assert_eq!(max_processed.load(std::sync::atomic::Ordering::Relaxed), 2);
+        std::fs::remove_dir_all(&base).ok();
+    }
+
+    #[test]
+    fn scan_links_tags_for_a1111_image() {
+        let (c, base, dir) = setup();
+        let thumb_dir = base.join("thumbs");
+        write_png_with_params(
+            &base.join("a.png"),
+            "forest, 1girl\nNegative prompt: blurry\nSteps: 10, Seed: 1",
+        );
+        scan_directory(&c, &dir, &thumb_dir, 1000, 4, |_| {}).unwrap();
+
+        let conn = c.lock().unwrap();
+        let prompt: i64 = conn
+            .query_row("SELECT count(*) FROM image_tags WHERE kind='prompt'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(prompt, 2); // forest, 1girl
+        let neg: i64 = conn
+            .query_row("SELECT count(*) FROM image_tags WHERE kind='negative'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(neg, 1); // blurry
+        drop(conn);
         std::fs::remove_dir_all(&base).ok();
     }
 }
