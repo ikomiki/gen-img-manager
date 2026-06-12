@@ -6,38 +6,14 @@ use serde::Serialize;
 pub fn set_scope(conn: &Connection, query: Option<&str>) -> rusqlite::Result<()> {
     conn.execute("DELETE FROM analysis_scope", [])?;
     if let Some(q) = query {
-        let pq = parse::parse(q);
-        let cf = compile::compile(&pq);
-        // images テーブル（FTS + 構造化条件）にマッチする行を挿入。
+        let cf = compile::compile(&parse::parse(q));
         let sql = format!(
-            "INSERT OR IGNORE INTO analysis_scope (image_id) \
+            "INSERT INTO analysis_scope (image_id) \
              SELECT id FROM images WHERE ({}) \
              AND directory_id IN (SELECT id FROM directories WHERE visible = 1)",
             cf.where_sql
         );
         conn.execute(&sql, params_from_iter(cf.params))?;
-        // FTS 検索語は image_tags にも格納されるため、タグ名での補完検索を行う。
-        // FTS 式の形式: `"term1" AND "term2"` → 各 term でタグ名完全一致。
-        if let Some(fts_expr) = &pq.fts_include {
-            let terms: Vec<String> = fts_expr
-                .split(" AND ")
-                .flat_map(|s| s.split(" OR "))
-                .map(|s| s.trim().trim_matches('"').replace("\"\"", "\""))
-                .filter(|s| !s.is_empty())
-                .collect();
-            for term in terms {
-                conn.execute(
-                    "INSERT OR IGNORE INTO analysis_scope (image_id) \
-                     SELECT it.image_id FROM image_tags it \
-                     JOIN tags t ON t.id = it.tag_id \
-                     JOIN images i ON i.id = it.image_id \
-                     WHERE t.name = ?1 \
-                     AND i.missing = 0 \
-                     AND i.directory_id IN (SELECT id FROM directories WHERE visible = 1)",
-                    params![term],
-                )?;
-            }
-        }
     }
     Ok(())
 }
@@ -238,6 +214,7 @@ mod tests {
                 width: 4,
                 height: 4,
                 rating,
+                positive: if prompt_tags.is_empty() { None } else { Some(prompt_tags.join(", ")) },
                 format: "png".into(),
                 source_tool: "a1111".into(),
                 ..Default::default()
