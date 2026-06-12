@@ -249,6 +249,41 @@ mod tests {
     }
 
     #[test]
+    fn set_scope_query_uses_fts_not_tag_names() {
+        let c = conn();
+        // 画像 a: positive に "forest" を含む（FTSで一致する）。
+        add(&c, "/d/a.png", Some(5), &["forest"]);
+        // 画像 b: positive は別語だが image_tags には "forest" タグだけ付与。
+        let bid = crate::db::images::upsert(
+            &c,
+            &NewImage {
+                directory_id: 1,
+                path: "/d/b.png".into(),
+                filename: "b.png".into(),
+                size: 1,
+                mtime: 1,
+                width: 4,
+                height: 4,
+                rating: Some(4),
+                format: "png".into(),
+                positive: Some("mountain".into()),
+                source_tool: "a1111".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        tags::replace_image_tags(&c, bid, &[("forest", "prompt")]).unwrap();
+        set_scope(&c, Some("forest")).unwrap();
+        // FTSのみで一致する a だけがスコープに入る（タグ名一致の b は入らない）。
+        let n: i64 = c.query_row("SELECT count(*) FROM analysis_scope", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 1);
+        let in_scope: i64 = c
+            .query_row("SELECT count(*) FROM analysis_scope WHERE image_id = ?1", [bid], |r| r.get(0))
+            .unwrap();
+        assert_eq!(in_scope, 0, "タグ名のみ一致の画像はFTSスコープに入らない");
+    }
+
+    #[test]
     fn set_params_updates_row() {
         let c = conn();
         set_params(&c, false, 25, 7.5).unwrap();
