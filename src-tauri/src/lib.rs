@@ -40,6 +40,18 @@ pub fn run() {
             app.set_menu(app_menu)?;
             app.manage(crate::commands::slideshow::SlideshowState::default());
             app.manage(view_menu);
+            #[cfg(desktop)]
+            app.handle().plugin(
+                tauri_plugin_window_state::Builder::default()
+                    .with_state_flags(
+                        tauri_plugin_window_state::StateFlags::POSITION
+                            | tauri_plugin_window_state::StateFlags::SIZE
+                            | tauri_plugin_window_state::StateFlags::MAXIMIZED
+                            | tauri_plugin_window_state::StateFlags::FULLSCREEN,
+                    )
+                    .with_denylist(&["slideshow"])
+                    .build(),
+            )?;
             Ok(())
         })
         .on_menu_event(|app, event| {
