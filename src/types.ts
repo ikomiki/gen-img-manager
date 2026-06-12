@@ -71,3 +71,36 @@ export interface SlideshowPayload {
   ratings: (number | null)[];
   start_index: number;
 }
+
+export interface TagFreq {
+  tag_id: number;
+  name: string;
+  image_count: number;
+}
+
+export interface LiftRow {
+  tag_id: number;
+  name: string;
+  rated_count: number;
+  raw_avg: number | null;
+  adjusted_avg: number | null;
+  overall_avg: number | null;
+}
+
+export interface RatingBucket {
+  rating: number | null;
+  cnt: number;
+}
+
+export interface TagRatingAnalysis {
+  has: RatingBucket[];
+  without: RatingBucket[];
+  has_avg: number | null;
+  without_avg: number | null;
+}
+
+export interface AnalysisParams {
+  applyExclusion: boolean;
+  minRatedCount: number;
+  priorWeight: number;
+}
