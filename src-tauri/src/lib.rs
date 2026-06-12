@@ -38,6 +38,8 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
             let conn = db::open(&dir.join("library.db"))?;
+            // 既存画像のタグ後付け（一度だけ）。DBを manage する前に所有権を持ったまま実行する。
+            backfill::run_if_needed(&conn).map_err(|e| format!("backfill failed: {e}"))?;
             app.manage(db::Db(std::sync::Arc::new(std::sync::Mutex::new(conn))));
             // サムネイルディレクトリを作成し、asset protocol で読めるよう許可する。
             let thumb_dir = dir.join("thumbnails");
