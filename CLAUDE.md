@@ -45,6 +45,12 @@ npm run bump -- patch --dry-run   # 書き込まず変更内容を確認
 
 ファイルを書き換えるだけで git 操作は行わない。4ファイルが食い違う場合、キーワード指定はエラーで中断し、明示バージョンを指定すると全ファイルをその値へ揃え直す。ロジックは `scripts/version-core.mjs`、実行層は `scripts/bump-version.mjs`（テスト: `scripts/version-core.test.ts`）。Tauri はアプリ版を `tauri.conf.json > version` から読む（未設定時のみ `Cargo.toml`）。
 
+## コミットメッセージ
+
+AI（Claude Code）が生成するコミットメッセージは、Conventional Commits 形式のプリフィックス（`feat:` / `fix(cli):` / `docs:` など type・scope 部分）は英語のまま残し、それに続く要約・本文は**日本語**で記述する。
+
+例: `fix(viewer): サイドバーで Cmd+C のテキストコピーが効くようにする`
+
 ## アーキテクチャ
 
 ### 2ウィンドウ・単一バンドル
