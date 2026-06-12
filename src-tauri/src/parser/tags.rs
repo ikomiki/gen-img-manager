@@ -50,63 +50,106 @@ fn collect_field(
     out: &mut Vec<(String, TagKind)>,
     seen: &mut HashSet<(String, &'static str)>,
 ) {
-    for raw in text.split(',') {
-        if let Some((name, kind)) = normalize_token(raw, base) {
-            if seen.insert((name.clone(), kind.as_str())) {
-                out.push((name, kind));
+    // カンマ・改行で区切り、各セグメント内の <...>（LoRA等）はその前後で切り分ける。
+    for segment in text.split([',', '\n', '\r']) {
+        for piece in split_pieces(segment) {
+            if let Some((name, kind)) = normalize_token(piece, base) {
+                if seen.insert((name.clone(), kind.as_str())) {
+                    out.push((name, kind));
+                }
             }
         }
     }
 }
 
-/// 1トークンを正規化し (タグ名, kind) を返す。空・BREAK は None。
+/// セグメントを「テキスト断片」と「<...> 断片」に分割する。
+/// 例: "hyper detailed <lora:foo:0.7> clothing" -> ["hyper detailed", "<lora:foo:0.7>", "clothing"]
+fn split_pieces(seg: &str) -> Vec<&str> {
+    let mut pieces = Vec::new();
+    let mut rest = seg;
+    while let Some(lt) = rest.find('<') {
+        match rest[lt..].find('>') {
+            Some(gt_rel) => {
+                let gt = lt + gt_rel; // '>' のバイト位置
+                let before = &rest[..lt];
+                if !before.trim().is_empty() {
+                    pieces.push(before);
+                }
+                pieces.push(&rest[lt..=gt]);
+                rest = &rest[gt + 1..];
+            }
+            // 閉じ '>' が無い場合は残り全体をテキストとして扱う。
+            None => break,
+        }
+    }
+    if !rest.trim().is_empty() {
+        pieces.push(rest);
+    }
+    pieces
+}
+
+/// 1トークンを正規化し (タグ名, kind) を返す。空・BREAK・不正は None。
 fn normalize_token(raw: &str, base: TagKind) -> Option<(String, TagKind)> {
+    let (name, weight) = canon(raw)?;
+    let kind = if weight < 0.0 { TagKind::Negative } else { base };
+    Some((name, kind))
+}
+
+/// トークンを (正準タグ名, 重み) へ。重みは kind 判定にも使う。
+/// <...>（LoRA等）はファイル名を含むため、変換せずトークンを丸ごと保持する。
+fn canon(raw: &str) -> Option<(String, f64)> {
     let t = raw.trim();
     if t.is_empty() {
         return None;
     }
-    // LoRA / LyCORIS 等: <type:name:weight>（weight 省略可）
-    if let Some(inner) = t.strip_prefix('<').and_then(|s| s.strip_suffix('>')) {
+    // LoRA / LyCORIS 等: <type:name:weight>（weight 省略可）。
+    if t.len() >= 2 && t.starts_with('<') && t.ends_with('>') {
+        let inner = &t[1..t.len() - 1];
         let parts: Vec<&str> = inner.splitn(3, ':').collect();
-        if parts.len() >= 2 {
-            let weight: f64 = parts.get(2).and_then(|w| w.trim().parse().ok()).unwrap_or(1.0);
-            let sign = if weight < 0.0 { '-' } else { '+' };
-            let kind = if weight < 0.0 { TagKind::Negative } else { base };
-            let canon = format!("<{}:{}:{}>", parts[0], parts[1], sign);
-            return Some((finalize(&canon), kind));
+        if parts.len() < 2 {
+            return None;
         }
-        return None;
+        let weight: f64 = parts.get(2).and_then(|w| w.trim().parse().ok()).unwrap_or(1.0);
+        // 重みは符号化せず実値のまま、小文字化・アンダースコア変換もせず保持する。
+        return Some((t.to_string(), weight));
     }
-    let (core, weight) = strip_emphasis(t);
+    let (core, weight) = compute_emphasis(t);
     let core = core.trim();
     if core.is_empty() || core.eq_ignore_ascii_case("BREAK") {
         return None;
     }
-    let kind = if weight < 0.0 { TagKind::Negative } else { base };
-    Some((finalize(core), kind))
+    let final_core = finalize(core);
+    if final_core.is_empty() {
+        return None;
+    }
+    Some((render_weighted(&final_core, weight), weight))
 }
 
-/// 先頭/末尾の () [] を再帰的に剥がし、(tag:weight) の数値重みを取り出す。
-/// [tag] は減衰だが正の重み扱い（kind を変えない）。
-fn strip_emphasis(t: &str) -> (String, f64) {
+/// 先頭/末尾の () [] を再帰的に剥がし、実効重みを計算する。
+/// (tag) は ×1.1、(tag:w) は ×w、[tag] は ×0.9（角括弧は明示重みより 0.9 を優先）。
+fn compute_emphasis(t: &str) -> (String, f64) {
     let mut s = t.trim();
     let mut weight = 1.0_f64;
     loop {
         if let Some(inner) = s.strip_prefix('(').and_then(|x| x.strip_suffix(')')) {
             match split_trailing_weight(inner) {
                 Some((head, w)) => {
-                    weight = w;
+                    weight *= w;
                     s = head.trim();
                 }
-                None => s = inner.trim(),
+                None => {
+                    weight *= 1.1;
+                    s = inner.trim();
+                }
             }
             continue;
         }
         if let Some(inner) = s.strip_prefix('[').and_then(|x| x.strip_suffix(']')) {
-            match split_trailing_weight(inner) {
-                Some((head, _)) => s = head.trim(),
-                None => s = inner.trim(),
-            }
+            s = match split_trailing_weight(inner) {
+                Some((head, _)) => head.trim(),
+                None => inner.trim(),
+            };
+            weight *= 0.9;
             continue;
         }
         break;
@@ -121,9 +164,57 @@ fn split_trailing_weight(inner: &str) -> Option<(&str, f64)> {
     Some((&inner[..idx], w))
 }
 
+/// 実効重みをタグ名表記へ。1.0=重み無し、1.1=丸括弧のみ、その他=(core:weight)。
+fn render_weighted(core: &str, weight: f64) -> String {
+    if (weight - 1.0).abs() < 1e-6 {
+        core.to_string()
+    } else if (weight - 1.1).abs() < 1e-6 {
+        format!("({core})")
+    } else {
+        format!("({core}:{})", fmt_weight(weight))
+    }
+}
+
+/// 重みを簡潔な小数表記へ（末尾の 0 と小数点を削る）。例: 1.21000.. -> "1.21"、-1.0 -> "-1"。
+fn fmt_weight(w: f64) -> String {
+    let s = format!("{w:.3}");
+    let trimmed = s.trim_end_matches('0').trim_end_matches('.');
+    trimmed.to_string()
+}
+
 /// 単一のタグ名（除外リスト入力など）を、保存済みタグと同じ正準形へ正規化する。
 pub fn normalize_tag_name(s: &str) -> String {
-    finalize(s)
+    canon(s).map(|(n, _)| n).unwrap_or_default()
+}
+
+/// 正準タグ名から重み/強調を取り除いた「ベース名」を返す。
+/// 除外照合を重み非依存にするために使う。
+/// 例: "(masterpiece:1.2)" -> "masterpiece"、"(detailed)" -> "detailed"、
+///     "(soft:0.9)" -> "soft"、"<lora:foo:0.7>" -> "<lora:foo>"、"cat" -> "cat"。
+pub fn base_tag_name(canonical: &str) -> String {
+    let t = canonical.trim();
+    // LoRA等: <type:name:weight> -> <type:name>（verbatim 保持）。
+    if t.len() >= 2 && t.starts_with('<') && t.ends_with('>') {
+        let inner = &t[1..t.len() - 1];
+        let parts: Vec<&str> = inner.splitn(3, ':').collect();
+        if parts.len() >= 2 {
+            return format!("<{}:{}>", parts[0], parts[1]);
+        }
+        return t.to_string();
+    }
+    // (core) / (core:weight) -> core。それ以外は素のまま。
+    if let Some(inner) = t.strip_prefix('(').and_then(|x| x.strip_suffix(')')) {
+        return match split_trailing_weight(inner) {
+            Some((head, _)) => head.trim().to_string(),
+            None => inner.trim().to_string(),
+        };
+    }
+    t.to_string()
+}
+
+/// 除外リスト入力をベース名（重み無視）へ正規化する。空入力は空文字。
+pub fn normalize_excluded_name(s: &str) -> String {
+    base_tag_name(&normalize_tag_name(s))
 }
 
 /// 小文字化 + アンダースコア→空白 + 連続空白の畳み込み。
@@ -169,23 +260,63 @@ mod tests {
     }
 
     #[test]
-    fn strips_emphasis_and_weight_syntax() {
+    fn keeps_effective_weight_in_name() {
         let v = extract_tags(Some("(masterpiece:1.3), (detailed), [soft], ((cat))"), None, "a1111");
-        assert_eq!(names(&v, TagKind::Prompt), vec!["masterpiece", "detailed", "soft", "cat"]);
+        assert_eq!(
+            names(&v, TagKind::Prompt),
+            vec!["(masterpiece:1.3)", "(detailed)", "(soft:0.9)", "(cat:1.21)"]
+        );
+    }
+
+    #[test]
+    fn weight_1_1_becomes_bare_parens() {
+        let v = extract_tags(Some("(masterpiece:1.1)"), None, "a1111");
+        assert_eq!(names(&v, TagKind::Prompt), vec!["(masterpiece)"]);
+    }
+
+    #[test]
+    fn square_bracket_is_treated_as_0_9() {
+        let v = extract_tags(Some("[masterpiece]"), None, "a1111");
+        assert_eq!(names(&v, TagKind::Prompt), vec!["(masterpiece:0.9)"]);
     }
 
     #[test]
     fn negative_weight_moves_to_negative_kind() {
         let v = extract_tags(Some("good, (bad:-1)"), None, "a1111");
         assert_eq!(names(&v, TagKind::Prompt), vec!["good"]);
-        assert_eq!(names(&v, TagKind::Negative), vec!["bad"]);
+        assert_eq!(names(&v, TagKind::Negative), vec!["(bad:-1)"]);
     }
 
     #[test]
-    fn lora_is_sign_encoded() {
+    fn lora_kept_verbatim_and_split_by_brackets() {
+        let v = extract_tags(
+            Some("hyper detailed <lora:inglis_eucus-66:0.7> clothing sex"),
+            None,
+            "a1111",
+        );
+        assert_eq!(
+            names(&v, TagKind::Prompt),
+            vec!["hyper detailed", "<lora:inglis_eucus-66:0.7>", "clothing sex"]
+        );
+    }
+
+    #[test]
+    fn lora_weight_sign_sets_kind_but_token_unchanged() {
         let v = extract_tags(Some("<lora:foo:0.8>, <lora:bar:-0.5>, <lora:baz>"), None, "a1111");
-        assert_eq!(names(&v, TagKind::Prompt), vec!["<lora:foo:+>", "<lora:baz:+>"]);
-        assert_eq!(names(&v, TagKind::Negative), vec!["<lora:bar:->"]);
+        assert_eq!(names(&v, TagKind::Prompt), vec!["<lora:foo:0.8>", "<lora:baz>"]);
+        assert_eq!(names(&v, TagKind::Negative), vec!["<lora:bar:-0.5>"]);
+    }
+
+    #[test]
+    fn lora_name_case_and_underscore_preserved() {
+        let v = extract_tags(Some("<lora:My_Cool_LoRA:1>"), None, "a1111");
+        assert_eq!(names(&v, TagKind::Prompt), vec!["<lora:My_Cool_LoRA:1>"]);
+    }
+
+    #[test]
+    fn splits_on_newlines() {
+        let v = extract_tags(Some("cat\ndog,\nbird"), None, "a1111");
+        assert_eq!(names(&v, TagKind::Prompt), vec!["cat", "dog", "bird"]);
     }
 
     #[test]
@@ -210,5 +341,22 @@ mod tests {
     fn normalize_tag_name_matches_stored_form() {
         assert_eq!(normalize_tag_name("Score_9"), "score 9");
         assert_eq!(normalize_tag_name("  Masterpiece  "), "masterpiece");
+    }
+
+    #[test]
+    fn base_tag_name_strips_weight_and_emphasis() {
+        assert_eq!(base_tag_name("(masterpiece:1.2)"), "masterpiece");
+        assert_eq!(base_tag_name("(detailed)"), "detailed");
+        assert_eq!(base_tag_name("(soft:0.9)"), "soft");
+        assert_eq!(base_tag_name("cat"), "cat");
+        assert_eq!(base_tag_name("<lora:foo:0.7>"), "<lora:foo>");
+        assert_eq!(base_tag_name("<lora:foo>"), "<lora:foo>");
+    }
+
+    #[test]
+    fn normalize_excluded_name_is_weight_insensitive() {
+        assert_eq!(normalize_excluded_name("(Masterpiece:1.1)"), "masterpiece");
+        assert_eq!(normalize_excluded_name("Score_9"), "score 9");
+        assert_eq!(normalize_excluded_name("[soft]"), "soft");
     }
 }

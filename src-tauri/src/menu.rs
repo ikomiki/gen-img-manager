@@ -47,7 +47,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
     let show_current_rating = CheckMenuItem::with_id(
         app, "show_current_rating", "現在のレーティングを表示", true, false, None::<&str>,
     )?;
-    let open_analysis = MenuItem::with_id(app, "open_analysis", "分析", true, None::<&str>)?;
+    let open_analysis =
+        MenuItem::with_id(app, "open_analysis", "分析", true, Some("CmdOrCtrl+Shift+A"))?;
 
     let rating_submenu = SubmenuBuilder::new(app, "レーティング")
         .item(&rating_mode)

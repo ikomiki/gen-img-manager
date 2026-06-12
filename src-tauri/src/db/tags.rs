@@ -1,8 +1,14 @@
 use rusqlite::{params, Connection};
 
 /// タグ名から id を引く。無ければ作成する。
+/// 併せて重み/強調を除いたベース名（除外照合に使う）を保存・更新する。
 pub fn get_or_create_tag(conn: &Connection, name: &str) -> rusqlite::Result<i64> {
-    conn.execute("INSERT OR IGNORE INTO tags (name) VALUES (?1)", params![name])?;
+    let base = crate::parser::tags::base_tag_name(name);
+    conn.execute(
+        "INSERT INTO tags (name, base_name) VALUES (?1, ?2)
+         ON CONFLICT(name) DO UPDATE SET base_name = excluded.base_name",
+        params![name, base],
+    )?;
     conn.query_row("SELECT id FROM tags WHERE name = ?1", params![name], |r| r.get(0))
 }
 
@@ -64,6 +70,16 @@ mod tests {
         assert_eq!(id1, id2);
         let n: i64 = c.query_row("SELECT count(*) FROM tags", [], |r| r.get(0)).unwrap();
         assert_eq!(n, 1);
+    }
+
+    #[test]
+    fn get_or_create_stores_base_name() {
+        let c = conn();
+        get_or_create_tag(&c, "(masterpiece:1.2)").unwrap();
+        let base: String = c
+            .query_row("SELECT base_name FROM tags WHERE name = '(masterpiece:1.2)'", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(base, "masterpiece");
     }
 
     #[test]

@@ -2,12 +2,15 @@ use crate::db::{settings, tags};
 use crate::parser::tags::extract_tags;
 use rusqlite::Connection;
 
-const FLAG: &str = "tags_backfilled";
+/// タグ生成のバージョン。extract_tags の挙動を変えたら必ず +1 する。
+/// 保存値が古い既存DBは、次回起動時にタグを作り直す。
+const FLAG: &str = "tags_backfill_version";
+const VERSION: &str = "3";
 
-/// 起動時に一度だけ、既存画像の positive/negative 列からタグを生成する。
-/// すでに実行済み（settings フラグあり）なら何もしない。
+/// 起動時に、既存画像の positive/negative 列からタグを生成する。
+/// 保存済みバージョンが最新と一致していれば何もしない。
 pub fn run_if_needed(conn: &Connection) -> rusqlite::Result<()> {
-    if settings::get(conn, FLAG)?.is_some() {
+    if settings::get(conn, FLAG)?.as_deref() == Some(VERSION) {
         return Ok(());
     }
     let sources = tags::image_tag_sources(conn)?;
@@ -17,7 +20,7 @@ pub fn run_if_needed(conn: &Connection) -> rusqlite::Result<()> {
             extracted.iter().map(|(n, k)| (n.as_str(), k.as_str())).collect();
         tags::replace_image_tags(conn, *id, &pairs)?;
     }
-    settings::set(conn, FLAG, "1")?;
+    settings::set(conn, FLAG, VERSION)?;
     Ok(())
 }
 
@@ -63,16 +66,27 @@ mod tests {
             .query_row("SELECT count(*) FROM image_tags WHERE kind='unclassified'", [], |r| r.get(0))
             .unwrap();
         assert_eq!(unclassified, 1); // neon city
-        assert_eq!(settings::get(&c, "tags_backfilled").unwrap(), Some("1".to_string()));
+        assert_eq!(settings::get(&c, FLAG).unwrap(), Some(VERSION.to_string()));
     }
 
     #[test]
-    fn is_noop_when_already_done() {
+    fn is_noop_when_already_current_version() {
         let c = conn();
-        settings::set(&c, "tags_backfilled", "1").unwrap();
+        settings::set(&c, FLAG, VERSION).unwrap();
         add_image(&c, "/d/a.png", "forest", None, "a1111");
         run_if_needed(&c).unwrap();
         let n: i64 = c.query_row("SELECT count(*) FROM image_tags", [], |r| r.get(0)).unwrap();
-        assert_eq!(n, 0, "backfill 済みなら触らない");
+        assert_eq!(n, 0, "最新バージョン済みなら触らない");
+    }
+
+    #[test]
+    fn reruns_when_version_outdated() {
+        let c = conn();
+        settings::set(&c, FLAG, "1").unwrap(); // 旧バージョン
+        add_image(&c, "/d/a.png", "forest, 1girl", None, "a1111");
+        run_if_needed(&c).unwrap();
+        let n: i64 = c.query_row("SELECT count(*) FROM image_tags", [], |r| r.get(0)).unwrap();
+        assert_eq!(n, 2, "バージョンが古ければ作り直す");
+        assert_eq!(settings::get(&c, FLAG).unwrap(), Some(VERSION.to_string()));
     }
 }

@@ -26,6 +26,7 @@ pub fn analysis_tag_frequency(
 
 /// 高/低評価原因タグ。
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn analysis_rating_lift(
     db: State<Db>,
     scope: Option<String>,
@@ -33,13 +34,14 @@ pub fn analysis_rating_lift(
     min_rated_count: i64,
     prior_weight: f64,
     direction: String,
+    name_filter: Option<String>,
     limit: i64,
 ) -> Result<Vec<LiftRow>, String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     analysis::set_scope(&conn, scope.as_deref()).map_err(|e| e.to_string())?;
     analysis::set_params(&conn, apply_exclusion, min_rated_count, prior_weight)
         .map_err(|e| e.to_string())?;
-    analysis::rating_lift(&conn, &direction, limit).map_err(|e| e.to_string())
+    analysis::rating_lift(&conn, &direction, name_filter.as_deref(), limit).map_err(|e| e.to_string())
 }
 
 /// 特定タグの「ある/ない」レーティング分析。
@@ -75,4 +77,11 @@ pub fn analysis_add_excluded(db: State<Db>, name: String) -> Result<(), String> 
 pub fn analysis_remove_excluded(db: State<Db>, name: String) -> Result<(), String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     analysis::remove_excluded(&conn, &name).map_err(|e| e.to_string())
+}
+
+/// 複数行テキスト（1行1タグ。'#' 始まりはコメント）で除外リストを丸ごと置き換える。
+#[tauri::command]
+pub fn analysis_set_excluded(db: State<Db>, lines: Vec<String>) -> Result<(), String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    analysis::set_excluded_from_lines(&conn, &lines).map_err(|e| e.to_string())
 }

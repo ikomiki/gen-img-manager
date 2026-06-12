@@ -84,14 +84,29 @@ pub struct LiftRow {
 }
 
 /// 高/低評価原因タグ。direction は "high"（adjusted_avg 降順）か "low"（昇順）。
-pub fn rating_lift(conn: &Connection, direction: &str, limit: i64) -> rusqlite::Result<Vec<LiftRow>> {
+/// name_filter 指定時は名前部分一致で絞り込む。
+pub fn rating_lift(
+    conn: &Connection,
+    direction: &str,
+    name_filter: Option<&str>,
+    limit: i64,
+) -> rusqlite::Result<Vec<LiftRow>> {
     let order = if direction == "low" { "adjusted_avg ASC" } else { "adjusted_avg DESC" };
+    let mut params: Vec<Value> = Vec::new();
+    let filter_sql = match name_filter {
+        Some(f) if !f.is_empty() => {
+            params.push(Value::Text(format!("%{}%", escape_like(f))));
+            "WHERE name LIKE ? ESCAPE '\\'".to_string()
+        }
+        _ => String::new(),
+    };
+    params.push(Value::Integer(limit));
     let sql = format!(
         "SELECT tag_id, name, rated_count, raw_avg, adjusted_avg, overall_avg \
-         FROM tag_rating_lift ORDER BY {order}, name ASC LIMIT ?"
+         FROM tag_rating_lift {filter_sql} ORDER BY {order}, name ASC LIMIT ?"
     );
     let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map([limit], |r| {
+    let rows = stmt.query_map(params_from_iter(params), |r| {
         Ok(LiftRow {
             tag_id: r.get(0)?,
             name: r.get(1)?,
@@ -176,9 +191,9 @@ pub fn list_excluded(conn: &Connection) -> rusqlite::Result<Vec<String>> {
     rows.collect()
 }
 
-/// 除外タグを追加する（正規化名で保存。既存なら無視）。
+/// 除外タグを追加する（ベース名＝重み無視で保存。既存なら無視）。
 pub fn add_excluded(conn: &Connection, name: &str) -> rusqlite::Result<()> {
-    let normalized = crate::parser::tags::normalize_tag_name(name);
+    let normalized = crate::parser::tags::normalize_excluded_name(name);
     if normalized.is_empty() {
         return Ok(());
     }
@@ -189,6 +204,29 @@ pub fn add_excluded(conn: &Connection, name: &str) -> rusqlite::Result<()> {
 /// 除外タグを削除する。
 pub fn remove_excluded(conn: &Connection, name: &str) -> rusqlite::Result<()> {
     conn.execute("DELETE FROM analysis_excluded_tags WHERE name = ?1", params![name])?;
+    Ok(())
+}
+
+/// 複数行テキストから除外リストを再構築する。
+/// 各行を trim し、空行と '#' 始まり（コメント）は無視、残りを正規化して重複排除して保存する。
+pub fn set_excluded_from_lines(conn: &Connection, lines: &[String]) -> rusqlite::Result<()> {
+    use std::collections::HashSet;
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut names: Vec<String> = Vec::new();
+    for line in lines {
+        let l = line.trim();
+        if l.is_empty() || l.starts_with('#') {
+            continue;
+        }
+        let n = crate::parser::tags::normalize_excluded_name(l);
+        if !n.is_empty() && seen.insert(n.clone()) {
+            names.push(n);
+        }
+    }
+    conn.execute("DELETE FROM analysis_excluded_tags", [])?;
+    for n in &names {
+        conn.execute("INSERT OR IGNORE INTO analysis_excluded_tags(name) VALUES (?1)", params![n])?;
+    }
     Ok(())
 }
 
@@ -337,13 +375,28 @@ mod tests {
         add(&c, "/d/bad.png", Some(1), &["bad"]);
         set_scope(&c, None).unwrap();
         set_params(&c, true, 3, 2.0).unwrap();
-        let high = rating_lift(&c, "high", 10).unwrap();
+        let high = rating_lift(&c, "high", None, 10).unwrap();
         assert_eq!(high.len(), 1);
         assert_eq!(high[0].name, "good");
         assert_eq!(high[0].rated_count, 4);
         let adj = high[0].adjusted_avg.unwrap();
         assert!((adj - 4.7333333).abs() < 1e-4, "adjusted_avg = {adj}");
         assert!((high[0].overall_avg.unwrap() - 4.2).abs() < 1e-9);
+    }
+
+    #[test]
+    fn rating_lift_name_filter() {
+        let c = conn();
+        for i in 0..4 {
+            add(&c, &format!("/d/h{i}.png"), Some(5), &["good hair"]);
+        }
+        for i in 0..4 {
+            add(&c, &format!("/d/e{i}.png"), Some(5), &["good eyes"]);
+        }
+        set_scope(&c, None).unwrap();
+        set_params(&c, true, 3, 2.0).unwrap();
+        let r = rating_lift(&c, "high", Some("hair"), 10).unwrap();
+        assert_eq!(r.iter().map(|x| x.name.as_str()).collect::<Vec<_>>(), vec!["good hair"]);
     }
 
     #[test]
@@ -387,5 +440,39 @@ mod tests {
         let after = tag_frequency(&c, None, "count", 100, 0).unwrap();
         assert!(after.iter().all(|f| f.name != "cat ears"), "正規化された除外名が効くべき");
         assert!(list_excluded(&c).unwrap().contains(&"cat ears".to_string()));
+    }
+
+    #[test]
+    fn exclusion_ignores_weight() {
+        let c = conn();
+        let id = add(&c, "/d/a.png", Some(5), &[]);
+        // 重み付きタグを直接付与（base_name は "masterpiece" になる）。
+        tags::replace_image_tags(&c, id, &[("(masterpiece:1.2)", "prompt")]).unwrap();
+        set_scope(&c, None).unwrap();
+        set_params(&c, true, 1, 10.0).unwrap();
+        let freq = tag_frequency(&c, None, "count", 100, 0).unwrap();
+        assert!(
+            freq.iter().all(|f| !f.name.contains("masterpiece")),
+            "重み付き (masterpiece:1.2) もシード除外 masterpiece で除外されるべき"
+        );
+    }
+
+    #[test]
+    fn set_excluded_from_lines_normalizes_and_ignores_comments() {
+        let c = conn();
+        add_excluded(&c, "old").unwrap(); // 既存は置き換えられる
+        let lines: Vec<String> = [
+            "# quality tags",
+            "Score_9",
+            "",
+            "  Masterpiece  ",
+            "score_9", // 正規化後 "score 9" と重複 → 1件に
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        set_excluded_from_lines(&c, &lines).unwrap();
+        let got = list_excluded(&c).unwrap();
+        assert_eq!(got, vec!["masterpiece".to_string(), "score 9".to_string()]);
     }
 }

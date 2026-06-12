@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useAnalysisStore } from "../store/useAnalysisStore";
+import { useQueryStore } from "../store/useQueryStore";
 
 export function RatingCauseTable() {
   const cause = useAnalysisStore((s) => s.cause);
@@ -12,14 +13,17 @@ export function RatingCauseTable() {
   const loadCause = useAnalysisStore((s) => s.loadCause);
   const scopeMode = useAnalysisStore((s) => s.scopeMode);
   const applyExclusion = useAnalysisStore((s) => s.applyExclusion);
+  const nameFilter = useAnalysisStore((s) => s.nameFilter);
+  const query = useQueryStore((s) => s.query);
+  const scopeKey = scopeMode === "filter" ? query : null;
 
   useEffect(() => {
     void loadCause();
-  }, [loadCause, direction, scopeMode, applyExclusion, minRatedCount, priorWeight]);
+  }, [loadCause, direction, scopeMode, applyExclusion, minRatedCount, priorWeight, nameFilter, scopeKey]);
 
   return (
     <div className="rating-cause">
-      <div>
+      <div className="cause-controls">
         <label>
           <input
             type="radio"

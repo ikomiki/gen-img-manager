@@ -12,6 +12,8 @@ export function AnalysisView() {
   const setScopeMode = useAnalysisStore((s) => s.setScopeMode);
   const applyExclusion = useAnalysisStore((s) => s.applyExclusion);
   const toggleExclusion = useAnalysisStore((s) => s.toggleExclusion);
+  const nameFilter = useAnalysisStore((s) => s.nameFilter);
+  const setNameFilter = useAnalysisStore((s) => s.setNameFilter);
 
   if (!open) return null;
 
@@ -49,6 +51,22 @@ export function AnalysisView() {
             除外リストを無効化
           </label>
         </div>
+        {(tab === "frequency" || tab === "cause") && (
+          <div className="analysis-filter">
+            <input
+              type="search"
+              placeholder="タグ名で絞り込み"
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+              aria-label="タグフィルタ"
+            />
+            {nameFilter && (
+              <button type="button" aria-label="フィルタをクリア" onClick={() => setNameFilter("")}>
+                ✕
+              </button>
+            )}
+          </div>
+        )}
         <button type="button" onClick={() => setOpen(false)}>閉じる</button>
       </div>
       <div className="analysis-body">

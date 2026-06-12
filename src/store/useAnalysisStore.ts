@@ -37,17 +37,17 @@ interface AnalysisState {
   setPriorWeight: (n: number) => void;
   loadFrequency: () => Promise<void>;
   loadCause: () => Promise<void>;
-  selectTag: (tagId: number, name: string) => Promise<void>;
+  selectTag: (tagId: number, name: string) => void;
+  reloadSelectedTag: () => Promise<void>;
   clearSelectedTag: () => void;
   loadExcluded: () => Promise<void>;
-  addExcluded: (name: string) => Promise<void>;
-  removeExcluded: (name: string) => Promise<void>;
+  setExcluded: (text: string) => Promise<void>;
 }
 
 export const useAnalysisStore = create<AnalysisState>((set, get) => ({
   open: false,
   tab: "frequency",
-  scopeMode: "all",
+  scopeMode: "filter",
   applyExclusion: true,
   minRatedCount: 10,
   priorWeight: 10,
@@ -85,25 +85,24 @@ export const useAnalysisStore = create<AnalysisState>((set, get) => ({
     set({ freq });
   },
   loadCause: async () => {
-    const { scopeArg, params, causeDirection } = get();
-    const cause = await api.ratingLift(scopeArg(), params(), causeDirection, 100);
+    const { scopeArg, params, causeDirection, nameFilter } = get();
+    const cause = await api.ratingLift(scopeArg(), params(), causeDirection, nameFilter || undefined, 100);
     set({ cause });
   },
-  selectTag: async (tagId, name) => {
-    const { scopeArg, params } = get();
-    const tagAnalysis = await api.tagRating(scopeArg(), params(), tagId);
-    set({ selectedTag: { tagId, name }, tagAnalysis });
+  // 選択のみ設定し、取得は TagRatingAnalysis の effect（reloadSelectedTag）に委ねる。
+  selectTag: (tagId, name) => set({ selectedTag: { tagId, name }, tagAnalysis: null }),
+  reloadSelectedTag: async () => {
+    const { selectedTag, scopeArg, params } = get();
+    if (!selectedTag) return;
+    const tagAnalysis = await api.tagRating(scopeArg(), params(), selectedTag.tagId);
+    set({ tagAnalysis });
   },
   clearSelectedTag: () => set({ selectedTag: null, tagAnalysis: null }),
   loadExcluded: async () => {
     set({ excluded: await api.listExcluded() });
   },
-  addExcluded: async (name) => {
-    await api.addExcluded(name);
-    await get().loadExcluded();
-  },
-  removeExcluded: async (name) => {
-    await api.removeExcluded(name);
+  setExcluded: async (text) => {
+    await api.setExcluded(text.split("\n"));
     await get().loadExcluded();
   },
 }));

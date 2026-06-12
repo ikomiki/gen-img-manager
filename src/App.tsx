@@ -34,6 +34,7 @@ function App() {
   const setZoomMode = useViewerStore((s) => s.setZoomMode);
   const loadZoom = useViewerStore((s) => s.loadZoom);
   const viewerOpen = useViewerStore((s) => s.isOpen);
+  const analysisOpen = useAnalysisStore((s) => s.open);
 
   const [dirWidth, setDirWidth] = useState(220);
 
@@ -140,11 +141,10 @@ function App() {
         />
       )}
       <main className="image-grid-slot">
-        <ImageGridPanel />
+        {analysisOpen ? <AnalysisView /> : <ImageGridPanel />}
       </main>
       <ImageViewer />
       <Toast />
-      <AnalysisView />
       {helpOpen && <HelpOverlay onClose={closeHelp} />}
     </div>
   );

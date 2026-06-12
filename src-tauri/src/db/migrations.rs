@@ -141,6 +141,20 @@ const MIGRATIONS: &[&str] = &[
         FROM analysis_tag_occurrence GROUP BY tag_id, name, rating;
     CREATE VIEW scope_rating_distribution AS
         SELECT rating, COUNT(*) AS cnt FROM analysis_images GROUP BY rating;",
+    // v6: tags にベース名（重み/強調を除いた素のタグ）を追加し、除外照合を重み非依存にする。
+    // 既存行は素のタグ（旧ロジックは重みを剥がしていた）なので base_name = name で十分。
+    // 新ロジックで作られる重み付きタグの base_name は get_or_create_tag が設定する。
+    "ALTER TABLE tags ADD COLUMN base_name TEXT;
+    UPDATE tags SET base_name = name;
+    DROP VIEW analysis_tag_occurrence;
+    CREATE VIEW analysis_tag_occurrence AS
+        SELECT it.image_id, it.tag_id, t.name, ai.rating
+        FROM image_tags it
+        JOIN tags t             ON t.id  = it.tag_id
+        JOIN analysis_images ai ON ai.id = it.image_id
+        WHERE it.kind IN ('prompt','unclassified')
+          AND ((SELECT apply_exclusion FROM analysis_params) = 0
+               OR COALESCE(t.base_name, t.name) NOT IN (SELECT name FROM analysis_excluded_tags));",
 ];
 
 /// 未適用のマイグレーションを順に適用し PRAGMA user_version を更新する。
@@ -171,7 +185,7 @@ mod tests {
         let v: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 5);
+        assert_eq!(v, 6);
 
         let count: i64 = conn
             .query_row(
@@ -191,7 +205,7 @@ mod tests {
         let v: i64 = conn
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(v, 5);
+        assert_eq!(v, 6);
     }
 
     #[test]
@@ -199,7 +213,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 5);
+        assert_eq!(v, 6);
         for name in ["images", "images_fts"] {
             let c: i64 = conn
                 .query_row(
@@ -284,7 +298,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 5);
+        assert_eq!(v, 6);
         for name in ["filter_history", "settings"] {
             let c: i64 = conn
                 .query_row("SELECT count(*) FROM sqlite_master WHERE name = ?1", [name], |r| r.get(0))
@@ -298,7 +312,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 5);
+        assert_eq!(v, 6);
         conn.execute(
             "INSERT INTO directories (path, label, recursive) VALUES ('/d', 'd', 1)",
             [],
@@ -315,7 +329,7 @@ mod tests {
         let conn = Connection::open_in_memory().unwrap();
         run(&conn).unwrap();
         let v: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
-        assert_eq!(v, 5);
+        assert_eq!(v, 6);
         for name in [
             "tags", "image_tags", "analysis_params", "analysis_excluded_tags",
             "analysis_scope", "tag_frequency", "tag_rating_lift",
@@ -333,5 +347,27 @@ mod tests {
             .query_row("SELECT count(*) FROM analysis_excluded_tags WHERE name='masterpiece'", [], |r| r.get(0))
             .unwrap();
         assert_eq!(masterpiece, 1);
+    }
+
+    #[test]
+    fn v6_adds_base_name_and_keeps_occurrence_view() {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        // base_name 列が存在し、既存行へ name と同値で埋められること。
+        conn.execute("INSERT INTO tags (name) VALUES ('forest')", []).unwrap();
+        let base: Option<String> = conn
+            .query_row("SELECT base_name FROM tags WHERE name='forest'", [], |r| r.get(0))
+            .unwrap();
+        // 直接 INSERT（base_name 未指定）では NULL だが、列自体は存在する。
+        assert!(base.is_none());
+        // ビューが再作成され存続していること。
+        let c: i64 = conn
+            .query_row(
+                "SELECT count(*) FROM sqlite_master WHERE name='analysis_tag_occurrence'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(c, 1);
     }
 }

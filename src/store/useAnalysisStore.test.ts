@@ -5,8 +5,7 @@ vi.mock("../api/analysis", () => ({
   ratingLift: vi.fn(async () => []),
   tagRating: vi.fn(async () => ({ has: [], without: [], has_avg: null, without_avg: null })),
   listExcluded: vi.fn(async () => ["masterpiece"]),
-  addExcluded: vi.fn(async () => {}),
-  removeExcluded: vi.fn(async () => {}),
+  setExcluded: vi.fn(async () => {}),
 }));
 
 import { useAnalysisStore } from "./useAnalysisStore";
@@ -55,5 +54,27 @@ describe("useAnalysisStore", () => {
   it("toggleOpen は open を反転する", () => {
     useAnalysisStore.getState().toggleOpen();
     expect(useAnalysisStore.getState().open).toBe(true);
+  });
+
+  it("loadCause は nameFilter を API へ渡す（空なら undefined）", async () => {
+    useAnalysisStore.setState({ nameFilter: "" });
+    await useAnalysisStore.getState().loadCause();
+    expect(api.ratingLift).toHaveBeenLastCalledWith(undefined, expect.anything(), "high", undefined, 100);
+    useAnalysisStore.setState({ nameFilter: "hair" });
+    await useAnalysisStore.getState().loadCause();
+    expect(api.ratingLift).toHaveBeenLastCalledWith(undefined, expect.anything(), "high", "hair", 100);
+  });
+
+  it("setExcluded は改行で分割して API へ渡し、再読込する", async () => {
+    await useAnalysisStore.getState().setExcluded("# comment\nmasterpiece\nscore 9");
+    expect(api.setExcluded).toHaveBeenCalledWith(["# comment", "masterpiece", "score 9"]);
+    expect(api.listExcluded).toHaveBeenCalled();
+  });
+
+  it("selectTag は同期的に選択を設定し tagAnalysis をクリアする", () => {
+    useAnalysisStore.setState({ tagAnalysis: { has: [], without: [], has_avg: 3, without_avg: 2 } });
+    useAnalysisStore.getState().selectTag(7, "forest");
+    expect(useAnalysisStore.getState().selectedTag).toEqual({ tagId: 7, name: "forest" });
+    expect(useAnalysisStore.getState().tagAnalysis).toBeNull();
   });
 });

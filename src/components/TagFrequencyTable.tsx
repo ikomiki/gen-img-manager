@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { useAnalysisStore } from "../store/useAnalysisStore";
+import { useQueryStore } from "../store/useQueryStore";
 import { TagRatingAnalysis } from "./TagRatingAnalysis";
 
 export function TagFrequencyTable() {
   const freq = useAnalysisStore((s) => s.freq);
   const nameFilter = useAnalysisStore((s) => s.nameFilter);
-  const setNameFilter = useAnalysisStore((s) => s.setNameFilter);
   const freqSort = useAnalysisStore((s) => s.freqSort);
   const setFreqSort = useAnalysisStore((s) => s.setFreqSort);
   const loadFrequency = useAnalysisStore((s) => s.loadFrequency);
@@ -13,22 +13,19 @@ export function TagFrequencyTable() {
   const selectedTag = useAnalysisStore((s) => s.selectedTag);
   const scopeMode = useAnalysisStore((s) => s.scopeMode);
   const applyExclusion = useAnalysisStore((s) => s.applyExclusion);
+  const query = useQueryStore((s) => s.query);
+  // フィルタ範囲のときだけクエリ変更で再取得する（全体時はクエリ非依存）。
+  const scopeKey = scopeMode === "filter" ? query : null;
 
-  // スコープ/除外/フィルタ/ソート変更時に再取得。
+  // スコープ/除外/フィルタ/ソート/クエリ変更時に再取得。
   useEffect(() => {
     void loadFrequency();
-  }, [loadFrequency, scopeMode, applyExclusion, nameFilter, freqSort]);
+  }, [loadFrequency, scopeMode, applyExclusion, nameFilter, freqSort, scopeKey]);
 
   if (selectedTag) return <TagRatingAnalysis />;
 
   return (
     <div className="tag-frequency">
-      <input
-        type="search"
-        placeholder="タグ名で絞り込み"
-        value={nameFilter}
-        onChange={(e) => setNameFilter(e.target.value)}
-      />
       <table>
         <thead>
           <tr>
