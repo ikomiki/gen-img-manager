@@ -1,3 +1,4 @@
+mod backfill;
 mod commands;
 mod db;
 mod fs_guard;
