@@ -61,6 +61,73 @@ fn escape_like(s: &str) -> String {
     s.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TagFreq {
+    pub tag_id: i64,
+    pub name: String,
+    pub image_count: i64,
+}
+
+/// 頻度一覧。sort は "count"（既定・降順）か "name"（昇順）。
+pub fn tag_frequency(
+    conn: &Connection,
+    name_filter: Option<&str>,
+    sort: &str,
+    limit: i64,
+    offset: i64,
+) -> rusqlite::Result<Vec<TagFreq>> {
+    let order = if sort == "name" { "name ASC" } else { "image_count DESC, name ASC" };
+    let mut params: Vec<Value> = Vec::new();
+    let filter_sql = match name_filter {
+        Some(f) if !f.is_empty() => {
+            params.push(Value::Text(format!("%{}%", escape_like(f))));
+            "WHERE name LIKE ? ESCAPE '\\'".to_string()
+        }
+        _ => String::new(),
+    };
+    params.push(Value::Integer(limit));
+    params.push(Value::Integer(offset));
+    let sql = format!(
+        "SELECT tag_id, name, image_count FROM tag_frequency {filter_sql} ORDER BY {order} LIMIT ? OFFSET ?"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(params_from_iter(params), |r| {
+        Ok(TagFreq { tag_id: r.get(0)?, name: r.get(1)?, image_count: r.get(2)? })
+    })?;
+    rows.collect()
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct LiftRow {
+    pub tag_id: i64,
+    pub name: String,
+    pub rated_count: i64,
+    pub raw_avg: Option<f64>,
+    pub adjusted_avg: Option<f64>,
+    pub overall_avg: Option<f64>,
+}
+
+/// 高/低評価原因タグ。direction は "high"（adjusted_avg 降順）か "low"（昇順）。
+pub fn rating_lift(conn: &Connection, direction: &str, limit: i64) -> rusqlite::Result<Vec<LiftRow>> {
+    let order = if direction == "low" { "adjusted_avg ASC" } else { "adjusted_avg DESC" };
+    let sql = format!(
+        "SELECT tag_id, name, rated_count, raw_avg, adjusted_avg, overall_avg \
+         FROM tag_rating_lift ORDER BY {order}, name ASC LIMIT ?"
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map([limit], |r| {
+        Ok(LiftRow {
+            tag_id: r.get(0)?,
+            name: r.get(1)?,
+            rated_count: r.get(2)?,
+            raw_avg: r.get(3)?,
+            adjusted_avg: r.get(4)?,
+            overall_avg: r.get(5)?,
+        })
+    })?;
+    rows.collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,5 +198,51 @@ mod tests {
             .unwrap();
         assert_eq!((ex, mn), (0, 25));
         assert!((pw - 7.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn frequency_excludes_negative_and_excluded_list() {
+        let c = conn();
+        let a = add(&c, "/d/a.png", Some(5), &["forest"]);
+        let b = add(&c, "/d/b.png", Some(4), &["forest"]);
+        let _ = (a, b);
+        let cid = add(&c, "/d/c.png", Some(2), &[]);
+        tags::replace_image_tags(&c, cid, &[("blurry", "negative")]).unwrap();
+        add(&c, "/d/d.png", Some(5), &["masterpiece"]);
+
+        set_scope(&c, None).unwrap();
+        set_params(&c, true, 10, 10.0).unwrap();
+        let freq = tag_frequency(&c, None, "count", 100, 0).unwrap();
+        let names: Vec<&str> = freq.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["forest"]);
+        assert_eq!(freq[0].image_count, 2);
+    }
+
+    #[test]
+    fn frequency_respects_apply_exclusion_off() {
+        let c = conn();
+        add(&c, "/d/a.png", Some(5), &["masterpiece"]);
+        set_scope(&c, None).unwrap();
+        set_params(&c, false, 10, 10.0).unwrap();
+        let freq = tag_frequency(&c, None, "count", 100, 0).unwrap();
+        assert_eq!(freq.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), vec!["masterpiece"]);
+    }
+
+    #[test]
+    fn rating_lift_uses_shrinkage_and_threshold() {
+        let c = conn();
+        for i in 0..4 {
+            add(&c, &format!("/d/g{i}.png"), Some(5), &["good"]);
+        }
+        add(&c, "/d/bad.png", Some(1), &["bad"]);
+        set_scope(&c, None).unwrap();
+        set_params(&c, true, 3, 2.0).unwrap();
+        let high = rating_lift(&c, "high", 10).unwrap();
+        assert_eq!(high.len(), 1);
+        assert_eq!(high[0].name, "good");
+        assert_eq!(high[0].rated_count, 4);
+        let adj = high[0].adjusted_avg.unwrap();
+        assert!((adj - 4.7333333).abs() < 1e-4, "adjusted_avg = {adj}");
+        assert!((high[0].overall_avg.unwrap() - 4.2).abs() < 1e-9);
     }
 }
