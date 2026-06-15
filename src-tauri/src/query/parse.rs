@@ -129,6 +129,7 @@ fn fts_quote(s: &str) -> String {
 /// - `AND` / `OR`（大文字のみ）→ そのまま転写（FTS5 演算子）
 /// - `(` / `)` → そのまま転写（FTS5 がグループ化を解釈）
 /// - `"..."` → 中身を fts_quote でフレーズとして転写
+///
 /// 空白区切りは FTS5 の暗黙 AND に委ねる。出力はスペース結合（FTS5 はスペースを無視）。
 #[allow(dead_code)]
 fn field_expr_to_fts(value: &str) -> String {
