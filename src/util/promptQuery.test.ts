@@ -26,6 +26,10 @@ describe("splitPromptInput", () => {
   it("returns empty for blank input", () => {
     expect(splitPromptInput("   ")).toEqual({ positive: "", excludes: [] });
   });
+
+  it("ignores a lone hyphen", () => {
+    expect(splitPromptInput("forest - cabin")).toEqual({ positive: "forest cabin", excludes: [] });
+  });
 });
 
 describe("applyPromptField", () => {
@@ -54,6 +58,10 @@ describe("applyPromptField", () => {
 
   it("clears the field when input is empty", () => {
     expect(applyPromptField("prompt:(a AND b) -prompt:c 1girl", "prompt", "")).toBe("1girl");
+  });
+
+  it("wraps a lone NOT in parens (treated as expression, not bare word)", () => {
+    expect(applyPromptField("", "prompt", "NOT")).toBe("prompt:(NOT)");
   });
 });
 
@@ -86,5 +94,14 @@ describe("promptFieldToInput", () => {
     const input = "forest AND cabin -blurry";
     const q = applyPromptField("", "prompt", input);
     expect(promptFieldToInput(q, "prompt")).toBe(input);
+  });
+
+  it("returns empty when the field is absent", () => {
+    expect(promptFieldToInput("1girl rating:>=4", "prompt")).toBe("");
+  });
+
+  it("does not leak operators as excludes from a hand-typed negated group", () => {
+    // 否定グループ内の AND/NOT は除外語化しない（best-effort 逆変換）。
+    expect(promptFieldToInput("prompt:forest -prompt:(a AND b)", "prompt")).toBe("forest -a -b");
   });
 });

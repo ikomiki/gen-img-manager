@@ -6,7 +6,7 @@
  * 除外（トップレベルの -語）は肯定式から分離し、-field:... として書き出す。
  * 括弧の中身（肯定式）の FTS5 変換はバックエンド（parse.rs）が行うため、ここでは触らない。
  */
-import { tokenizeQuery, type RawToken } from "./queryTokens";
+import { tokenizeQuery, serializeToken, type RawToken } from "./queryTokens";
 
 /** 欄入力をトップレベルの空白/括弧で分割し、各要素を返す（クォート・括弧内の空白は保持）。 */
 function topLevelTokens(input: string): string[] {
@@ -43,6 +43,7 @@ export function splitPromptInput(input: string): { positive: string; excludes: s
   const positive: string[] = [];
   const excludes: string[] = [];
   for (const t of tokens) {
+    if (t === "-") continue; // 裸の '-' は無視（不正トークン化を防ぐ）
     if (t.startsWith("-") && t.length > 1) {
       excludes.push(t.slice(1));
     } else {
@@ -54,7 +55,7 @@ export function splitPromptInput(input: string): { positive: string; excludes: s
 
 /** 肯定式が単一の裸の語（演算子・括弧・空白・クォートなし）か。 */
 function isBareWord(expr: string): boolean {
-  return expr !== "" && !/[\s()"]/.test(expr) && expr !== "AND" && expr !== "OR";
+  return expr !== "" && !/[\s()"]/.test(expr) && expr !== "AND" && expr !== "OR" && expr !== "NOT";
 }
 
 /** field の肯定トークンを生成（単一語は括弧なし、複雑な式は括弧で包む）。 */
@@ -78,7 +79,7 @@ export function applyPromptField(query: string, field: string, input: string): s
     const colon = t.lead.indexOf(":");
     const isField = colon >= 0 && t.lead.slice(0, colon) === field;
     if (isField) continue; // 肯定・除外どちらの field トークンも除去
-    kept.push(serialize(t));
+    kept.push(serializeToken(t));
   }
   const { positive, excludes } = splitPromptInput(input);
   const pos = buildPositiveToken(field, positive);
@@ -88,26 +89,19 @@ export function applyPromptField(query: string, field: string, input: string): s
   return kept.join(" ").trim();
 }
 
-/** RawToken を元のクエリ片へ復元する（queryTokens の serializeToken と同等）。 */
-function serialize(t: RawToken): string {
-  const sign = t.negate ? "-" : "";
-  if (t.quoted) {
-    const valuePart = t.text.slice(t.lead.length);
-    return `${sign}${t.lead}"${valuePart}"`;
-  }
-  return `${sign}${t.text}`;
-}
-
 /** field トークンの値部分（colon 以降）を取り出す。 */
 function fieldValue(t: RawToken): string {
   const colon = t.lead.indexOf(":");
   return t.text.slice(colon + 1);
 }
 
-/** `(a OR b)` 形式の括弧式を ["a","b"] へ分解（トップレベル OR 区切り）。 */
+/**
+ * `(a OR b)` 形式の括弧式を ["a","b"] へ分解（トップレベルの語のみ）。
+ * 否定グループは OR 結合前提のため、演算子 AND/OR/NOT は除外語化しない（best-effort）。
+ */
 function splitOrGroup(value: string): string[] {
   const inner = value.slice(1, -1); // 外側括弧を外す
-  return topLevelTokens(inner).filter((t) => t !== "OR");
+  return topLevelTokens(inner).filter((t) => t !== "OR" && t !== "AND" && t !== "NOT");
 }
 
 /** クエリから field の肯定/除外をまとめて欄表示文字列へ復元する。 */

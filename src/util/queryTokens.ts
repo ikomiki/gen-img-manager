@@ -91,7 +91,7 @@ export function extractField(query: string, field: string): string | null {
 }
 
 /** RawToken を元のクエリ片へ復元する。 */
-function serializeToken(t: RawToken): string {
+export function serializeToken(t: RawToken): string {
   const sign = t.negate ? "-" : "";
   if (t.quoted) {
     const valuePart = t.text.slice(t.lead.length);
