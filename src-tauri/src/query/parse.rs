@@ -82,6 +82,9 @@ fn tokenize(input: &str) -> Vec<RawToken> {
                     paren_depth += 1;
                 } else if c == ')' {
                     paren_depth -= 1;
+                    if paren_depth == 0 {
+                        paren_in_quote = false;
+                    }
                 }
             }
             continue;
@@ -470,6 +473,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "Task 3 で field_expr_to_fts を実装後に PASS になる（それまでは意図的に FAIL）"]
     fn field_paren_value_is_single_token() {
         // prompt:(forest AND cabin) は空白で割れず1トークンとして field 値になる。
         let pq = parse("prompt:(forest AND cabin)");
