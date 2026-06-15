@@ -124,14 +124,39 @@ fn fts_quote(s: &str) -> String {
     format!("\"{}\"", s.replace('"', "\"\""))
 }
 
+/// 括弧（ダブルクォート外）が均衡しているか。未閉じ・過剰な閉じは false。
+fn parens_balanced(s: &str) -> bool {
+    let mut depth: i32 = 0;
+    let mut in_quote = false;
+    for c in s.chars() {
+        match c {
+            '"' => in_quote = !in_quote,
+            '(' if !in_quote => depth += 1,
+            ')' if !in_quote => {
+                depth -= 1;
+                if depth < 0 {
+                    return false;
+                }
+            }
+            _ => {}
+        }
+    }
+    depth == 0
+}
+
 /// フィールド値内のミニ論理式を FTS5 式へ変換する。
 /// - 裸の語 → fts_quote でダブルクォート（インジェクション/構文エラー対策）
 /// - `AND` / `OR`（大文字のみ）→ そのまま転写（FTS5 演算子）
 /// - `(` / `)` → そのまま転写（FTS5 がグループ化を解釈）
 /// - `"..."` → 中身を fts_quote でフレーズとして転写
+/// - `NOT` は演算子扱いしない（語としてクォートする）。除外は `-prompt:` で括弧の外に出す設計。
 ///
 /// 空白区切りは FTS5 の暗黙 AND に委ねる。出力はスペース結合（FTS5 はスペースを無視）。
 fn field_expr_to_fts(value: &str) -> String {
+    // 括弧が不均衡（未閉じ等）なら従来どおり1フレーズ化してフォールバック（FTS5 構文エラー回避）。
+    if !parens_balanced(value) {
+        return fts_quote(value);
+    }
     let mut out: Vec<String> = Vec::new();
     let mut chars = value.chars().peekable();
     while let Some(&c) = chars.peek() {
@@ -300,8 +325,9 @@ pub fn parse(input: &str) -> ParsedQuery {
                     continue;
                 }
                 if let Some(col) = text_field_column(field) {
-                    // 値が括弧式なら論理式として展開、それ以外は従来どおり1フレーズ。
-                    let rhs = if value.starts_with('(') {
+                    // text_field_column は model:, filename: もここを通る（括弧式が効くが専用UIは無い）。
+                    // 値が未クォートの括弧式なら論理式として展開、それ以外（クォート句・裸の語）は1フレーズ。
+                    let rhs = if !tok.quoted && value.starts_with('(') {
                         field_expr_to_fts(value)
                     } else {
                         fts_quote(value)
@@ -595,5 +621,19 @@ mod tests {
     fn field_expr_to_fts_lowercase_and_is_a_term() {
         // 小文字 and は演算子でなく検索語（FTS5 準拠: 演算子は大文字のみ）。
         assert_eq!(field_expr_to_fts("(cat and dog)"), "( \"cat\" \"and\" \"dog\" )");
+    }
+
+    #[test]
+    fn quoted_paren_value_stays_a_phrase() {
+        // クォート付きで () を含む値は論理式でなくフレーズのまま（後方互換）。
+        let pq = parse("prompt:\"(hello)\"");
+        assert_eq!(pq.fts_include.as_deref(), Some("positive : \"(hello)\""));
+    }
+
+    #[test]
+    fn unclosed_field_paren_degrades_to_phrase() {
+        // 未閉じ括弧は FTS5 構文エラーを避けるため1フレーズ化（graceful degradation）。
+        let pq = parse("prompt:(unclosed");
+        assert_eq!(pq.fts_include.as_deref(), Some("positive : \"(unclosed\""));
     }
 }
