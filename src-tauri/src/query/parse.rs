@@ -131,7 +131,6 @@ fn fts_quote(s: &str) -> String {
 /// - `"..."` → 中身を fts_quote でフレーズとして転写
 ///
 /// 空白区切りは FTS5 の暗黙 AND に委ねる。出力はスペース結合（FTS5 はスペースを無視）。
-#[allow(dead_code)]
 fn field_expr_to_fts(value: &str) -> String {
     let mut out: Vec<String> = Vec::new();
     let mut chars = value.chars().peekable();
@@ -301,7 +300,13 @@ pub fn parse(input: &str) -> ParsedQuery {
                     continue;
                 }
                 if let Some(col) = text_field_column(field) {
-                    let expr = format!("{} : {}", col, fts_quote(value));
+                    // 値が括弧式なら論理式として展開、それ以外は従来どおり1フレーズ。
+                    let rhs = if value.starts_with('(') {
+                        field_expr_to_fts(value)
+                    } else {
+                        fts_quote(value)
+                    };
+                    let expr = format!("{col} : {rhs}");
                     if negate {
                         excludes.push(expr);
                     } else {
@@ -525,26 +530,49 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "Task 3 で field_expr_to_fts を実装後に PASS になる（それまでは意図的に FAIL）"]
     fn field_paren_value_is_single_token() {
         // prompt:(forest AND cabin) は空白で割れず1トークンとして field 値になる。
         let pq = parse("prompt:(forest AND cabin)");
         assert_eq!(
             pq.fts_include.as_deref(),
-            Some("positive : (\"forest\" AND \"cabin\")")
+            Some("positive : ( \"forest\" AND \"cabin\" )")
         );
         assert_eq!(pq.fts_exclude, None);
         assert!(pq.conds.is_empty());
     }
 
     #[test]
-    fn field_paren_is_not_split_into_bare_terms() {
-        // 暫定: field_expr_to_fts 未実装の段階では1フレーズ化される。
-        // Task 3 完了後にこのテストは削除する。
-        let pq = parse("prompt:(forest AND cabin)");
-        // 少なくとも "AND" や "cabin)" が独立トークンとして混ざっていないこと。
-        let inc = pq.fts_include.unwrap_or_default();
-        assert!(!inc.contains("\"cabin)\""), "got: {inc}");
+    fn field_paren_negation_goes_to_exclude() {
+        // -prompt:(blurry OR lowres) は除外側へ。
+        let pq = parse("-prompt:(blurry OR lowres)");
+        assert_eq!(pq.fts_include, None);
+        assert_eq!(
+            pq.fts_exclude.as_deref(),
+            Some("positive : ( \"blurry\" OR \"lowres\" )")
+        );
+    }
+
+    #[test]
+    fn field_paren_combined_with_exclude_and_cond() {
+        let pq = parse("prompt:(forest AND cabin) -prompt:blurry rating:>=4");
+        assert_eq!(
+            pq.fts_include.as_deref(),
+            Some("positive : ( \"forest\" AND \"cabin\" )")
+        );
+        assert_eq!(pq.fts_exclude.as_deref(), Some("positive : \"blurry\""));
+        assert_eq!(
+            pq.conds,
+            vec![Cond { column: "rating", op: CondOp::Ge(4), negate: false }]
+        );
+    }
+
+    #[test]
+    fn legacy_field_values_unchanged() {
+        // 後方互換: 括弧なしの既存記法は従来どおり。
+        assert_eq!(parse("prompt:forest").fts_include.as_deref(), Some("positive : \"forest\""));
+        assert_eq!(parse("prompt:\"best quality\"").fts_include.as_deref(), Some("positive : \"best quality\""));
+        let pq = parse("prompt:forest cabin");
+        assert_eq!(pq.fts_include.as_deref(), Some("positive : \"forest\" AND \"cabin\""));
     }
 
     #[test]
