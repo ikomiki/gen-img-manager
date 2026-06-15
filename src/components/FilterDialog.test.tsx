@@ -164,4 +164,12 @@ describe("FilterDialog", () => {
     render(<FilterDialog onClose={() => {}} />);
     expect(screen.getByText(/AND=両方/)).toBeTruthy();
   });
+
+  it("年月ドロップダウンを表示する", () => {
+    render(<FilterDialog onClose={() => {}} />);
+    // captionLayout="dropdown" は月・年の <select> を描画する。
+    const combos = screen.getAllByRole("combobox");
+    // レーティング下限セレクト + 開始(月,年) + 終了(月,年) = 少なくとも 5 個。
+    expect(combos.length).toBeGreaterThanOrEqual(5);
+  });
 });

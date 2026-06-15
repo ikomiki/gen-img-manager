@@ -76,6 +76,23 @@ export function FilterDialog({ onClose }: Props) {
     [dateInfo],
   );
 
+  const yearRange = useMemo(() => {
+    const today = new Date();
+    const lo = localDateToDate(dateInfo.min ?? dateToLocalString(today));
+    const hi = localDateToDate(dateInfo.max ?? dateToLocalString(today));
+    return {
+      start: new Date(lo.getFullYear(), 0, 1),
+      end: new Date(hi.getFullYear(), 11, 1),
+    };
+  }, [dateInfo.min, dateInfo.max]);
+
+  const [fromMonth, setFromMonth] = useState<Date>(() =>
+    localDateToDate(createdFrom || dateInfo.min || dateToLocalString(new Date())),
+  );
+  const [toMonth, setToMonth] = useState<Date>(() =>
+    localDateToDate(createdTo || dateInfo.max || dateToLocalString(new Date())),
+  );
+
   const apply = async () => {
     let q = query;
     q = upsertField(q, "rating", buildRatingToken(ratings));
@@ -257,7 +274,11 @@ export function FilterDialog({ onClose }: Props) {
               <button
                 type="button"
                 disabled={!dateInfo.min}
-                onClick={() => dateInfo.min && setCreatedFrom(dateInfo.min)}
+                onClick={() => {
+                  if (!dateInfo.min) return;
+                  setCreatedFrom(dateInfo.min);
+                  setFromMonth(localDateToDate(dateInfo.min));
+                }}
               >
                 {dateInfo.min ? `最小: ${dateInfo.min}` : "最小: -"}
               </button>
@@ -269,8 +290,12 @@ export function FilterDialog({ onClose }: Props) {
             </div>
             <DayPicker
               mode="single"
+              captionLayout="dropdown"
+              startMonth={yearRange.start}
+              endMonth={yearRange.end}
+              month={fromMonth}
+              onMonthChange={setFromMonth}
               selected={createdFrom ? localDateToDate(createdFrom) : undefined}
-              defaultMonth={localDateToDate(createdFrom || dateInfo.min || dateToLocalString(new Date()))}
               onSelect={(d) => setCreatedFrom(d ? dateToLocalString(d) : "")}
               modifiers={modifiers}
               modifiersClassNames={modifiersClassNames}
@@ -283,7 +308,11 @@ export function FilterDialog({ onClose }: Props) {
               <button
                 type="button"
                 disabled={!dateInfo.max}
-                onClick={() => dateInfo.max && setCreatedTo(dateInfo.max)}
+                onClick={() => {
+                  if (!dateInfo.max) return;
+                  setCreatedTo(dateInfo.max);
+                  setToMonth(localDateToDate(dateInfo.max));
+                }}
               >
                 {dateInfo.max ? `最大: ${dateInfo.max}` : "最大: -"}
               </button>
@@ -295,8 +324,12 @@ export function FilterDialog({ onClose }: Props) {
             </div>
             <DayPicker
               mode="single"
+              captionLayout="dropdown"
+              startMonth={yearRange.start}
+              endMonth={yearRange.end}
+              month={toMonth}
+              onMonthChange={setToMonth}
               selected={createdTo ? localDateToDate(createdTo) : undefined}
-              defaultMonth={localDateToDate(createdTo || dateInfo.max || dateToLocalString(new Date()))}
               onSelect={(d) => setCreatedTo(d ? dateToLocalString(d) : "")}
               modifiers={modifiers}
               modifiersClassNames={modifiersClassNames}
