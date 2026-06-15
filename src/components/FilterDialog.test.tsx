@@ -187,4 +187,12 @@ describe("FilterDialog", () => {
     expect((screen.getByText("終了月を開く") as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByText("開始月を開く") as HTMLButtonElement).disabled).toBe(false);
   });
+
+  it("results が選択年をカバーしなくても年ドロップダウンに選択年を含む", () => {
+    // results 空（dateInfo は null）だが保存クエリの作成日が 2020 → 年ドロップダウンに 2020 が出る。
+    useQueryStore.setState({ query: "created:2020-05-10..2020-05-20", results: [] });
+    render(<FilterDialog onClose={() => {}} />);
+    const options = screen.getAllByRole("option");
+    expect(options.some((o) => o.textContent?.includes("2020"))).toBe(true);
+  });
 });

@@ -77,15 +77,21 @@ export function FilterDialog({ onClose }: Props) {
   );
 
   const yearRange = useMemo(() => {
-    const today = new Date();
-    const lo = localDateToDate(dateInfo.min ?? dateToLocalString(today));
-    const hi = localDateToDate(dateInfo.max ?? dateToLocalString(today));
+    const today = dateToLocalString(new Date());
+    // results 由来の日付に加え、選択中の日付（保存クエリ由来でありうる）も範囲に含める。
+    const dates = [dateInfo.min, dateInfo.max, createdFrom, createdTo, today]
+      .filter((s): s is string => !!s)
+      .map((s) => localDateToDate(s).getFullYear());
+    const lo = Math.min(...dates);
+    const hi = Math.max(...dates);
     return {
-      start: new Date(lo.getFullYear(), 0, 1),
-      end: new Date(hi.getFullYear(), 11, 1),
+      start: new Date(lo, 0, 1),
+      end: new Date(hi, 11, 1),
     };
-  }, [dateInfo.min, dateInfo.max]);
+  }, [dateInfo.min, dateInfo.max, createdFrom, createdTo]);
 
+  // fromMonth/toMonth はマウント時の初期値で固定（ダイアログは条件付きマウントされ、
+  // 開いている間 results=dateInfo は変わらない前提）。表示月の更新はボタン操作で行う。
   const [fromMonth, setFromMonth] = useState<Date>(() =>
     localDateToDate(createdFrom || dateInfo.min || dateToLocalString(new Date())),
   );
