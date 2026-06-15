@@ -46,12 +46,17 @@ struct RawToken {
 
 /// 空白区切り。ダブルクォートで囲まれた部分は1トークン（クォートは外す）。
 /// lead にはクォート前の素のテキストを記録し、フィールド判定に用いる。
+/// 例外: `field:(...)` のフィールド値括弧は、対応する `)` まで（内側のクォート・
+/// 空白も含め）生のまま1トークンに取り込む（中身は field_expr_to_fts が解釈する）。
 fn tokenize(input: &str) -> Vec<RawToken> {
     let mut tokens = Vec::new();
     let mut cur = String::new();
     let mut lead = String::new();
     let mut in_quote = false;
     let mut quoted = false;
+    // フィールド値括弧の状態。paren_depth>0 の間は空白で区切らずクォートも外さない。
+    let mut paren_depth: u32 = 0;
+    let mut paren_in_quote = false;
 
     let flush = |cur: &mut String, lead: &mut String, quoted: &mut bool, tokens: &mut Vec<RawToken>| {
         if !cur.is_empty() || *quoted {
@@ -67,6 +72,20 @@ fn tokenize(input: &str) -> Vec<RawToken> {
     };
 
     for c in input.chars() {
+        if paren_depth > 0 {
+            // フィールド値括弧の内側: 生のまま積む。lead は更新しない。
+            cur.push(c);
+            if c == '"' {
+                paren_in_quote = !paren_in_quote;
+            } else if !paren_in_quote {
+                if c == '(' {
+                    paren_depth += 1;
+                } else if c == ')' {
+                    paren_depth -= 1;
+                }
+            }
+            continue;
+        }
         match c {
             '"' => {
                 if in_quote {
@@ -75,6 +94,12 @@ fn tokenize(input: &str) -> Vec<RawToken> {
                     in_quote = true;
                     quoted = true;
                 }
+            }
+            // コロン直後の '(' はフィールド値括弧の開始（未クォート時のみ）。
+            '(' if !in_quote && !quoted && cur.ends_with(':') && cur.len() > 1 => {
+                cur.push('(');
+                paren_depth = 1;
+                paren_in_quote = false;
             }
             c if c.is_whitespace() && !in_quote => {
                 flush(&mut cur, &mut lead, &mut quoted, &mut tokens);
@@ -442,5 +467,27 @@ mod tests {
         let pq = parse("-negative:\"low quality\"");
         assert_eq!(pq.fts_include, None);
         assert_eq!(pq.fts_exclude.as_deref(), Some("negative : \"low quality\""));
+    }
+
+    #[test]
+    fn field_paren_value_is_single_token() {
+        // prompt:(forest AND cabin) は空白で割れず1トークンとして field 値になる。
+        let pq = parse("prompt:(forest AND cabin)");
+        assert_eq!(
+            pq.fts_include.as_deref(),
+            Some("positive : (\"forest\" AND \"cabin\")")
+        );
+        assert_eq!(pq.fts_exclude, None);
+        assert!(pq.conds.is_empty());
+    }
+
+    #[test]
+    fn field_paren_is_not_split_into_bare_terms() {
+        // 暫定: field_expr_to_fts 未実装の段階では1フレーズ化される。
+        // Task 3 完了後にこのテストは削除する。
+        let pq = parse("prompt:(forest AND cabin)");
+        // 少なくとも "AND" や "cabin)" が独立トークンとして混ざっていないこと。
+        let inc = pq.fts_include.unwrap_or_default();
+        assert!(!inc.contains("\"cabin)\""), "got: {inc}");
     }
 }
