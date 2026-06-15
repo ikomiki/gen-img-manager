@@ -124,6 +124,57 @@ fn fts_quote(s: &str) -> String {
     format!("\"{}\"", s.replace('"', "\"\""))
 }
 
+/// フィールド値内のミニ論理式を FTS5 式へ変換する。
+/// - 裸の語 → fts_quote でダブルクォート（インジェクション/構文エラー対策）
+/// - `AND` / `OR`（大文字のみ）→ そのまま転写（FTS5 演算子）
+/// - `(` / `)` → そのまま転写（FTS5 がグループ化を解釈）
+/// - `"..."` → 中身を fts_quote でフレーズとして転写
+/// 空白区切りは FTS5 の暗黙 AND に委ねる。出力はスペース結合（FTS5 はスペースを無視）。
+#[allow(dead_code)]
+fn field_expr_to_fts(value: &str) -> String {
+    let mut out: Vec<String> = Vec::new();
+    let mut chars = value.chars().peekable();
+    while let Some(&c) = chars.peek() {
+        match c {
+            '(' | ')' => {
+                out.push(c.to_string());
+                chars.next();
+            }
+            c if c.is_whitespace() => {
+                chars.next();
+            }
+            '"' => {
+                chars.next(); // 開きクォート
+                let mut s = String::new();
+                while let Some(&c2) = chars.peek() {
+                    chars.next();
+                    if c2 == '"' {
+                        break;
+                    }
+                    s.push(c2);
+                }
+                out.push(fts_quote(&s));
+            }
+            _ => {
+                let mut s = String::new();
+                while let Some(&c2) = chars.peek() {
+                    if c2.is_whitespace() || c2 == '(' || c2 == ')' || c2 == '"' {
+                        break;
+                    }
+                    s.push(c2);
+                    chars.next();
+                }
+                if s == "AND" || s == "OR" {
+                    out.push(s);
+                } else {
+                    out.push(fts_quote(&s));
+                }
+            }
+        }
+    }
+    out.join(" ")
+}
+
 /// 数値/日時の値を CondOp に変換する。日時は epoch 秒へ。
 fn parse_value_op(value: &str, is_date: bool) -> Option<CondOp> {
     let to_num = |s: &str| -> Option<i64> {
@@ -493,5 +544,27 @@ mod tests {
         // 少なくとも "AND" や "cabin)" が独立トークンとして混ざっていないこと。
         let inc = pq.fts_include.unwrap_or_default();
         assert!(!inc.contains("\"cabin)\""), "got: {inc}");
+    }
+
+    #[test]
+    fn field_expr_to_fts_quotes_terms_and_keeps_operators() {
+        assert_eq!(
+            field_expr_to_fts("(forest AND cabin OR sunset)"),
+            "( \"forest\" AND \"cabin\" OR \"sunset\" )"
+        );
+    }
+
+    #[test]
+    fn field_expr_to_fts_handles_nested_and_phrases() {
+        assert_eq!(
+            field_expr_to_fts("((forest AND cabin) OR \"best quality\")"),
+            "( ( \"forest\" AND \"cabin\" ) OR \"best quality\" )"
+        );
+    }
+
+    #[test]
+    fn field_expr_to_fts_lowercase_and_is_a_term() {
+        // 小文字 and は演算子でなく検索語（FTS5 準拠: 演算子は大文字のみ）。
+        assert_eq!(field_expr_to_fts("(cat and dog)"), "( \"cat\" \"and\" \"dog\" )");
     }
 }
