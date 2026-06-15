@@ -3,6 +3,7 @@ import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import { useQueryStore } from "../store/useQueryStore";
 import { extractField, upsertField } from "../util/queryTokens";
+import { applyPromptField, promptFieldToInput } from "../util/promptQuery";
 import { imageDateInfo, localDateToDate, dateToLocalString } from "../util/imageDates";
 import {
   parseRatingToken,
@@ -63,8 +64,8 @@ export function FilterDialog({ onClose }: Props) {
   const [minHeight, setMinHeight] = useState(() => parseMin(extractField(query, "height")));
   const [createdFrom, setCreatedFrom] = useState(() => parseCreated(extractField(query, "created")).from);
   const [createdTo, setCreatedTo] = useState(() => parseCreated(extractField(query, "created")).to);
-  const [prompt, setPrompt] = useState(() => extractField(query, "prompt") ?? "");
-  const [negative, setNegative] = useState(() => extractField(query, "negative") ?? "");
+  const [prompt, setPrompt] = useState(() => promptFieldToInput(query, "prompt"));
+  const [negative, setNegative] = useState(() => promptFieldToInput(query, "negative"));
   const [model, setModel] = useState(() => extractField(query, "model") ?? "");
   const [sampler, setSampler] = useState(() => extractField(query, "sampler") ?? "");
   const [tool, setTool] = useState(() => extractField(query, "tool") ?? "");
@@ -81,8 +82,8 @@ export function FilterDialog({ onClose }: Props) {
     q = upsertField(q, "width", minWidth ? `>=${minWidth}` : null);
     q = upsertField(q, "height", minHeight ? `>=${minHeight}` : null);
     q = upsertField(q, "created", buildCreated(createdFrom, createdTo));
-    q = upsertField(q, "prompt", prompt.trim() || null);
-    q = upsertField(q, "negative", negative.trim() || null);
+    q = applyPromptField(q, "prompt", prompt.trim());
+    q = applyPromptField(q, "negative", negative.trim());
     q = upsertField(q, "model", model.trim() || null);
     q = upsertField(q, "sampler", sampler.trim() || null);
     q = upsertField(q, "tool", tool.trim() || null);
@@ -200,6 +201,9 @@ export function FilterDialog({ onClose }: Props) {
               )}
             </span>
           </label>
+          <p className="field-hint">
+            AND=両方　OR=どちらか　-=除外　&quot;句&quot;=フレーズ　()=グループ
+          </p>
 
           <label>
             <span className="field-label">ネガティブ</span>

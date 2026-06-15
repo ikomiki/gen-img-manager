@@ -28,7 +28,7 @@ const pressed = (label: string) =>
 describe("FilterDialog", () => {
   it("populates controls from the current query on open", () => {
     render(<FilterDialog onClose={() => {}} />);
-    expect((screen.getByLabelText("プロンプト") as HTMLInputElement).value).toBe("best quality");
+    expect((screen.getByLabelText("プロンプト") as HTMLInputElement).value).toBe('"best quality"');
     // rating:>=4 → ★4,★5 が ON、なし/★1/★2/★3 は OFF。
     expect(pressed("レーティング: ★4")).toBe("true");
     expect(pressed("レーティング: ★5")).toBe("true");
@@ -41,14 +41,14 @@ describe("FilterDialog", () => {
     useQueryStore.setState({ setQuery, runQuery: vi.fn().mockResolvedValue(undefined) });
 
     render(<FilterDialog onClose={() => {}} />);
-    fireEvent.change(screen.getByLabelText("プロンプト"), { target: { value: "forest cabin" } });
+    fireEvent.change(screen.getByLabelText("プロンプト"), { target: { value: "forest AND cabin" } });
     fireEvent.click(screen.getByText("適用"));
 
     expect(setQuery).toHaveBeenCalled();
     const q = setQuery.mock.calls[0][0] as string;
     expect(q).toContain("1girl");
     expect(q).toContain("rating:>=4"); // ★4,★5 のまま → >=4
-    expect(q).toContain('prompt:"forest cabin"');
+    expect(q).toContain("prompt:(forest AND cabin)");
   });
 
   it("レーティングボタンのトグルで aria-pressed が切り替わる", () => {
@@ -115,7 +115,7 @@ describe("FilterDialog", () => {
   it("✕ ボタンでプロンプト入力をクリアできる", () => {
     render(<FilterDialog onClose={() => {}} />);
     const input = screen.getByLabelText("プロンプト") as HTMLInputElement;
-    expect(input.value).toBe("best quality");
+    expect(input.value).toBe('"best quality"');
     fireEvent.click(screen.getByLabelText("プロンプトをクリア"));
     expect(input.value).toBe("");
   });
@@ -149,5 +149,19 @@ describe("FilterDialog", () => {
 
     const q = setQuery.mock.calls[0][0] as string;
     expect(q).toBe("");
+  });
+
+  it("writes excludes from the prompt field as -prompt", () => {
+    const setQuery = vi.fn();
+    useQueryStore.setState({ query: "", setQuery, runQuery: vi.fn().mockResolvedValue(undefined) });
+    render(<FilterDialog onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText("プロンプト"), { target: { value: "forest -blurry" } });
+    fireEvent.click(screen.getByText("適用"));
+    expect(setQuery).toHaveBeenCalledWith("prompt:forest -prompt:blurry");
+  });
+
+  it("記法ヘルプ行を表示する", () => {
+    render(<FilterDialog onClose={() => {}} />);
+    expect(screen.getByText(/AND=両方/)).toBeTruthy();
   });
 });

@@ -607,6 +607,14 @@ body,
   font-size: 12px;
 }
 
+.filter-fields .field-hint {
+  grid-column: 1 / -1;
+  margin: 2px 0 8px;
+  font-size: 12px;
+  color: var(--muted, #888);
+  line-height: 1.4;
+}
+
 .date-fields {
   display: flex;
   flex-wrap: wrap;
