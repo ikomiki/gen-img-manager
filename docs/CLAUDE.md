@@ -12,7 +12,7 @@
 ## 体裁（自己完結 HTML）
 
 - **単一ファイルの自己完結 HTML**。外部 CSS/JS に依存せず、`<style>` をインラインで持つ。`<html lang="ja">` / `<meta charset="utf-8">` / viewport を入れる。
-- **スタイルシートは `master-import-usage.html` の `<style>` ブロックをそのまま流用**する（GitHub 風ライトテーマ。配色・コンポーネントを全ドキュメントで共通化する）。新しいクラスを足すより既存クラスで表現することを優先。
+- HTMLドキュメントを作成するときは必ず DESIGN.md を参照する
 
 ## 構成（master-import-usage.html に倣う）
 

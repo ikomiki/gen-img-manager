@@ -6,154 +6,182 @@
 <title>gen-img-manager — 使い方ガイド</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;800&family=IBM+Plex+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-  /* ---- Solarized Light ---- */
+  /* ---- Technical Documentation Design System (DESIGN.md) ---- */
   :root {
-    --bg: #fdf6e3;          /* base3  — ページ背景 */
-    --bg-panel: #eee8d5;    /* base2  — パネル/ノート */
-    --bg-inset: #eee8d5;    /* base2  — コード地 */
-    --line: #e3dcc6;        /* 罫線（warm） */
-    --text: #657b83;        /* base00 — 本文 */
-    --text-strong: #586e75; /* base01 — 見出し・強調 */
-    --text-dim: #93a1a1;    /* base1  — 補足 */
-    --accent: #268bd2;      /* blue   — 主アクセント */
-    --accent-soft: #2780bd; /* 濃い blue — 罫線/サブ */
-    --star: #b58900;        /* yellow — レーティング★/コード */
-    --serif: "Shippori Mincho B1", "Hiragino Mincho ProN", "Yu Mincho", serif;
-    --sans: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
-    --mono: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+    /* Color — low-saturation slate / cool gray */
+    --color-primary: #4a607a;       /* Muted Slate Blue — リンク・主要要素 */
+    --color-primary-dark: #35475b;  /* ホバー/アクティブ */
+    --color-danger: #b84a56;        /* エラー・警告度：高 */
+    --color-warning: #c48427;       /* 警告・注意喚起 */
+    --color-success: #48856b;       /* 成功・完了・同期 */
+    --text-main: rgba(15, 23, 42, 0.85);     /* 本文 */
+    --text-muted: rgba(15, 23, 42, 0.60);    /* 補足・ラベル・メタ */
+    --text-disabled: rgba(15, 23, 42, 0.38); /* 無効状態 */
+    --color-border: #cfd8dc;        /* 罫線・枠 */
+    --color-bg: #f8fafc;            /* ページ背景（オフホワイト） */
+    --color-surface: #eff2f5;       /* コード地・サイドナビ */
+    /* Radius */
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    /* Spacing scale */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 42px;
+    --space-xxl: 64px;
+    /* Elevation */
+    --elevation-1: 0 2px 8px rgba(15, 23, 42, 0.05);
+    --elevation-2: 0 4px 16px rgba(15, 23, 42, 0.08);
+    /* Typography */
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+    --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, Menlo, monospace;
+    --line-height-body: 1.8;
+    --transition-base: all 0.2s ease;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; scroll-padding-top: 24px; }
   body {
     margin: 0;
-    background:
-      radial-gradient(1200px 600px at 80% -10%, rgba(38,139,210,.06), transparent 60%),
-      radial-gradient(900px 500px at -10% 30%, rgba(42,161,152,.05), transparent 55%),
-      var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    font-size: 15px;
-    line-height: 1.85;
+    background: var(--color-bg);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: var(--line-height-body);
+    word-break: break-word;
+    overflow-wrap: break-word;
+    font-feature-settings: normal; /* palt は適用しない */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  .layout { display: flex; max-width: 1180px; margin: 0 auto; }
+  .layout { display: flex; max-width: 1200px; margin: 0 auto; }
 
-  /* ---- 左ナビ ---- */
+  /* ---- 左ナビ（Surface） ---- */
   nav {
-    width: 218px; flex: none;
+    width: 240px; flex: none;
     position: sticky; top: 0; align-self: flex-start;
     height: 100vh; overflow-y: auto;
     padding: 48px 20px 32px 28px;
-    border-right: 1px solid var(--line);
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
   }
-  nav .brand { font-family: var(--mono); font-size: 12px; letter-spacing: .14em; color: var(--accent); margin-bottom: 4px; }
-  nav .brand-sub { font-size: 11px; color: var(--text-dim); margin-bottom: 28px; }
+  nav .brand { font-family: var(--font-mono); font-size: 12px; letter-spacing: .12em; color: var(--color-primary); margin-bottom: 4px; }
+  nav .brand-sub { font-size: 12px; color: var(--text-muted); letter-spacing: .02em; margin-bottom: 28px; }
   nav a {
-    display: block; padding: 5px 0;
-    color: var(--text-dim); text-decoration: none; font-size: 13px;
-    border-left: 2px solid transparent; padding-left: 10px; margin-left: -12px;
-    transition: color .15s, border-color .15s;
+    display: block; padding: 6px 0 6px 12px; margin-left: -12px;
+    color: var(--text-muted); text-decoration: none;
+    font-size: 14px; font-weight: 500; letter-spacing: .01em;
+    border-left: 2px solid transparent;
+    transition: var(--transition-base);
   }
-  nav a:hover { color: var(--accent); border-left-color: var(--accent); }
+  nav a:hover { color: var(--color-primary); border-left-color: var(--color-primary); background: rgba(74, 96, 122, .06); }
 
   /* ---- 本文 ---- */
-  main { flex: 1; min-width: 0; padding: 48px 48px 96px; }
+  main { flex: 1; min-width: 0; padding: 48px 56px 96px; }
 
-  header.hero { margin-bottom: 56px; }
-  .hero .stars { color: var(--star); letter-spacing: .35em; font-size: 14px; margin-bottom: 14px; }
+  header.hero { margin-bottom: var(--space-xxl); }
+  .hero .stars { color: var(--color-warning); letter-spacing: .3em; font-size: 13px; margin-bottom: 16px; }
   .hero h1 {
-    font-family: var(--serif); font-weight: 800;
-    font-size: clamp(28px, 4vw, 40px); line-height: 1.3;
-    margin: 0 0 12px; color: var(--text-strong);
+    font-family: var(--font-sans); font-weight: 700;
+    font-size: 28px; line-height: 1.5; letter-spacing: -0.02em;
+    margin: 0 0 12px; color: var(--text-main);
   }
-  .hero h1 .en { display: block; font-family: var(--mono); font-weight: 400; font-size: 13px; letter-spacing: .22em; color: var(--accent); margin-bottom: 10px; }
-  .hero p { color: var(--text); max-width: 620px; margin: 0; }
+  .hero h1 .en { display: block; font-family: var(--font-mono); font-weight: 400; font-size: 12px; letter-spacing: .2em; color: var(--color-primary); margin-bottom: 12px; }
+  .hero p { color: var(--text-main); max-width: 640px; margin: 0; }
 
-  section { margin-bottom: 64px; }
+  section { margin-bottom: var(--space-xxl); }
   h2 {
-    font-family: var(--serif); font-weight: 600; font-size: 22px;
-    color: var(--text-strong); margin: 0 0 20px;
-    padding-bottom: 10px; border-bottom: 1px solid var(--line);
+    font-family: var(--font-sans); font-weight: 700; font-size: 22px; line-height: 1.5; letter-spacing: -0.01em;
+    color: var(--text-main); margin: 0 0 20px;
+    padding-bottom: 10px; border-bottom: 1px solid var(--color-border);
     position: relative;
   }
-  h2::after { content: ""; position: absolute; left: 0; bottom: -1px; width: 56px; height: 1px; background: var(--accent); }
-  h2 .no { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-right: 12px; letter-spacing: .1em; }
-  h3 { font-size: 15px; font-weight: 700; color: var(--text-strong); margin: 28px 0 10px; }
-  p { margin: 0 0 12px; }
-  ul, ol { margin: 0 0 12px; padding-left: 1.4em; }
-  li { margin-bottom: 4px; }
-  strong { color: var(--text-strong); }
-  .dim { color: var(--text-dim); font-size: 13px; }
+  h2::after { content: ""; position: absolute; left: 0; bottom: -1px; width: 56px; height: 2px; background: var(--color-primary); }
+  h2 .no { font-family: var(--font-mono); font-weight: 400; font-size: 12px; color: var(--color-primary); margin-right: 12px; letter-spacing: .08em; }
+  h3 { font-family: var(--font-sans); font-size: 18px; font-weight: 600; line-height: 1.5; color: var(--text-main); margin: 28px 0 10px; }
+  p { margin: 0 0 var(--space-md); }
+  ul, ol { margin: 0 0 var(--space-md); padding-left: 1.4em; }
+  li { margin-bottom: 6px; }
+  strong { color: var(--text-main); font-weight: 700; }
+  a { color: var(--color-primary); }
+  .dim { color: var(--text-muted); font-size: 14px; }
 
   code {
-    font-family: var(--mono); font-size: 13px;
-    background: var(--bg-inset); border: 1px solid var(--line);
-    border-radius: 4px; padding: 1px 6px; color: var(--star);
+    font-family: var(--font-mono); font-size: 14px;
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-radius: var(--radius-md); padding: 1px 6px; color: var(--color-primary-dark);
   }
   pre {
-    background: var(--bg-inset); border: 1px solid var(--line);
-    border-left: 3px solid var(--accent-soft);
-    border-radius: 6px; padding: 14px 18px; overflow-x: auto;
-    margin: 0 0 16px;
+    background: var(--color-surface); border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-primary);
+    border-radius: var(--radius-md); padding: 16px 18px; overflow-x: auto;
+    margin: 0 0 var(--space-md);
   }
-  pre code { background: none; border: none; padding: 0; color: var(--star); }
+  pre code { background: none; border: none; padding: 0; color: var(--text-main); line-height: 1.7; }
 
   kbd {
-    font-family: var(--mono); font-size: 12px;
-    background: linear-gradient(#fffdf3, #eee8d5);
-    border: 1px solid #cdc6af; border-bottom-width: 2px;
-    border-radius: 5px; padding: 1px 7px; color: var(--text-strong);
+    font-family: var(--font-mono); font-size: 12px;
+    background: #ffffff;
+    border: 1px solid var(--color-border); border-bottom-width: 2px;
+    border-radius: var(--radius-md); padding: 1px 7px; color: var(--color-primary-dark);
     white-space: nowrap;
   }
 
-  table { width: 100%; border-collapse: collapse; margin: 0 0 18px; font-size: 13.5px; }
+  table { width: 100%; border-collapse: collapse; margin: 0 0 18px; font-size: 14px; }
   th {
-    text-align: left; font-weight: 500; font-family: var(--mono); font-size: 11px;
-    letter-spacing: .1em; color: var(--accent); text-transform: uppercase;
-    padding: 8px 12px; border-bottom: 1px solid var(--accent-soft);
+    text-align: left; font-weight: 500; font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: .08em; color: var(--color-primary); text-transform: uppercase;
+    padding: 8px 12px; border-bottom: 1px solid var(--color-primary);
   }
-  td { padding: 7px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  tr:hover td { background: rgba(38,139,210,.05); }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+  tr:hover td { background: rgba(74, 96, 122, .05); }
 
   /* ---- スクリーンショット ---- */
-  figure.shot { margin: 0 0 16px; }
+  figure.shot { margin: 0 0 var(--space-md); }
   figure.shot img {
     display: block; width: 100%; height: auto;
-    border: 1px solid var(--line); border-radius: 8px;
-    box-shadow: 0 10px 30px rgba(88,110,117,.16);
+    border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+    box-shadow: var(--elevation-2);
   }
-  figure.shot figcaption { margin-top: 8px; font-size: 12px; color: var(--text-dim); text-align: center; }
+  figure.shot figcaption { margin-top: 8px; font-size: 12px; line-height: 1.5; letter-spacing: .02em; color: var(--text-muted); text-align: center; }
 
-  .steps { counter-reset: step; list-style: none; padding: 0; margin: 0 0 16px; }
+  .steps { counter-reset: step; list-style: none; padding: 0; margin: 0 0 var(--space-md); }
   .steps li {
     counter-increment: step; position: relative;
     padding: 0 0 14px 46px; margin: 0;
   }
   .steps li::before {
     content: counter(step);
-    position: absolute; left: 0; top: 2px;
-    width: 28px; height: 28px; line-height: 27px; text-align: center;
-    font-family: var(--mono); font-size: 13px; color: var(--accent);
-    border: 1px solid var(--accent); border-radius: 50%;
+    position: absolute; left: 0; top: 1px;
+    width: 28px; height: 28px; line-height: 26px; text-align: center;
+    font-family: var(--font-mono); font-size: 13px; color: var(--color-primary);
+    border: 1px solid var(--color-primary); border-radius: 50%;
   }
   .note {
-    background: var(--bg-panel); border: 1px solid var(--line);
-    border-left: 3px solid var(--accent); border-radius: 6px;
-    padding: 12px 16px; margin: 0 0 16px; font-size: 13.5px;
+    background: rgba(74, 96, 122, .06); border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-primary); border-radius: var(--radius-md);
+    padding: 12px 16px; margin: 0 0 var(--space-md); font-size: 14px; line-height: 1.7;
   }
-  .note .t { color: var(--accent); font-weight: 700; margin-right: 8px; }
+  .note .t { color: var(--color-primary); font-weight: 700; margin-right: 8px; }
 
   .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; }
 
   footer {
-    margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--line);
-    font-family: var(--mono); font-size: 11px; color: var(--text-dim); letter-spacing: .08em;
+    margin-top: var(--space-xxl); padding-top: 20px; border-top: 1px solid var(--color-border);
+    font-family: var(--font-mono); font-size: 11px; color: var(--text-disabled); letter-spacing: .06em;
   }
 
-  @media (max-width: 860px) {
+  /* ---- Responsive（DESIGN.md breakpoints） ---- */
+  @media (max-width: 1024px) {
     nav { display: none; }
-    main { padding: 32px 22px 64px; }
+    main { padding: 40px 32px 72px; }
+  }
+  @media (max-width: 640px) {
+    body { font-size: 15px; }
+    main { padding: 28px 16px 56px; }
+    .hero h1 { font-size: 24px; }
     .cols { grid-template-columns: 1fr; }
   }
 </style>
