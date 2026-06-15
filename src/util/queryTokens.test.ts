@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractField, upsertField } from "./queryTokens";
+import { extractField, upsertField, tokenizeQuery } from "./queryTokens";
 
 describe("extractField", () => {
   it("reads an unquoted field value", () => {
@@ -48,5 +48,28 @@ describe("upsertField", () => {
   it("round-trips a quoted value", () => {
     const q = upsertField("", "prompt", "a b");
     expect(extractField(q, "prompt")).toBe("a b");
+  });
+});
+
+describe("tokenizeQuery 括弧式", () => {
+  it("keeps field:(...) as one token", () => {
+    const toks = tokenizeQuery("prompt:(forest AND cabin) rating:>=4");
+    expect(toks.map((t) => t.text)).toEqual(["prompt:(forest AND cabin)", "rating:>=4"]);
+    expect(toks[0].lead).toBe("prompt:");
+    expect(toks[0].quoted).toBe(false);
+    expect(toks[0].negate).toBe(false);
+  });
+
+  it("keeps -field:(...) as one negated token", () => {
+    const toks = tokenizeQuery("-prompt:(a OR b)");
+    expect(toks).toHaveLength(1);
+    expect(toks[0].negate).toBe(true);
+    expect(toks[0].text).toBe("prompt:(a OR b)");
+    expect(toks[0].lead).toBe("prompt:");
+  });
+
+  it("keeps quotes inside the paren value", () => {
+    const toks = tokenizeQuery('prompt:("best quality" AND x)');
+    expect(toks[0].text).toBe('prompt:("best quality" AND x)');
   });
 });

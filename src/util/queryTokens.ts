@@ -22,6 +22,9 @@ export function tokenizeQuery(input: string): RawToken[] {
   let lead = "";
   let inQuote = false;
   let quoted = false;
+  // フィールド値括弧の状態。parenDepth>0 の間は空白で区切らずクォートも外さない。
+  let parenDepth = 0;
+  let parenInQuote = false;
 
   const flush = () => {
     if (cur !== "" || quoted) {
@@ -39,6 +42,19 @@ export function tokenizeQuery(input: string): RawToken[] {
   };
 
   for (const c of input) {
+    if (parenDepth > 0) {
+      cur += c;
+      if (c === '"') {
+        parenInQuote = !parenInQuote;
+      } else if (!parenInQuote) {
+        if (c === "(") parenDepth++;
+        else if (c === ")") {
+          parenDepth--;
+          if (parenDepth === 0) parenInQuote = false;
+        }
+      }
+      continue;
+    }
     if (c === '"') {
       if (inQuote) {
         inQuote = false;
@@ -46,6 +62,10 @@ export function tokenizeQuery(input: string): RawToken[] {
         inQuote = true;
         quoted = true;
       }
+    } else if (c === "(" && !inQuote && !quoted && cur.endsWith(":") && cur.length > 1) {
+      cur += "(";
+      parenDepth = 1;
+      parenInQuote = false;
     } else if (/\s/.test(c) && !inQuote) {
       flush();
     } else {
