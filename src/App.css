@@ -633,6 +633,9 @@ body,
 .date-clear {
   font-size: 11px;
 }
+.date-jump {
+  font-size: 11px;
+}
 /* 画像が存在する日のハイライト */
 .rdp-has-images:not([disabled]) {
   font-weight: 700;

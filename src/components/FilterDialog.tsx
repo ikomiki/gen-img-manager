@@ -287,6 +287,14 @@ export function FilterDialog({ onClose }: Props) {
                   クリア
                 </button>
               )}
+              <button
+                type="button"
+                className="date-jump"
+                disabled={!createdTo}
+                onClick={() => createdTo && setFromMonth(localDateToDate(createdTo))}
+              >
+                終了月を開く
+              </button>
             </div>
             <DayPicker
               mode="single"
@@ -321,6 +329,14 @@ export function FilterDialog({ onClose }: Props) {
                   クリア
                 </button>
               )}
+              <button
+                type="button"
+                className="date-jump"
+                disabled={!createdFrom}
+                onClick={() => createdFrom && setToMonth(localDateToDate(createdFrom))}
+              >
+                開始月を開く
+              </button>
             </div>
             <DayPicker
               mode="single"

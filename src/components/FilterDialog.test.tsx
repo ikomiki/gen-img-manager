@@ -172,4 +172,19 @@ describe("FilterDialog", () => {
     // レーティング下限セレクト + 開始(月,年) + 終了(月,年) = 少なくとも 5 個。
     expect(combos.length).toBeGreaterThanOrEqual(5);
   });
+
+  it("「終了月を開く」は終了日が未選択なら無効", () => {
+    useQueryStore.setState({ query: "" });
+    render(<FilterDialog onClose={() => {}} />);
+    expect((screen.getByText("終了月を開く") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByText("開始月を開く") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("相手の選択日があれば月ジャンプボタンが有効", () => {
+    useQueryStore.setState({ query: "created:2025-03-10..2025-08-20" });
+    render(<FilterDialog onClose={() => {}} />);
+    // 開始=2025-03-10, 終了=2025-08-20 がともに選択済み。
+    expect((screen.getByText("終了月を開く") as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByText("開始月を開く") as HTMLButtonElement).disabled).toBe(false);
+  });
 });
