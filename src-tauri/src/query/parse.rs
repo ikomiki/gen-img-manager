@@ -144,6 +144,35 @@ fn parens_balanced(s: &str) -> bool {
     depth == 0
 }
 
+/// 組み立て済みトークン列（"フレーズ" / AND / OR / ( / )）が FTS5 式として構文的に妥当か。
+/// - 演算子(AND/OR)は直前が項末（フレーズ or `)`）、直後が項始（フレーズ or `(`）でなければ不正
+/// - 空括弧 `( )` は不正
+/// - 項（フレーズ）が1つも無いものは不正
+fn fts_expr_valid(tokens: &[String]) -> bool {
+    let is_op = |t: &str| t == "AND" || t == "OR";
+    // 項末＝フレーズ or 閉じ括弧、項始＝フレーズ or 開き括弧
+    let is_term_end = |t: &str| !is_op(t) && t != "(";
+    let is_term_start = |t: &str| !is_op(t) && t != ")";
+
+    for (i, t) in tokens.iter().enumerate() {
+        if is_op(t) {
+            let prev_ok = i > 0 && is_term_end(&tokens[i - 1]);
+            let next_ok = tokens.get(i + 1).map(|n| is_term_start(n)).unwrap_or(false);
+            if !prev_ok || !next_ok {
+                return false;
+            }
+        }
+    }
+    // 空括弧ペア
+    for i in 0..tokens.len() {
+        if tokens[i] == "(" && tokens.get(i + 1).map(|s| s.as_str()) == Some(")") {
+            return false;
+        }
+    }
+    // 項（演算子でも括弧でもないトークン）が最低1つ必要
+    tokens.iter().any(|t| !is_op(t) && t != "(" && t != ")")
+}
+
 /// フィールド値内のミニ論理式を FTS5 式へ変換する。
 /// - 裸の語 → fts_quote でダブルクォート（インジェクション/構文エラー対策）
 /// - `AND` / `OR`（大文字のみ）→ そのまま転写（FTS5 演算子）
@@ -196,6 +225,9 @@ fn field_expr_to_fts(value: &str) -> String {
                 }
             }
         }
+    }
+    if !fts_expr_valid(&out) {
+        return fts_quote(value);
     }
     out.join(" ")
 }
@@ -635,5 +667,33 @@ mod tests {
         // 未閉じ括弧は FTS5 構文エラーを避けるため1フレーズ化（graceful degradation）。
         let pq = parse("prompt:(unclosed");
         assert_eq!(pq.fts_include.as_deref(), Some("positive : \"(unclosed\""));
+    }
+
+    #[test]
+    fn field_expr_invalid_operator_placement_falls_back_to_phrase() {
+        // 演算子の位置が不正な式は構文エラーを避けてフレーズ化フォールバック。
+        assert_eq!(field_expr_to_fts("(forest AND)"), "\"(forest AND)\"");
+        assert_eq!(field_expr_to_fts("(AND forest)"), "\"(AND forest)\"");
+        assert_eq!(field_expr_to_fts("(forest AND OR cabin)"), "\"(forest AND OR cabin)\"");
+        assert_eq!(field_expr_to_fts("()"), "\"()\"");
+        assert_eq!(field_expr_to_fts("(AND)"), "\"(AND)\"");
+    }
+
+    #[test]
+    fn field_expr_valid_expressions_still_convert() {
+        // 正常な式は従来どおり変換される（回帰防止）。
+        assert_eq!(field_expr_to_fts("(forest AND cabin)"), "( \"forest\" AND \"cabin\" )");
+        assert_eq!(field_expr_to_fts("(forest)"), "( \"forest\" )");
+        assert_eq!(
+            field_expr_to_fts("((forest AND cabin) OR sunset)"),
+            "( ( \"forest\" AND \"cabin\" ) OR \"sunset\" )"
+        );
+    }
+
+    #[test]
+    fn parse_invalid_operator_field_falls_back() {
+        // parse 経由でも構文エラーにならない（フレーズ化）。
+        let pq = parse("prompt:(forest AND)");
+        assert_eq!(pq.fts_include.as_deref(), Some("positive : \"(forest AND)\""));
     }
 }
