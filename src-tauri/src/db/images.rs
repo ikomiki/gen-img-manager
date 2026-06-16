@@ -102,6 +102,18 @@ pub fn set_rating(conn: &Connection, id: i64, rating: Option<i64>) -> rusqlite::
     Ok(())
 }
 
+/// 複数画像のレーティングを 1 トランザクションで一括更新する。None でクリア（NULL）。
+pub fn set_ratings(conn: &mut Connection, ids: &[i64], rating: Option<i64>) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    {
+        let mut stmt = tx.prepare("UPDATE images SET rating = ?2 WHERE id = ?1")?;
+        for &id in ids {
+            stmt.execute(params![id, rating])?;
+        }
+    }
+    tx.commit()
+}
+
 #[cfg(test)]
 pub fn count_in_directory(conn: &Connection, directory_id: i64) -> rusqlite::Result<i64> {
     conn.query_row(
@@ -221,6 +233,23 @@ mod tests {
             .query_row("SELECT rating FROM images WHERE id = ?1", params![id], |r| r.get(0))
             .unwrap();
         assert_eq!(r2, None);
+    }
+
+    #[test]
+    fn set_ratings_updates_multiple_then_clears_subset() {
+        fn read_rating(c: &Connection, id: i64) -> Option<i64> {
+            c.query_row("SELECT rating FROM images WHERE id = ?1", params![id], |r| r.get(0))
+                .unwrap()
+        }
+        let mut c = conn();
+        let id1 = upsert(&c, &sample("/d/a.png")).unwrap();
+        let id2 = upsert(&c, &sample("/d/b.png")).unwrap();
+        set_ratings(&mut c, &[id1, id2], Some(3)).unwrap();
+        assert_eq!(read_rating(&c, id1), Some(3));
+        assert_eq!(read_rating(&c, id2), Some(3));
+        set_ratings(&mut c, &[id1], None).unwrap();
+        assert_eq!(read_rating(&c, id1), None);
+        assert_eq!(read_rating(&c, id2), Some(3));
     }
 
     #[test]
