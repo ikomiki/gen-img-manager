@@ -262,18 +262,10 @@ export function ImageGridPanel() {
     if (ids.length > 0) void rateSelected(ids, rating);
   };
 
-  if (width === 0) {
-    return <div className="image-grid" ref={parentRef} />;
-  }
-
-  if (results.length === 0) {
-    return (
-      <div className="image-grid" ref={parentRef}>
-        <p className="placeholder-note">該当する画像がありません</p>
-      </div>
-    );
-  }
-
+  // 早期 return で .image-grid 単独を返すと、選択バーの有無や width 確定で
+  // .image-grid のツリー位置がずれて React が再マウントし、ResizeObserver が
+  // 旧要素を監視し続けて width=0 に陥る（グリッドが真っ白になる）。
+  // .image-grid を常に同じ位置に置き、中身だけ width/results で出し分ける。
   return (
     <>
       {selection.size >= 1 && (
@@ -305,6 +297,10 @@ export function ImageGridPanel() {
         e.preventDefault();
       }}
     >
+      {width > 0 && results.length === 0 && (
+        <p className="placeholder-note">該当する画像がありません</p>
+      )}
+      {width > 0 && results.length > 0 && (
       <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}>
         {rowVirtualizer.getVirtualItems().map((vrow) => {
           const start = vrow.index * columns;
@@ -384,6 +380,7 @@ export function ImageGridPanel() {
           );
         })}
       </div>
+      )}
     </div>
       {menuState.open && results[selectedIndex] && (() => {
         const target = results[selectedIndex];
