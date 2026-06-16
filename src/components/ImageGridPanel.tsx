@@ -299,8 +299,6 @@ export function ImageGridPanel() {
     <div className="image-grid" ref={parentRef} tabIndex={0}
       onContextMenu={(e) => {
         e.preventDefault();
-        if (selectedIndex < 0 || !results[selectedIndex]) return;
-        showMenu(e.clientX, e.clientY, results[selectedIndex].id);
       }}
     >
       <div style={{ height: rowVirtualizer.getTotalSize(), position: "relative" }}>
@@ -341,6 +339,14 @@ export function ImageGridPanel() {
                       parentRef.current?.focus();
                     }}
                     onDoubleClick={() => openViewer(globalIndex)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      // 選択外を右クリックしたらその項目を単一選択（Finder 標準挙動）。
+                      if (!selection.has(globalIndex)) selectSingle(globalIndex);
+                      parentRef.current?.focus();
+                      showMenu(e.clientX, e.clientY, globalIndex);
+                    }}
                   >
                     <div className="thumb-square" style={{ height: cellSize }}>
                       {img.thumb_path ? (
@@ -377,55 +383,88 @@ export function ImageGridPanel() {
     </div>
       {menuState.open && results[selectedIndex] && (() => {
         const target = results[selectedIndex];
-        const menuItems: MenuEntry[] = [
-          {
-            label: "ビューアで開く",
-            onClick: () => {
-              openViewer(selectedIndex);
-              closeMenu();
+        const count = selection.size;
+        const ids = targetIds();
+        const menuItems: MenuEntry[] = [];
+        if (count > 1) {
+          menuItems.push(
+            {
+              label: "レーティング: クリア",
+              onClick: () => {
+                void rateSelected(ids, null);
+                closeMenu();
+              },
             },
-          },
-          {
-            label: "スライドショー開始",
-            onClick: () => {
-              void startSlideshow(
-                results.map((r) => r.path),
-                results.map((r) => r.id),
-                results.map((r) => r.rating),
-                selectedIndex,
-              ).catch((e) => console.error("スライドショー起動に失敗しました:", e));
-              closeMenu();
+            ...[1, 2, 3, 4, 5].map((n) => ({
+              label: `レーティング: ★${n}`,
+              onClick: () => {
+                void rateSelected(ids, n);
+                closeMenu();
+              },
+            })),
+            { separator: true as const },
+            {
+              label: `ゴミ箱へ移動（${count}件）`,
+              onClick: () => {
+                closeMenu();
+                setConfirmOpen(true);
+              },
             },
-          },
-          { separator: true as const },
-          {
-            label: "Finderで表示",
-            shortcut: "O",
-            onClick: () => {
-              void revealInFinder(target.path).catch((e) =>
-                console.error("Finderで表示に失敗しました:", e),
-              );
-              closeMenu();
+          );
+        } else {
+          menuItems.push(
+            {
+              label: "ビューアで開く",
+              onClick: () => {
+                openViewer(selectedIndex);
+                closeMenu();
+              },
             },
-          },
-          {
-            label: "パスをコピー",
-            shortcut: "C",
-            onClick: () => {
-              void navigator.clipboard
-                .writeText(target.path)
-                .catch((e) => console.error("パスのコピーに失敗しました:", e));
-              closeMenu();
+            {
+              label: "スライドショー開始",
+              onClick: () => {
+                void startSlideshow(
+                  results.map((r) => r.path),
+                  results.map((r) => r.id),
+                  results.map((r) => r.rating),
+                  selectedIndex,
+                ).catch((err) => console.error("スライドショー起動に失敗しました:", err));
+                closeMenu();
+              },
             },
-          },
-        ];
+            { separator: true as const },
+            {
+              label: "Finderで表示",
+              shortcut: "O",
+              onClick: () => {
+                void revealInFinder(target.path).catch((err) =>
+                  console.error("Finderで表示に失敗しました:", err),
+                );
+                closeMenu();
+              },
+            },
+            {
+              label: "パスをコピー",
+              shortcut: "C",
+              onClick: () => {
+                void navigator.clipboard
+                  .writeText(target.path)
+                  .catch((err) => console.error("パスのコピーに失敗しました:", err));
+                closeMenu();
+              },
+            },
+            { separator: true as const },
+            {
+              label: "ゴミ箱へ移動",
+              onClick: () => {
+                closeMenu();
+                setConfirmOpen(true);
+              },
+            },
+          );
+        }
         return (
-          <ContextMenu
-            x={menuState.x}
-            y={menuState.y}
-            onClose={closeMenu}
-            items={menuItems}
-          />
+          <ContextMenu x={menuState.x} y={menuState.y} onClose={closeMenu} items={menuItems} />
         );
       })()}
       {confirmOpen && (
