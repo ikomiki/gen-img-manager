@@ -29,6 +29,16 @@ export function ImageGridPanel() {
   const openViewer = useViewerStore((s) => s.open);
   const viewerOpen = useViewerStore((s) => s.isOpen);
 
+  const selection = useViewerStore((s) => s.selection);
+  const selectSingle = useViewerStore((s) => s.selectSingle);
+  const toggleSelect = useViewerStore((s) => s.toggleSelect);
+  const selectRange = useViewerStore((s) => s.selectRange);
+  const selectAll = useViewerStore((s) => s.selectAll);
+  const clearSelection = useViewerStore((s) => s.clearSelection);
+  const resetSelection = useViewerStore((s) => s.resetSelection);
+  const rateSelected = useQueryStore((s) => s.rateSelected);
+  const deleteSelected = useQueryStore((s) => s.deleteSelected);
+
   const parentRef = useRef<HTMLDivElement>(null);
   const wasViewerOpen = useRef(false);
   const [width, setWidth] = useState(0);
@@ -176,6 +186,37 @@ export function ImageGridPanel() {
     return () => window.removeEventListener("keydown", onKey);
   }, [viewerOpen, results, selectedIndex, columns, rowHeight, selectImage, openViewer, rowVirtualizer, setRating, ratingMode, unratedOnly]);
 
+  // selection（index 集合）→ 対象 id / {id,path}。selection が空ならアクティブ 1 件。
+  const targetIds = (): number[] => {
+    if (selection.size > 0) {
+      return [...selection].map((i) => results[i]?.id).filter((v): v is number => v != null);
+    }
+    const cur = selectedIndex < 0 ? 0 : selectedIndex;
+    return results[cur] ? [results[cur].id] : [];
+  };
+  const targetItems = (): { id: number; path: string }[] => {
+    const idxs = selection.size > 0 ? [...selection] : [selectedIndex < 0 ? 0 : selectedIndex];
+    return idxs
+      .map((i) => results[i])
+      .filter((r): r is NonNullable<typeof r> => r != null)
+      .map((r) => ({ id: r.id, path: r.path }));
+  };
+  const targetCount = (): number =>
+    selection.size > 0 ? selection.size : results[selectedIndex < 0 ? 0 : selectedIndex] ? 1 : 0;
+  const minSelectedIndex = (): number =>
+    selection.size > 0 ? Math.min(...selection) : selectedIndex < 0 ? 0 : selectedIndex;
+
+  // 以下の変数は A9–A11 タスクで利用予定。未使用警告を抑制するため void で参照する。
+  void selectAll;
+  void clearSelection;
+  void resetSelection;
+  void rateSelected;
+  void deleteSelected;
+  void targetIds;
+  void targetItems;
+  void targetCount;
+  void minSelectedIndex;
+
   if (width === 0) {
     return <div className="image-grid" ref={parentRef} />;
   }
@@ -220,11 +261,17 @@ export function ImageGridPanel() {
                 return (
                   <div
                     key={img.id}
-                    className={
-                      globalIndex === selectedIndex ? "thumb-cell selected" : "thumb-cell"
-                    }
-                    onClick={() => {
-                      selectImage(globalIndex);
+                    className={[
+                      "thumb-cell",
+                      globalIndex === selectedIndex ? "selected" : "",
+                      selection.has(globalIndex) ? "in-selection" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    onClick={(e) => {
+                      if (e.metaKey || e.ctrlKey) toggleSelect(globalIndex);
+                      else if (e.shiftKey) selectRange(globalIndex);
+                      else selectSingle(globalIndex);
                       // クリックでグリッドへフォーカスを移し、Enter/カーソルキーを有効にする。
                       parentRef.current?.focus();
                     }}
