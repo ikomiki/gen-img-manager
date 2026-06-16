@@ -958,3 +958,56 @@ body,
   gap: 8px;
   margin-top: 8px;
 }
+
+/* 複数選択バー + 画像グリッドを縦に並べるコンテナ */
+.image-grid-slot {
+  display: flex;
+  flex-direction: column;
+}
+.image-grid-slot .image-grid {
+  flex: 1;
+  height: auto;
+}
+
+/* 複数選択バー */
+.selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  background: #1a1a1a;
+  border-bottom: 1px solid #444;
+  flex: 0 0 auto;
+  color: #eee;
+}
+.selection-count {
+  font-weight: 600;
+}
+.selection-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.selection-rating-label {
+  font-size: 12px;
+  color: #aaa;
+}
+.selection-rate-btn {
+  padding: 2px 6px;
+}
+.selection-bar .danger-btn {
+  margin-left: auto;
+}
+
+/* 複数選択中のセル（アクティブ = .selected の青とは別に琥珀色で区別） */
+.thumb-cell.in-selection .thumb-square {
+  outline: 2px solid #e8a020;
+  outline-offset: 1px;
+}
+
+/* アクティブかつ選択内：青の active outline を前面に重ねる */
+.thumb-cell.selected.in-selection .thumb-square {
+  outline: 2px solid #3a6ea5;
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px #e8a020;
+}
