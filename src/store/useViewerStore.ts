@@ -1,9 +1,10 @@
 import { create } from "zustand";
 import type { ZoomMode } from "../types";
-import { useQueryStore } from "./useQueryStore";
+import { useQueryStore, setOnResultsReplaced } from "./useQueryStore";
 import { syncZoomMenu, setSetting, getSetting } from "../api/prefs";
 import { serializeZoom, parseZoom } from "../util/zoomSetting";
 import { nextZoomMode } from "../util/zoomCycle";
+import { rangeSet, toggleInSet, allIndices } from "../util/selection";
 
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 10;
@@ -14,6 +15,10 @@ interface ViewerState {
   index: number;
   /** グリッドでの選択ハイライト位置（Enterでこのインデックスを open する）。 */
   selectedIndex: number;
+  /** 複数選択集合（results のインデックス）。単一選択時は selectedIndex のみを含む。 */
+  selection: Set<number>;
+  /** Shift 範囲選択の起点インデックス。未設定は -1。 */
+  anchorIndex: number;
   zoomMode: ZoomMode;
   scale: number;
   /** ビューアのメタデータサイドバーを開いているか。 */
@@ -25,6 +30,12 @@ interface ViewerState {
   next: () => void;
   prev: () => void;
   select: (index: number) => void;
+  selectSingle: (index: number) => void;
+  toggleSelect: (index: number) => void;
+  selectRange: (index: number) => void;
+  selectAll: (count: number) => void;
+  clearSelection: () => void;
+  resetSelection: (index: number) => void;
   setZoomMode: (m: ZoomMode) => void;
   zoomBy: (factor: number) => void;
   cycleZoom: () => void;
@@ -44,6 +55,8 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   isOpen: false,
   index: 0,
   selectedIndex: -1,
+  selection: new Set<number>(),
+  anchorIndex: -1,
   zoomMode: "fit",
   scale: 1,
   metaOpen: true,
@@ -64,6 +77,34 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     set({ index: Math.max(get().index - 1, 0) });
   },
   select: (index) => set({ selectedIndex: index }),
+  // 通常クリック/矢印: 単一選択（他を解除）。
+  selectSingle: (index) =>
+    set({ selection: new Set([index]), selectedIndex: index, anchorIndex: index }),
+  // Cmd/Ctrl+クリック: 個別トグル。
+  toggleSelect: (index) =>
+    set((s) => ({
+      selection: toggleInSet(s.selection, index),
+      selectedIndex: index,
+      anchorIndex: index,
+    })),
+  // Shift+クリック / Shift+矢印: anchor..index を選択。
+  selectRange: (index) =>
+    set((s) => ({
+      selection: rangeSet(s.anchorIndex < 0 ? index : s.anchorIndex, index),
+      selectedIndex: index,
+    })),
+  // Cmd/Ctrl+A: 全選択（アクティブ/アンカーは維持）。
+  selectAll: (count) => set({ selection: allIndices(count) }),
+  // Esc: 単一選択に戻す（完全クリアではない）。
+  clearSelection: () =>
+    set((s) => ({ selection: new Set(s.selectedIndex >= 0 ? [s.selectedIndex] : []) })),
+  // 削除後/総入替後にアクティブと選択を作り直す。index<0 で全解除。
+  resetSelection: (index) =>
+    set({
+      selection: index >= 0 ? new Set([index]) : new Set(),
+      selectedIndex: index,
+      anchorIndex: index,
+    }),
   setZoomMode: (m) => {
     set({ zoomMode: m, scale: 1 });
     syncZoomMenu(m).catch((e) => console.error("syncZoomMenu failed:", e));
@@ -95,3 +136,9 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     }
   },
 }));
+
+// クエリ再実行・ソート変更・フィルタ適用などで results が総入替されたら選択を解除する。
+// （rateSelected/deleteSelected は results を直接更新し、このコールバックは呼ばない。）
+setOnResultsReplaced(() => {
+  useViewerStore.setState({ selection: new Set<number>(), selectedIndex: -1, anchorIndex: -1 });
+});
