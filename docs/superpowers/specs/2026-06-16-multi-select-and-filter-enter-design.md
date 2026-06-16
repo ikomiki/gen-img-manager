@@ -91,9 +91,9 @@ Rust 側に 1 回の IPC でまとめて処理するコマンドを追加する�
 - `src/api/fs.ts`: `deleteImages(items)` を追加。
 - `src/api/images.ts`: `setRatings(ids, rating)` を追加。
 - `src/store/useQueryStore.ts`:
-  - `rateSelected(rating)`: `selection` の id 群へ `setRatings` を呼び、`results` をローカル更新。`xmpAutoExport` ON のときは各画像へ `writeXmpRating` を実行（既存の単一フローを踏襲）。XMP の失敗は集計してトースト通知し、本体処理は継続。
-  - `deleteSelected()`: 確認は呼び出し側（UI）で取得済みの前提。`selection` の {id, path} 群へ `deleteImages` を呼び、`results` から除去・`total` 更新、`selection`/`selectedIndex` を更新。結果をトースト通知。
-  - これらは `useViewerStore.selection` を参照する。ストア間参照は既存パターン（`useViewerStore` が `useQueryStore.getState()` を参照済み）に倣う。
+  - `rateSelected(ids, rating)`: 渡された id 群へ `setRatings` を呼び、`results` をローカル更新。`xmpAutoExport` ON のときは各画像へ `writeXmpRating` を実行（既存の単一フローを踏襲）。XMP の失敗は集計してトースト通知し、本体処理は継続。
+  - `deleteSelected(items)`: 確認は呼び出し側（UI）で取得済みの前提。渡された {id, path} 群へ `deleteImages` を呼び、`results` から除去・`total` 更新。結果をトースト通知。
+  - **循環依存回避**: `useViewerStore` は `useQueryStore` を import 済みのため、逆向き参照（`useQueryStore`→`useViewerStore`）は避ける。一括操作の対象（id / {id,path}）は UI 側（`ImageGridPanel`／選択バー）で `selection`（index 集合）から `results` を引いて組み立て、アクションへ**引数として渡す**。選択集合のクリアやアクティブ位置の更新は UI 側で `useViewerStore` のアクションを呼んで行う。
 
 ### A-5. データフロー
 
