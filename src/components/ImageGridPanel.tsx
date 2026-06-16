@@ -25,7 +25,6 @@ export function ImageGridPanel() {
   const { menuState, showMenu, closeMenu } = useContextMenu();
 
   const selectedIndex = useViewerStore((s) => s.selectedIndex);
-  const selectImage = useViewerStore((s) => s.select);
   const openViewer = useViewerStore((s) => s.open);
   const viewerOpen = useViewerStore((s) => s.isOpen);
 
@@ -42,6 +41,8 @@ export function ImageGridPanel() {
   const parentRef = useRef<HTMLDivElement>(null);
   const wasViewerOpen = useRef(false);
   const [width, setWidth] = useState(0);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const el = parentRef.current;
@@ -98,7 +99,25 @@ export function ImageGridPanel() {
         Math.floor((parentRef.current?.clientHeight ?? rowHeight) / rowHeight),
       );
       const pageDelta = visibleRows * columns;
-      // Cmd/Ctrl 併用のキー（Cmd+C による選択テキストのコピー等）は標準動作へ委ねる。
+      // Cmd/Ctrl+A: 全選択。
+      if (hasPrimaryModifier(e) && (e.key === "a" || e.key === "A")) {
+        e.preventDefault();
+        selectAll(len);
+        return;
+      }
+      // 削除キー（修飾キー有無を問わず）: 選択をゴミ箱（確認ダイアログ）。
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        if (targetCount() > 0) setConfirmOpen(true);
+        return;
+      }
+      // Esc: 選択を単一に戻す。
+      if (e.key === "Escape") {
+        e.preventDefault();
+        clearSelection();
+        return;
+      }
+      // 上記以外で Cmd/Ctrl 併用は標準動作へ委ねる（Cmd+C のコピー等）。
       if (hasPrimaryModifier(e)) return;
       switch (e.key) {
         case "ArrowRight":
@@ -133,15 +152,20 @@ export function ImageGridPanel() {
         case "4":
         case "5": {
           e.preventDefault();
-          const target = results[cur];
-          if (target) {
-            const rating = e.key === "0" ? null : Number(e.key);
-            void setRating(target.id, rating);
-            if (ratingMode && unratedOnly && rating !== null) {
-              const ni = nextUnratedIndex(results, cur);
-              if (ni >= 0) {
-                selectImage(ni);
-                rowVirtualizer.scrollToIndex(Math.floor(ni / columns));
+          const rating = e.key === "0" ? null : Number(e.key);
+          if (selection.size > 1) {
+            // 複数選択中は一括適用（auto-advance はしない）。
+            void rateSelected(targetIds(), rating);
+          } else {
+            const target = results[cur];
+            if (target) {
+              void setRating(target.id, rating);
+              if (ratingMode && unratedOnly && rating !== null) {
+                const ni = nextUnratedIndex(results, cur);
+                if (ni >= 0) {
+                  selectSingle(ni);
+                  rowVirtualizer.scrollToIndex(Math.floor(ni / columns));
+                }
               }
             }
           }
@@ -178,13 +202,14 @@ export function ImageGridPanel() {
           return;
       }
       e.preventDefault();
-      selectImage(nextIndex);
+      if (e.shiftKey) selectRange(nextIndex);
+      else selectSingle(nextIndex);
       // 選択行を表示に追従させる。
       rowVirtualizer.scrollToIndex(Math.floor(nextIndex / columns));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [viewerOpen, results, selectedIndex, columns, rowHeight, selectImage, openViewer, rowVirtualizer, setRating, ratingMode, unratedOnly]);
+  }, [viewerOpen, results, selectedIndex, selection, columns, rowHeight, selectSingle, selectRange, selectAll, clearSelection, openViewer, rowVirtualizer, setRating, rateSelected, ratingMode, unratedOnly]);
 
   // selection（index 集合）→ 対象 id / {id,path}。selection が空ならアクティブ 1 件。
   const targetIds = (): number[] => {
@@ -206,16 +231,14 @@ export function ImageGridPanel() {
   const minSelectedIndex = (): number =>
     selection.size > 0 ? Math.min(...selection) : selectedIndex < 0 ? 0 : selectedIndex;
 
-  // 以下の変数は A9–A11 タスクで利用予定。未使用警告を抑制するため void で参照する。
-  void selectAll;
-  void clearSelection;
+  // 以下の変数は A10–A11 タスクで利用予定。未使用警告を抑制するため void で参照する。
   void resetSelection;
-  void rateSelected;
   void deleteSelected;
-  void targetIds;
   void targetItems;
-  void targetCount;
   void minSelectedIndex;
+  void confirmOpen;
+  void deleting;
+  void setDeleting;
 
   if (width === 0) {
     return <div className="image-grid" ref={parentRef} />;
