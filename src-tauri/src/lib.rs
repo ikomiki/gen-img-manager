@@ -242,6 +242,7 @@ pub fn run() {
             commands::slideshow::get_slideshow_payload,
             commands::fs::reveal_in_finder,
             commands::fs::delete_image,
+            commands::fs::delete_images,
             commands::fs::write_xmp_rating,
             commands::analysis::analysis_tag_frequency,
             commands::analysis::analysis_rating_lift,
