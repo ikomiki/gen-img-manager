@@ -8,7 +8,7 @@ export interface ApplyEnterInput {
   keyCode: number;
   /** イベント発生元要素の tagName（大文字、例 "INPUT"）。 */
   tagName: string;
-  /** 発生元が <input> のときの type 属性。それ以外は ""。 */
+  /** 発生元が <input> の場合の type 属性（HTMLInputElement.type を渡す）。それ以外は ""。 */
   inputType: string;
 }
 
