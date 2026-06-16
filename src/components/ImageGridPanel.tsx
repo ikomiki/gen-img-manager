@@ -8,6 +8,8 @@ import { nextUnratedIndex } from "../util/ratingNav";
 import { hasPrimaryModifier } from "../util/platform";
 import { ContextMenu } from "./ContextMenu";
 import type { MenuEntry } from "./ContextMenu";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { clampAfterDelete } from "../util/selection";
 import { useContextMenu } from "../hooks/useContextMenu";
 import { revealInFinder } from "../api/images";
 import { startSlideshow } from "../api/slideshow";
@@ -231,14 +233,30 @@ export function ImageGridPanel() {
   const minSelectedIndex = (): number =>
     selection.size > 0 ? Math.min(...selection) : selectedIndex < 0 ? 0 : selectedIndex;
 
-  // 以下の変数は A10–A11 タスクで利用予定。未使用警告を抑制するため void で参照する。
-  void resetSelection;
-  void deleteSelected;
-  void targetItems;
-  void minSelectedIndex;
-  void confirmOpen;
-  void deleting;
-  void setDeleting;
+  const doDelete = async () => {
+    const items = targetItems();
+    if (items.length === 0) {
+      setConfirmOpen(false);
+      return;
+    }
+    const minIndex = minSelectedIndex();
+    setDeleting(true);
+    try {
+      await deleteSelected(items);
+    } catch (e) {
+      console.error("一括削除に失敗しました:", e);
+    } finally {
+      setDeleting(false);
+      setConfirmOpen(false);
+    }
+    const remaining = useQueryStore.getState().results.length;
+    resetSelection(clampAfterDelete(minIndex, remaining));
+  };
+
+  const rateFromBar = (rating: number | null) => {
+    const ids = targetIds();
+    if (ids.length > 0) void rateSelected(ids, rating);
+  };
 
   if (width === 0) {
     return <div className="image-grid" ref={parentRef} />;
@@ -254,6 +272,30 @@ export function ImageGridPanel() {
 
   return (
     <>
+      {selection.size >= 1 && (
+        <div className="selection-bar">
+          <span className="selection-count">{selection.size}件選択中</span>
+          <span className="selection-rating">
+            <span className="selection-rating-label">レーティング:</span>
+            {[0, 1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                className="selection-rate-btn"
+                onClick={() => rateFromBar(n === 0 ? null : n)}
+              >
+                {n === 0 ? "クリア" : `★${n}`}
+              </button>
+            ))}
+          </span>
+          <button type="button" className="danger-btn" onClick={() => setConfirmOpen(true)}>
+            ゴミ箱へ移動
+          </button>
+          <button type="button" onClick={() => clearSelection()}>
+            選択解除
+          </button>
+        </div>
+      )}
     <div className="image-grid" ref={parentRef} tabIndex={0}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -386,6 +428,16 @@ export function ImageGridPanel() {
           />
         );
       })()}
+      {confirmOpen && (
+        <ConfirmDialog
+          title="ゴミ箱へ移動"
+          body={`${targetCount()}件をゴミ箱に移動しますか？`}
+          confirmLabel="ゴミ箱へ移動"
+          busy={deleting}
+          onConfirm={() => void doDelete()}
+          onCancel={() => setConfirmOpen(false)}
+        />
+      )}
     </>
   );
 }
