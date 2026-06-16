@@ -195,4 +195,32 @@ describe("FilterDialog", () => {
     const options = screen.getAllByRole("option");
     expect(options.some((o) => o.textContent?.includes("2020"))).toBe(true);
   });
+
+  it("テキスト入力欄での Enter で適用される", () => {
+    const setQuery = vi.fn();
+    const onClose = vi.fn();
+    useQueryStore.setState({ setQuery, runQuery: vi.fn().mockResolvedValue(undefined) });
+    render(<FilterDialog onClose={onClose} />);
+    const input = screen.getByLabelText("プロンプト");
+    fireEvent.change(input, { target: { value: "forest" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(setQuery).toHaveBeenCalled();
+  });
+
+  it("IME 変換確定中の Enter では適用しない", () => {
+    const setQuery = vi.fn();
+    useQueryStore.setState({ setQuery, runQuery: vi.fn().mockResolvedValue(undefined) });
+    render(<FilterDialog onClose={() => {}} />);
+    const input = screen.getByLabelText("プロンプト");
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    expect(setQuery).not.toHaveBeenCalled();
+  });
+
+  it("レーティング下限 select 上の Enter では適用しない", () => {
+    const setQuery = vi.fn();
+    useQueryStore.setState({ setQuery, runQuery: vi.fn().mockResolvedValue(undefined) });
+    render(<FilterDialog onClose={() => {}} />);
+    fireEvent.keyDown(screen.getByLabelText("レーティング下限"), { key: "Enter" });
+    expect(setQuery).not.toHaveBeenCalled();
+  });
 });

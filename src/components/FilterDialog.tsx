@@ -11,6 +11,7 @@ import {
   RATING_VALUES,
   type RatingValue,
 } from "../util/ratingFilter";
+import { isApplyEnter } from "../util/dialogKeys";
 
 interface Props {
   onClose: () => void;
@@ -120,6 +121,23 @@ export function FilterDialog({ onClose }: Props) {
     }
   };
 
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const t = e.target as HTMLElement;
+    const inputType = t instanceof HTMLInputElement ? t.type : "";
+    if (
+      isApplyEnter({
+        key: e.key,
+        isComposing: e.nativeEvent.isComposing,
+        keyCode: e.nativeEvent.keyCode,
+        tagName: t.tagName,
+        inputType,
+      })
+    ) {
+      e.preventDefault();
+      void apply();
+    }
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -154,7 +172,7 @@ export function FilterDialog({ onClose }: Props) {
 
   return (
     <div className="dialog-backdrop">
-      <div className="dialog filter-dialog">
+      <div className="dialog filter-dialog" onKeyDown={onKeyDown}>
         <h3>詳細フィルタ</h3>
 
         <div className="filter-fields">
