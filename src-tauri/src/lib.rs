@@ -224,6 +224,7 @@ pub fn run() {
             commands::query::count_query,
             commands::query::get_image_detail,
             commands::query::set_rating,
+            commands::query::set_ratings,
             commands::prefs::add_filter_history,
             commands::prefs::list_filter_history,
             commands::prefs::get_setting,

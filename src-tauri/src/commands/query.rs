@@ -50,3 +50,15 @@ pub fn set_rating(db: State<Db>, id: i64, rating: Option<i64>) -> Result<(), Str
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     crate::db::images::set_rating(&conn, id, rating).map_err(|e| e.to_string())
 }
+
+/// 複数画像のレーティングを一括設定する（None でクリア）。範囲外はエラー。
+#[tauri::command]
+pub fn set_ratings(db: State<Db>, ids: Vec<i64>, rating: Option<i64>) -> Result<(), String> {
+    if let Some(r) = rating {
+        if !(1..=5).contains(&r) {
+            return Err(format!("rating out of range: {r}"));
+        }
+    }
+    let mut conn = db.0.lock().map_err(|e| e.to_string())?;
+    crate::db::images::set_ratings(&mut conn, &ids, rating).map_err(|e| e.to_string())
+}
