@@ -34,8 +34,7 @@
 
 - `selectSingle(index)`: `selection = {index}`, `selectedIndex = index`, `anchorIndex = index`
 - `toggleSelect(index)`: `index` を `selection` にトグル、`selectedIndex = index`, `anchorIndex = index`
-- `selectRange(index)`: `anchorIndex..index`（昇順レンジ）を `selection` に設定、`selectedIndex = index`（`anchorIndex` は維持）
-- `extendRange(index)`: Shift+矢印用。`anchorIndex..index` を `selection` に、`selectedIndex = index`
+- `selectRange(index)`: `anchorIndex..index`（昇順レンジ）を `selection` に設定、`selectedIndex = index`（`anchorIndex` は維持）。Shift+クリックと Shift+矢印で共通利用する（実装では `extendRange` を別に設けず `selectRange` に統合した）。
 - `selectAll(count)`: `selection = {0..count-1}`
 - `clearSelection()`: `selection = {selectedIndex}` に戻す（単一選択へ）
 
@@ -49,12 +48,14 @@
 | Cmd/Ctrl+クリック | `toggleSelect(i)` |
 | Shift+クリック | `selectRange(i)` |
 | 矢印キー（既存） | 移動先で `selectSingle(新index)`（範囲リセット） |
-| Shift+矢印 | `extendRange(新index)` |
+| Shift+矢印 | `selectRange(新index)` |
 | Cmd/Ctrl+A | `selectAll(results.length)`。グリッド/ body にフォーカスがある時のみ。デフォルトの全選択を `preventDefault` |
 | Esc | `clearSelection()`（完全クリアではなく単一に戻す） |
 | `0`–`5` | **`selection` 全体**に一括レーティング。複数選択中（`selection.size > 1`）は auto-advance（次の未評価へ移動）を無効化 |
 | 削除キー（Cmd/Ctrl+Delete, Cmd/Ctrl+Backspace, Delete, Backspace） | **`selection` 全体**をゴミ箱（確認ダイアログ経由）。グリッドに新設 |
 | ダブルクリック / Enter | アクティブ1枚（`selectedIndex`）をビューアで開く。`selection` は維持 |
+
+> **ビューア往復時の選択挙動**: 複数選択中にダブルクリック/Enter でビューアを開き、ビューア内でナビゲートして戻った場合、戻り時にアクティブ項目（`selectedIndex`）が選択集合の外にあれば単一選択へ収束させる（画面外の旧選択に対する `0`-`5`/削除キーの誤爆を防ぐ）。ナビゲートせず閉じた場合はアクティブが選択集合内に留まるため複数選択を維持する。
 
 既存のキーボード処理は `ImageGridPanel.tsx` のウィンドウレベル `keydown` リスナー（`document.activeElement` が body かグリッドの時のみ有効、ビューア表示中は無効）。この枠組みを踏襲し、Shift / Cmd 併用判定を追加する。`hasPrimaryModifier` で Cmd/Ctrl を判定済みのため、Cmd+A・Cmd+Delete はこの分岐内に追加する（現状 Cmd 併用は即 `return` しているので、その手前で A / Delete を拾う）。
 
