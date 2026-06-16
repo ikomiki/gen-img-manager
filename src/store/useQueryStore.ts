@@ -30,6 +30,8 @@ interface QueryState {
   closeHelp: () => void;
   setRating: (id: number, rating: number | null) => Promise<void>;
   deleteImage: (id: number, path: string) => Promise<void>;
+  rateSelected: (ids: number[], rating: number | null) => Promise<void>;
+  deleteSelected: (items: { id: number; path: string }[]) => Promise<void>;
   loadSettings: () => Promise<void>;
   showToast: (msg: string) => void;
   clearToast: () => void;
@@ -42,6 +44,13 @@ interface QueryState {
   toggleShowCurrentFilename: () => Promise<void>;
   toggleShowCurrentPosition: () => Promise<void>;
   toggleShowCurrentRating: () => Promise<void>;
+}
+
+// useQueryStore → useViewerStore の循環 import を避けるため、クエリ総入替時の
+// 選択クリアはコールバック経由で useViewerStore 側から登録する。
+let onResultsReplaced: (() => void) | null = null;
+export function setOnResultsReplaced(cb: () => void): void {
+  onResultsReplaced = cb;
 }
 
 export const useQueryStore = create<QueryState>((set, get) => ({
@@ -74,6 +83,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     const { query, sort, dir } = get();
     const results = await imagesApi.queryImages(query, sort, dir, -1, 0);
     set({ results, total: results.length });
+    onResultsReplaced?.();
     prefsApi
       .setSetting("filter_query", query)
       .catch((e) => console.error("setSetting(filter_query) failed:", e));
@@ -122,6 +132,42 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     const next = get().results.filter((r) => r.id !== id);
     set({ results: next, total: next.length });
     get().showToast("ゴミ箱に移動しました");
+  },
+  rateSelected: async (ids, rating) => {
+    if (ids.length === 0) return;
+    await imagesApi.setRatings(ids, rating);
+    const idSet = new Set(ids);
+    const { xmpAutoExport } = get();
+    if (xmpAutoExport) {
+      const targets = get().results.filter((r) => idSet.has(r.id));
+      let failed = 0;
+      for (const row of targets) {
+        try {
+          await fsApi.writeXmpRating(row.path, rating);
+        } catch (e) {
+          console.error("XMP書き出しに失敗しました:", e);
+          failed++;
+        }
+      }
+      if (failed > 0) get().showToast(`XMPの書き出しに${failed}件失敗しました`);
+    }
+    set({ results: get().results.map((r) => (idSet.has(r.id) ? { ...r, rating } : r)) });
+    get().showToast(`${ids.length}件のレーティングを設定しました`);
+  },
+  deleteSelected: async (items) => {
+    if (items.length === 0) return;
+    const res = await fsApi.deleteImages(items);
+    const failedIds = new Set(res.failed.map((f) => f.id));
+    const targetIds = new Set(items.map((i) => i.id));
+    // 成功した（=失敗集合に無い）対象だけを除去する。
+    const next = get().results.filter((r) => !targetIds.has(r.id) || failedIds.has(r.id));
+    set({ results: next, total: next.length });
+    if (res.failed.length > 0) {
+      console.error("一部の削除に失敗しました:", res.failed);
+      get().showToast(`${res.succeeded}件をゴミ箱に移動（${res.failed.length}件失敗）`);
+    } else {
+      get().showToast(`${res.succeeded}件をゴミ箱に移動しました`);
+    }
   },
   loadSettings: async () => {
     const [sortRaw, showRaw, queryRaw, dirCollapsedRaw, xmpAutoRaw, unratedOnlyRaw, showCurFnameRaw, showCurPosRaw, showCurRatingRaw] = await Promise.all([

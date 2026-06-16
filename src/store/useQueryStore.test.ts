@@ -9,6 +9,7 @@ vi.mock("../api/images");
 vi.mock("../api/prefs");
 vi.mock("../api/fs", () => ({
   deleteImage: vi.fn().mockResolvedValue(undefined),
+  deleteImages: vi.fn().mockResolvedValue({ succeeded: 0, failed: [] }),
   writeXmpRating: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -242,5 +243,38 @@ describe("setRating + XMP 連携", () => {
     useQueryStore.setState({ xmpAutoExport: true });
     await useQueryStore.getState().setRating(1, 3);
     expect(fsApi.writeXmpRating).toHaveBeenCalledWith("/a.png", 3);
+  });
+});
+
+describe("rateSelected / deleteSelected", () => {
+  it("rateSelected は setRatings を呼び results を更新する", async () => {
+    const imagesApi = await import("../api/images");
+    vi.mocked(imagesApi.setRatings).mockResolvedValue(undefined);
+    useQueryStore.setState({
+      results: [
+        { id: 1, rating: null } as never,
+        { id: 2, rating: null } as never,
+      ],
+      total: 2,
+      xmpAutoExport: false,
+    });
+    await useQueryStore.getState().rateSelected([1, 2], 4);
+    expect(imagesApi.setRatings).toHaveBeenCalledWith([1, 2], 4);
+    expect(useQueryStore.getState().results.map((r) => r.rating)).toEqual([4, 4]);
+  });
+
+  it("deleteSelected は成功した id を results から除去する", async () => {
+    const fsApi = await import("../api/fs");
+    vi.mocked(fsApi.deleteImages).mockResolvedValue({ succeeded: 1, failed: [] });
+    useQueryStore.setState({
+      results: [
+        { id: 1, path: "/d/1.png" } as never,
+        { id: 2, path: "/d/2.png" } as never,
+      ],
+      total: 2,
+    });
+    await useQueryStore.getState().deleteSelected([{ id: 1, path: "/d/1.png" }]);
+    expect(useQueryStore.getState().results.map((r) => r.id)).toEqual([2]);
+    expect(useQueryStore.getState().total).toBe(1);
   });
 });
