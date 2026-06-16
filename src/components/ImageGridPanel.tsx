@@ -77,11 +77,15 @@ export function ImageGridPanel() {
     if (wasViewerOpen.current && !viewerOpen) {
       parentRef.current?.focus();
       if (selectedIndex >= 0) {
+        // ビューア内のナビゲーションでアクティブ項目が選択集合の外へ移動していたら、
+        // 単一選択へ収束させる（画面外の旧選択に対する 0-5/削除キーの誤爆を防ぐ）。
+        // ナビゲーションせず閉じた場合はアクティブが選択集合内なので、複数選択は維持される。
+        if (!selection.has(selectedIndex)) selectSingle(selectedIndex);
         rowVirtualizer.scrollToIndex(Math.floor(selectedIndex / columns));
       }
     }
     wasViewerOpen.current = viewerOpen;
-  }, [viewerOpen, selectedIndex, columns, rowVirtualizer]);
+  }, [viewerOpen, selectedIndex, selection, selectSingle, columns, rowVirtualizer]);
 
   // グリッドのキーボード操作（ウィンドウレベル。コンテナのフォーカス有無に依存しない）。
   // テキスト入力やボタン等にフォーカスがある場合、およびビューア表示中は無効化する。
@@ -345,7 +349,7 @@ export function ImageGridPanel() {
                       // 選択外を右クリックしたらその項目を単一選択（Finder 標準挙動）。
                       if (!selection.has(globalIndex)) selectSingle(globalIndex);
                       parentRef.current?.focus();
-                      showMenu(e.clientX, e.clientY, globalIndex);
+                      showMenu(e.clientX, e.clientY, img.id);
                     }}
                   >
                     <div className="thumb-square" style={{ height: cellSize }}>
