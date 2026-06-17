@@ -81,6 +81,7 @@ AI（Claude Code）が生成するコミットメッセージは、Conventional 
 - **asset protocol**: 原画像とサムネイルは Tauri の asset protocol で表示する。`lib.rs` の setup で `thumbnails/` と登録ディレクトリ配下を `allow_directory` する（新規ディレクトリ追加時も許可が必要）。
 - **オフラインドライブ対策** (`fs_guard.rs`): 切断されたネットワークドライブで `exists()` がハングしてUIを止めないよう、別スレッド＋タイムアウトで到達性を判定する。
 - **設定の永続化**: ユーザ設定・フィルタ履歴・最後のクエリは SQLite の `settings`/`filter_history` テーブルに保存（`commands/prefs.rs`）。DBは `app_data_dir()/library.db`。
+- **キーボードショートカット**: ショートカット判定（フロントの `keydown` ハンドラ・ネイティブメニューのアクセラレータ）は、**修飾キー（Cmd/Ctrl・Shift・Alt/Option）が完全一致することを条件**とする。「Cmd を含む」程度の緩い判定は、より多くの修飾キーを伴う別ショートカット（例: `Cmd+A`=全選択 と `Cmd+Shift+A`=分析）を巻き込み、`preventDefault()` でネイティブメニューを奪うなどの競合を起こす。判定ロジックは `src/util/platform.ts` の純粋関数（`isSelectAllKey` など）に切り出し、不要な修飾キーを明示的に除外してテストする。
 
 ### テスト指向
 

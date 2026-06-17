@@ -27,3 +27,19 @@ export function hasPrimaryModifier(
 ): boolean {
   return e.metaKey || e.ctrlKey;
 }
+
+/**
+ * 「全選択」(Cmd/Ctrl+A) のキー入力かを判定する。
+ * 修飾キーは完全一致を条件とし、Shift/Alt 併用（Cmd/Ctrl+Shift+A = 分析メニュー等）は
+ * 除外する。これにより preventDefault でネイティブメニューのアクセラレータを奪わない。
+ */
+export function isSelectAllKey(
+  e: Pick<KeyboardEvent, "metaKey" | "ctrlKey" | "shiftKey" | "altKey" | "key">,
+): boolean {
+  return (
+    hasPrimaryModifier(e) &&
+    !e.shiftKey &&
+    !e.altKey &&
+    (e.key === "a" || e.key === "A")
+  );
+}

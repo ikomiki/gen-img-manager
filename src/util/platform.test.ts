@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { isMac, isFullscreenToggleKey, hasPrimaryModifier } from "./platform";
+import { isMac, isFullscreenToggleKey, hasPrimaryModifier, isSelectAllKey } from "./platform";
 
 function setUA(ua: string) {
   vi.stubGlobal("navigator", { userAgent: ua });
@@ -56,5 +56,38 @@ describe("hasPrimaryModifier", () => {
   });
   it("修飾キーなしの単独キーは false（c=パスコピー等のアプリショートカット対象）", () => {
     expect(hasPrimaryModifier({ metaKey: false, ctrlKey: false })).toBe(false);
+  });
+});
+
+describe("isSelectAllKey", () => {
+  it("Cmd+A で true（全選択）", () => {
+    expect(
+      isSelectAllKey({ metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, key: "a" }),
+    ).toBe(true);
+  });
+  it("Ctrl+A で true（全選択）", () => {
+    expect(
+      isSelectAllKey({ metaKey: false, ctrlKey: true, shiftKey: false, altKey: false, key: "a" }),
+    ).toBe(true);
+  });
+  it("CapsLock 等で key が大文字 A でも Shift 未併用なら true", () => {
+    expect(
+      isSelectAllKey({ metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, key: "A" }),
+    ).toBe(true);
+  });
+  it("Cmd+Shift+A は false（分析メニューのアクセラレータへ委ねる）", () => {
+    expect(
+      isSelectAllKey({ metaKey: true, ctrlKey: false, shiftKey: true, altKey: false, key: "A" }),
+    ).toBe(false);
+  });
+  it("Cmd+Alt+A は false（修飾キー完全一致のため）", () => {
+    expect(
+      isSelectAllKey({ metaKey: true, ctrlKey: false, shiftKey: false, altKey: true, key: "a" }),
+    ).toBe(false);
+  });
+  it("修飾キーなしの A は false", () => {
+    expect(
+      isSelectAllKey({ metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, key: "a" }),
+    ).toBe(false);
   });
 });

@@ -5,7 +5,7 @@ import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
 import { moveIndex } from "../util/gridNav";
 import { nextUnratedIndex } from "../util/ratingNav";
-import { hasPrimaryModifier } from "../util/platform";
+import { hasPrimaryModifier, isSelectAllKey } from "../util/platform";
 import { ContextMenu } from "./ContextMenu";
 import type { MenuEntry } from "./ContextMenu";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -105,8 +105,9 @@ export function ImageGridPanel() {
         Math.floor((parentRef.current?.clientHeight ?? rowHeight) / rowHeight),
       );
       const pageDelta = visibleRows * columns;
-      // Cmd/Ctrl+A: 全選択。
-      if (hasPrimaryModifier(e) && (e.key === "a" || e.key === "A")) {
+      // Cmd/Ctrl+A: 全選択。Shift 併用（Cmd/Ctrl+Shift+A = 分析）は除外し、
+      // preventDefault でネイティブメニューを奪わないようにする。
+      if (isSelectAllKey(e)) {
         e.preventDefault();
         selectAll(len);
         return;
