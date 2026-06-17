@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
-import { render, act } from "@testing-library/react";
+import { render, act, fireEvent } from "@testing-library/react";
 import { ImageGridPanel } from "./ImageGridPanel";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
@@ -100,5 +100,49 @@ describe("ImageGridPanel レイアウト安定性（真っ白バグの回帰防�
     const { container } = render(<ImageGridPanel />);
     // width 0（ResizeObserver 未発火）でも .image-grid は存在する。
     expect(container.querySelectorAll(".image-grid").length).toBe(1);
+  });
+});
+
+describe("選択バー: 選択解除ボタンと Esc の挙動差", () => {
+  function clickClearButton(container: HTMLElement) {
+    const btn = [
+      ...container.querySelectorAll<HTMLButtonElement>(".selection-bar button"),
+    ].find((b) => b.textContent === "選択解除");
+    expect(btn, "選択解除ボタンが見つからない").toBeTruthy();
+    act(() => {
+      fireEvent.click(btn!);
+    });
+  }
+
+  it("選択解除ボタンは選択を 0 件にする（アクティブも残さない）", () => {
+    const { container } = render(<ImageGridPanel />);
+    fireResize(800);
+    act(() => {
+      useViewerStore.setState({
+        selection: new Set<number>([0, 1, 2]),
+        selectedIndex: 2,
+        anchorIndex: 0,
+      });
+    });
+    clickClearButton(container);
+    expect(useViewerStore.getState().selection.size).toBe(0);
+    expect(useViewerStore.getState().selectedIndex).toBe(-1);
+  });
+
+  it("Esc は単一選択へ戻す（アクティブ 1 件を残す）", () => {
+    render(<ImageGridPanel />);
+    fireResize(800);
+    act(() => {
+      useViewerStore.setState({
+        selection: new Set<number>([0, 1, 2]),
+        selectedIndex: 2,
+        anchorIndex: 0,
+      });
+    });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(useViewerStore.getState().selection.size).toBe(1);
+    expect(useViewerStore.getState().selection.has(2)).toBe(true);
   });
 });

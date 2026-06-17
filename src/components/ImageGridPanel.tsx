@@ -288,7 +288,7 @@ export function ImageGridPanel() {
           <button type="button" className="danger-btn" onClick={() => setConfirmOpen(true)}>
             ゴミ箱へ移動
           </button>
-          <button type="button" onClick={() => clearSelection()}>
+          <button type="button" onClick={() => resetSelection(-1)}>
             選択解除
           </button>
         </div>
