@@ -1,4 +1,7 @@
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, SubmenuBuilder};
+use tauri::menu::{
+    CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, SubmenuBuilder, HELP_SUBMENU_ID,
+    WINDOW_SUBMENU_ID,
+};
 use tauri::{AppHandle, Wry};
 
 /// 「表示」メニューのチェック項目ハンドルを保持し、フロントの状態と同期する。
@@ -69,6 +72,10 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
         .item(&slideshow_fullscreen)
         .build()?;
 
+    // 標準「フルスクリーン」（ウィンドウ全画面・Ctrl+Cmd+F）を表示メニューの最下部へ結合する。
+    // スライドショー内の「フルスクリーン」（自動送り全画面）とは別物。
+    let fullscreen = PredefinedMenuItem::fullscreen(app, Some("フルスクリーン"))?;
+
     let view_submenu = SubmenuBuilder::new(app, "表示")
         .item(&zoom_submenu)
         .item(&slideshow_submenu)
@@ -79,13 +86,68 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
         .item(&show_current_rating)
         .separator()
         .item(&open_analysis)
+        .separator()
+        .item(&fullscreen)
         .build()?;
 
-    // macOS既定メニュー（アプリ名/Quit・編集/コピー&ペースト・Window等）を保持し、
-    // 「表示」メニューを追加する。
-    let menu = Menu::default(app)?;
-    menu.append(&view_submenu)?;
-    menu.append(&rating_submenu)?;
+    // macOS標準メニューを日本語ラベルで手組みする（既定の Menu::default は英語固定のため）。
+    // アプリ名/About/Hide/Quit は製品名（package_info().name）を用いる。
+    let app_name = app.package_info().name.clone();
+    let about_text = format!("{app_name}について");
+    let hide_text = format!("{app_name}を隠す");
+    let quit_text = format!("{app_name}を終了");
+
+    let app_submenu = SubmenuBuilder::new(app, &app_name)
+        .item(&PredefinedMenuItem::about(app, Some(&about_text), None)?)
+        .separator()
+        .item(&PredefinedMenuItem::services(app, Some("サービス"))?)
+        .separator()
+        .item(&PredefinedMenuItem::hide(app, Some(&hide_text))?)
+        .item(&PredefinedMenuItem::hide_others(app, Some("ほかを隠す"))?)
+        .item(&PredefinedMenuItem::show_all(app, Some("すべてを表示"))?)
+        .separator()
+        .item(&PredefinedMenuItem::quit(app, Some(&quit_text))?)
+        .build()?;
+
+    let file_submenu = SubmenuBuilder::new(app, "ファイル")
+        .item(&PredefinedMenuItem::close_window(app, Some("ウィンドウを閉じる"))?)
+        .build()?;
+
+    let edit_submenu = SubmenuBuilder::new(app, "編集")
+        .item(&PredefinedMenuItem::undo(app, Some("取り消す"))?)
+        .item(&PredefinedMenuItem::redo(app, Some("やり直す"))?)
+        .separator()
+        .item(&PredefinedMenuItem::cut(app, Some("カット"))?)
+        .item(&PredefinedMenuItem::copy(app, Some("コピー"))?)
+        .item(&PredefinedMenuItem::paste(app, Some("ペースト"))?)
+        .item(&PredefinedMenuItem::select_all(app, Some("すべてを選択"))?)
+        .build()?;
+
+    // Window/Help は Tauri の特別IDで作り、macOSのウィンドウメニュー/ヘルプ検索連携を維持する。
+    let window_submenu = SubmenuBuilder::with_id(app, WINDOW_SUBMENU_ID, "ウィンドウ")
+        .item(&PredefinedMenuItem::minimize(app, Some("最小化"))?)
+        .item(&PredefinedMenuItem::maximize(app, Some("拡大/縮小"))?)
+        .separator()
+        .item(&PredefinedMenuItem::close_window(app, Some("閉じる"))?)
+        .build()?;
+
+    // ヘルプは空のまま（macOSがヘルプ検索フィールドを自動付与する）。
+    let help_submenu = SubmenuBuilder::with_id(app, HELP_SUBMENU_ID, "ヘルプ").build()?;
+
+    // 並び順: [アプリ名] ファイル 編集 表示 レーティング ウィンドウ ヘルプ
+    // レーティングは Window/Help より左に配置する。
+    let menu = Menu::with_items(
+        app,
+        &[
+            &app_submenu,
+            &file_submenu,
+            &edit_submenu,
+            &view_submenu,
+            &rating_submenu,
+            &window_submenu,
+            &help_submenu,
+        ],
+    )?;
 
     Ok((
         menu,
