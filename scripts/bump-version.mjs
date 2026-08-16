@@ -12,13 +12,13 @@
  *   - package.json                 (npm パッケージ版)
  *   - src-tauri/tauri.conf.json    (Tauri アプリ版・正)
  *   - src-tauri/Cargo.toml         ([package] 版)
- *   - src-tauri/Cargo.lock         (自身のパッケージブロック版)
+ *   - Cargo.lock                   (自身のパッケージブロック版・workspace ルート)
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { planBump } from "./version-core.mjs";
+import { planBump, VERSION_FILES } from "./version-core.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -67,12 +67,15 @@ const CARGO_LOCK_VERSION = new RegExp(
   `(\\[\\[package\\]\\]\\nname = "${escapeRe(pkgName)}"\\nversion = ")([^"]*)(")`,
 );
 
-const targets = [
-  fileTarget("package.json", JSON_VERSION),
-  fileTarget("src-tauri/tauri.conf.json", JSON_VERSION),
-  fileTarget("src-tauri/Cargo.toml", CARGO_TOML_VERSION),
-  fileTarget("src-tauri/Cargo.lock", CARGO_LOCK_VERSION),
-];
+/** @type {Record<string, RegExp>} */
+const PATTERN_BY_FILE = {
+  "package.json": JSON_VERSION,
+  "src-tauri/tauri.conf.json": JSON_VERSION,
+  "src-tauri/Cargo.toml": CARGO_TOML_VERSION,
+  "Cargo.lock": CARGO_LOCK_VERSION,
+};
+
+const targets = VERSION_FILES.map((f) => fileTarget(f, PATTERN_BY_FILE[f]));
 
 function main() {
   const argv = process.argv.slice(2);
