@@ -54,7 +54,7 @@ cargo clippy --manifest-path src-tauri/Cargo.toml  # Rust の lint
 
 ### バージョンの更新
 
-アプリのバージョンは `package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` / `src-tauri/Cargo.lock` の4ファイルに分散しています。必ず以下のコマンドで一括更新してください（個別編集は避ける）。
+アプリのバージョンは `package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` / `Cargo.lock` の4ファイルに分散しています。必ず以下のコマンドで一括更新してください（個別編集は避ける）。
 
 ```bash
 npm run bump -- patch     # 例: 0.1.0 -> 0.1.1

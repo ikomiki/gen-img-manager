@@ -33,7 +33,7 @@ Rustのテストは各モジュール内の `#[cfg(test)]` インラインテス
 
 ## バージョン管理（重要）
 
-アプリのバージョンは **4ファイル**（`package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` / `src-tauri/Cargo.lock`）に分散する。必ず専用スクリプトで一括更新し、**個別ファイルを手編集しない**。
+アプリのバージョンは **4ファイル**（`package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` / `Cargo.lock`）に分散する。必ず専用スクリプトで一括更新し、**個別ファイルを手編集しない**。
 
 ```bash
 npm run bump -- patch     # 0.1.1 -> 0.1.2
