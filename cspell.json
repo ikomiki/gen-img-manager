@@ -12,6 +12,7 @@
   "ignorePaths": [
     "node_modules",
     "dist",
+    "target",
     "src-tauri/target",
     "/project-words.txt",
     "yarn.lock",
