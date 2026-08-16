@@ -4,7 +4,7 @@ pub mod png;
 pub mod raster_exif;
 pub mod xmp;
 
-// db::tags / db::analysis と共有するため gim-core へ移設した。既存パス crate::parser::tags を維持する。
+// db::tags / db::analysis と共有するため gim-core にある。既存パス crate::parser::tags を維持する。
 pub use gim_core::parser::tags;
 
 use std::path::Path;
