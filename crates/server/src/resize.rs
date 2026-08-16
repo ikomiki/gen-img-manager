@@ -2,7 +2,7 @@ use crate::error::ApiError;
 use crate::fileserve::fnv1a64;
 use crate::state::AppState;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// 許可する幅。任意の値を受け付けるとキャッシュが際限なく増える。
 const ALLOWED_WIDTHS: [u32; 4] = [640, 1280, 1920, 2560];
@@ -11,6 +11,10 @@ const WEBP_QUALITY: f32 = 82.0;
 const CACHE_LIMIT_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// 何回生成するごとに容量を点検するか。
 const SWEEP_EVERY: u64 = 50;
+
+/// 一時ファイル名を一意にするための連番。PID だけでは、同一プロセス内の
+/// 並行リクエスト（同じ画像・同じ幅への先読み等）で同名になり衝突する。
+static TMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
 pub fn snap_width(requested: u32) -> u32 {
     ALLOWED_WIDTHS
@@ -56,22 +60,29 @@ pub async fn get_or_create(
     Ok(out)
 }
 
+fn image_open_err(e: image::ImageError) -> ApiError {
+    match e {
+        image::ImageError::IoError(io) if io.kind() == std::io::ErrorKind::NotFound => {
+            ApiError::NotFound
+        }
+        other => ApiError::Internal(format!("画像を読めません: {other}")),
+    }
+}
+
 fn encode_resized(
     src: &Path,
     width: u32,
     cache_dir: &Path,
     key: &str,
 ) -> Result<Option<Vec<u8>>, ApiError> {
-    let img = image::open(src).map_err(|e| match e {
-        image::ImageError::IoError(io) if io.kind() == std::io::ErrorKind::NotFound => {
-            ApiError::NotFound
-        }
-        other => ApiError::Internal(format!("画像を読めません: {other}")),
-    })?;
-
-    if img.width() <= width {
+    // ヘッダだけ読んで幅を判定する。原画像の方が狭い経路（低解像度ライブラリでは
+    // 主要経路になる）でフルデコードを走らせないため。
+    let (src_width, _) = image::image_dimensions(src).map_err(image_open_err)?;
+    if src_width <= width {
         return Ok(None);
     }
+
+    let img = image::open(src).map_err(image_open_err)?;
     let height = ((img.height() as u64 * width as u64) / img.width() as u64).max(1) as u32;
     let resized = img.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
 
@@ -80,10 +91,14 @@ fn encode_resized(
     let bytes = encoder.encode(WEBP_QUALITY).to_vec();
 
     // 一時ファイル → rename。同じ画像への同時リクエストが競合しても壊れない。
-    let tmp = cache_dir.join(format!("{key}.{}.tmp", std::process::id()));
+    // 連番も混ぜているのは、PID だけでは同一プロセス内の並行リクエストで同名になるため。
+    let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp = cache_dir.join(format!("{key}.{}.{seq}.tmp", std::process::id()));
     std::fs::write(&tmp, &bytes)
         .map_err(|e| ApiError::Internal(format!("キャッシュを書けません: {e}")))?;
-    let _ = std::fs::rename(&tmp, cache_dir.join(key));
+    if let Err(e) = std::fs::rename(&tmp, cache_dir.join(key)) {
+        eprintln!("キャッシュファイルの rename に失敗しました: {e}");
+    }
 
     Ok(Some(bytes))
 }
@@ -188,6 +203,49 @@ mod tests {
         assert_eq!(snap_width(641), 1280);
         assert_eq!(snap_width(1920), 1920);
         assert_eq!(snap_width(4000), 2560, "上限を超えたら最大値へ落とす");
+    }
+
+    #[test]
+    fn sweep_leaves_files_under_limit_untouched() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        std::fs::write(dir.join("a.webp"), vec![0u8; 100]).unwrap();
+        std::fs::write(dir.join("b.webp"), vec![0u8; 100]).unwrap();
+
+        sweep(dir, 10_000);
+
+        assert!(dir.join("a.webp").exists());
+        assert!(dir.join("b.webp").exists());
+    }
+
+    #[test]
+    fn sweep_does_not_descend_into_subdirectories() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let sub = dir.join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        std::fs::write(sub.join("keep.webp"), vec![0u8; 10_000]).unwrap();
+        std::fs::write(dir.join("big.webp"), vec![0u8; 10_000]).unwrap();
+
+        // 上限を極端に低くしても、ディレクトリの中までは走査しない。
+        sweep(dir, 1);
+
+        assert!(sub.join("keep.webp").exists(), "サブディレクトリ内は対象外");
+    }
+
+    #[test]
+    fn sweep_removes_oldest_first_when_over_limit() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        std::fs::write(dir.join("old.webp"), vec![0u8; 100]).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::fs::write(dir.join("new.webp"), vec![0u8; 100]).unwrap();
+
+        // 合計200 > 上限100なので、アクセス時刻が古い方（old.webp）だけ消える。
+        sweep(dir, 100);
+
+        assert!(!dir.join("old.webp").exists(), "古い方が消える");
+        assert!(dir.join("new.webp").exists(), "新しい方は残る");
     }
 
     #[test]
