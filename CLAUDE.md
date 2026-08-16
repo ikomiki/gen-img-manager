@@ -68,7 +68,7 @@ AI（Claude Code）が生成するコミットメッセージは、Conventional 
 
 ### バックエンドのデータフロー
 
-Rust は Cargo workspace（`Cargo.toml`）で `src-tauri`（`gim` クレート）と `crates/core`（`gim-core` クレート）に分かれる。`src-tauri/src/` は `commands/`（`invoke_handler` に登録された公開API。一覧は `lib.rs`）／`parser/`（メタデータ抽出）／`scanner.rs`／`thumbnail.rs`。`db/`・`query/`・`models.rs`・`parser/tags.rs` は `crates/core/src/` にあり、`src-tauri/src/lib.rs` の `pub use gim_core::{db, models, query};` で `crate::db::…` 等の既存パスをそのまま使える。
+Rust は Cargo workspace（`Cargo.toml`）で `src-tauri`（`gen-img-manager` クレート）と `crates/core`（`gim-core` クレート）に分かれる。`src-tauri/src/` は `commands/`（`invoke_handler` に登録された公開API。一覧は `lib.rs`）／`parser/`（メタデータ抽出）／`scanner.rs`／`thumbnail.rs`。`db/`・`query/`・`models.rs`・`parser/tags.rs` は `crates/core/src/` にあり、`src-tauri/src/lib.rs` の `pub use gim_core::{db, models, query};` で `crate::db::…` 等の既存パスをそのまま使える。
 
 1. **スキャン** (`scanner.rs`, `commands/scan.rs`): 登録ディレクトリを走査し、各画像を `parser` で解析、サムネイル生成、SQLite へ upsert。
 2. **メタデータ解析** (`src-tauri/src/parser/mod.rs`): 拡張子で振り分け。PNG の tEXt チャンク（A1111 の `parameters` / ComfyUI の `prompt`・`workflow`）、JPEG/WebP の EXIF UserComment を読み、`a1111.rs`／`comfyui.rs` で正規化。XMP サイドカーはレーティング用（`xmp.rs`）。
