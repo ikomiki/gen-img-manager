@@ -1,13 +1,4 @@
-export interface Directory {
-  id: number;
-  path: string;
-  label: string;
-  is_online: boolean;
-  last_scanned_at: number | null;
-  recursive: boolean;
-  visible: boolean;
-  image_count: number;
-}
+export type { Directory, ImageRow, SortKey, SortDir } from "@gim/shared/types";
 
 export interface ScanProgress {
   directory_id: number;
@@ -20,24 +11,6 @@ export interface ScanDone {
   directory_id: number;
   success: boolean;
 }
-
-export interface ImageRow {
-  id: number;
-  path: string;
-  filename: string;
-  thumb_path: string | null;
-  width: number;
-  height: number;
-  pixels: number;
-  rating: number | null;
-  created_at: number | null;
-  modified_at: number | null;
-  source_tool: string;
-  model: string | null;
-}
-
-export type SortKey = "filename" | "created" | "modified";
-export type SortDir = "asc" | "desc";
 
 export interface ImageDetail {
   id: number;

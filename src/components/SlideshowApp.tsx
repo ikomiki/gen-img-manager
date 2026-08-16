@@ -6,7 +6,7 @@ import { getSlideshowPayload, syncSlideshowMenu } from "../api/slideshow";
 import { getSetting, setSetting } from "../api/prefs";
 import { setRating as setRatingApi } from "../api/images";
 import { writeXmpRating } from "../api/fs";
-import { buildOrder, mulberry32, step } from "../util/playlist";
+import { buildOrder, mulberry32, step } from "@gim/shared/playlist";
 import { hasPrimaryModifier, isFullscreenToggleKey } from "../util/platform";
 import { SlideshowControls } from "./SlideshowControls";
 import { RatingStars } from "./RatingStars";

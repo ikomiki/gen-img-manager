@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ImageDetail } from "../types";
 import { useViewerStore } from "../store/useViewerStore";
-import { normalizePromptText } from "../util/normalizeText";
+import { normalizePromptText } from "@gim/shared/normalizeText";
 
 interface Props {
   detail: ImageDetail | null;
