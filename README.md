@@ -35,21 +35,21 @@ rating:none,1,2 model:sdxl
 
 ### 必要環境
 
-- Node.js（LTS 推奨）＋ npm
+- Node.js（LTS 推奨）＋ pnpm
 - Rust toolchain（[Tauri 2 の前提条件](https://v2.tauri.app/start/prerequisites/) を参照）
 
 ### コマンド
 
 ```bash
-npm install
+pnpm install
 
 npm run dev          # フロントのみ（Vite。Tauri ウィンドウは開かない）
 npm run tauri dev    # アプリ開発（Tauri ウィンドウ起動・HMR）
 npm run tauri build  # 配布ビルド
 
 npm test             # フロントのテスト（vitest）
-cargo test --manifest-path src-tauri/Cargo.toml    # Rust のテスト
-cargo clippy --manifest-path src-tauri/Cargo.toml  # Rust の lint
+cargo test --workspace              # Rust のテスト
+cargo clippy --workspace --all-targets  # Rust の lint
 ```
 
 ### バージョンの更新
@@ -67,14 +67,16 @@ npm run bump -- patch --dry-run   # 変更内容のプレビュー（書き込�
 ### 構成の概要
 
 ```
-src/            React フロントエンド（zustand ストア、src/api/* 経由で Rust を呼ぶ）
-src-tauri/src/  Rust バックエンド
-  commands/     invoke で公開される API
-  parser/       PNG tEXt / EXIF / A1111 / ComfyUI / XMP の解析
-  query/        検索 DSL のパース＆SQL コンパイル
-  db/           SQLite（FTS5、マイグレーション）
-  scanner.rs    ディレクトリ走査・取り込み
-docs/usage.html ユーザー向け使用方法ドキュメント
+src/              React フロントエンド（zustand ストア、src/api/* 経由で Rust を呼ぶ）
+packages/shared/  フロント／将来の web ビューアで共有する純粋関数・型（@gim/shared）
+src-tauri/src/    Rust バックエンド（Tauri コマンド）
+  commands/       invoke で公開される API
+  parser/         PNG tEXt / EXIF / A1111 / ComfyUI / XMP の解析
+  scanner.rs      ディレクトリ走査・取り込み
+crates/core/src/  Rust 共有ロジック（gim-core）
+  db/             SQLite（FTS5、マイグレーション）
+  query/          検索 DSL のパース＆SQL コンパイル
+docs/usage.html   ユーザー向け使用方法ドキュメント
 ```
 
 詳細は [CLAUDE.md](CLAUDE.md) を参照してください。
