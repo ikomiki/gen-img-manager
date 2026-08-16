@@ -38,10 +38,7 @@ pub enum OpenError {
 /// テーブルには書かないが `-wal` / `-shm` は触る、という意味の読み取り専用。
 /// `immutable=1` は使わない（デスクトップ版が同時に書き込むと不整合を読むため）。
 pub fn open_read_only(path: &Path) -> Result<Connection, OpenError> {
-    let conn = Connection::open_with_flags(
-        path,
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_URI,
-    )?;
+    let conn = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     conn.pragma_update(None, "query_only", "ON")?;
 
     let found: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
@@ -93,10 +90,16 @@ mod tests {
 
         let conn = open_read_only(&path).unwrap();
         let err = conn.execute("DELETE FROM directories", []).unwrap_err();
-        assert!(
-            format!("{err}").contains("read") || format!("{err}").contains("readonly"),
-            "書き込みが拒否されるべき: {err}"
-        );
+        match &err {
+            rusqlite::Error::SqliteFailure(ffi_err, _) => {
+                assert_eq!(
+                    ffi_err.code,
+                    rusqlite::ErrorCode::ReadOnly,
+                    "書き込みが拒否されるべき: {err:?}"
+                );
+            }
+            _ => panic!("SqliteFailure を期待した: {err:?}"),
+        }
     }
 
     #[test]
