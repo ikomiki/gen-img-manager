@@ -321,13 +321,11 @@ mod tests {
         COUNTER.fetch_add(1, Ordering::Relaxed)
     }
 
-    // gim-core 側の同名ヘルパは #[cfg(test)] 限定で crate 境界を越えて参照できないため複製。
+    // gim-core 側の同名ヘルパは #[cfg(test)] 限定で crate 境界を越えて参照できないため、
+    // 本番コードと同じ images::list_meta_in_directory の上に組み直す（SQL 文字列は複製しない）。
     fn count_in_directory(conn: &Connection, directory_id: i64) -> rusqlite::Result<i64> {
-        conn.query_row(
-            "SELECT count(*) FROM images WHERE directory_id = ?1 AND missing = 0",
-            rusqlite::params![directory_id],
-            |r| r.get(0),
-        )
+        let rows = images::list_meta_in_directory(conn, directory_id)?;
+        Ok(rows.iter().filter(|(_, _, _, _, missing)| !missing).count() as i64)
     }
 
     fn setup() -> (Arc<Mutex<Connection>>, std::path::PathBuf, Directory) {
