@@ -93,6 +93,22 @@ pub fn test_state_with_files() -> (AppState, tempfile::TempDir) {
     (state, tmp)
 }
 
+/// `test_state_with_files` と同じだが、id 1 の画像を 3000px 幅にする。
+pub fn test_state_with_wide_image() -> (AppState, tempfile::TempDir) {
+    let (state, tmp) = test_state_with_files();
+    let conn = rusqlite::Connection::open(tmp.path().join("library.db")).unwrap();
+    let path: String = conn
+        .query_row(
+            "SELECT path FROM images WHERE filename = 'a.png'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    drop(conn);
+    write_png(std::path::Path::new(&path), 3000, 1000);
+    (state, tmp)
+}
+
 /// テスト用の最小 PNG を書き出す。
 pub fn write_png(path: &std::path::Path, w: u32, h: u32) {
     let buf = image::RgbImage::from_pixel(w, h, image::Rgb([120, 160, 200]));

@@ -31,6 +31,27 @@ pub async fn read_with_timeout(path: PathBuf) -> Result<(Vec<u8>, u64), ApiError
     }
 }
 
+/// mtime だけを読む。リサイズ経路ではキャッシュが当たれば原画像を読まずに済む。
+pub async fn read_meta_with_timeout(path: PathBuf) -> Result<u64, ApiError> {
+    let job = tokio::task::spawn_blocking(move || {
+        let meta = std::fs::metadata(&path)?;
+        let mtime = meta
+            .modified()?
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        Ok::<_, std::io::Error>(mtime)
+    });
+
+    match tokio::time::timeout(READ_TIMEOUT, job).await {
+        Err(_) => Err(ApiError::Unavailable),
+        Ok(Err(e)) => Err(ApiError::Internal(format!("読み出しに失敗しました: {e}"))),
+        Ok(Ok(Err(e))) if e.kind() == std::io::ErrorKind::NotFound => Err(ApiError::NotFound),
+        Ok(Ok(Err(_))) => Err(ApiError::Unavailable),
+        Ok(Ok(Ok(mtime))) => Ok(mtime),
+    }
+}
+
 /// 内容で決まるキャッシュキー。mtime を含むので画像が差し替われば自然に無効化される。
 pub fn fnv1a64(parts: &[&str]) -> String {
     let mut hash: u64 = 0xcbf29ce484222325;

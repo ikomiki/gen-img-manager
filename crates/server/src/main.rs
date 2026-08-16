@@ -2,6 +2,7 @@ mod cli;
 mod dirscope;
 mod error;
 mod fileserve;
+mod resize;
 mod routes;
 mod state;
 #[cfg(test)]

@@ -1,10 +1,11 @@
 use crate::error::ApiError;
 use crate::fileserve;
 use crate::state::AppState;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::HeaderMap;
 use axum::response::Response;
 use gim_core::db::images::MediaInfo;
+use serde::Deserialize;
 use std::path::PathBuf;
 
 fn media_info(state: &AppState, id: i64) -> Result<MediaInfo, ApiError> {
@@ -24,13 +25,34 @@ pub async fn thumb(
     Ok(fileserve::respond(bytes, "image/webp", &etag, &headers))
 }
 
+#[derive(Deserialize)]
+pub struct ImageParams {
+    pub w: Option<u32>,
+}
+
 pub async fn image(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    Query(params): Query<ImageParams>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
     let info = media_info(&state, id)?;
-    let (bytes, mtime) = fileserve::read_with_timeout(PathBuf::from(&info.path)).await?;
+    let src = PathBuf::from(&info.path);
+
+    if let Some(requested) = params.w {
+        if requested < 1 {
+            return Err(ApiError::BadRequest("w は 1 以上です".to_string()));
+        }
+        let width = crate::resize::snap_width(requested);
+        let mtime = fileserve::read_meta_with_timeout(src.clone()).await?;
+        if let Some(bytes) = crate::resize::get_or_create(&state, &src, mtime, width).await? {
+            let etag = fileserve::etag_of(&info.path, mtime, Some(width));
+            return Ok(fileserve::respond(bytes, "image/webp", &etag, &headers));
+        }
+        // 原画像の方が狭い場合はそのまま返す。
+    }
+
+    let (bytes, mtime) = fileserve::read_with_timeout(src).await?;
     let etag = fileserve::etag_of(&info.path, mtime, None);
     let ct = fileserve::content_type_for(&info.format);
     Ok(fileserve::respond(bytes, ct, &etag, &headers))
@@ -38,7 +60,7 @@ pub async fn image(
 
 #[cfg(test)]
 mod tests {
-    use crate::test_support::{get_raw, test_state_with_files};
+    use crate::test_support::{get_raw, test_state_with_files, test_state_with_wide_image};
     use axum::http::header;
 
     #[tokio::test]
@@ -92,5 +114,32 @@ mod tests {
         let (state, _tmp) = test_state_with_files();
         // id 2 の実ファイルは作っていない。
         assert_eq!(get_raw(state, "/api/image/2").await.status(), 404);
+    }
+
+    #[tokio::test]
+    async fn width_parameter_returns_webp() {
+        let (state, _tmp) = test_state_with_wide_image();
+        let res = get_raw(state, "/api/image/1?w=640").await;
+        assert_eq!(res.status(), 200);
+        assert_eq!(res.headers()[header::CONTENT_TYPE], "image/webp");
+    }
+
+    #[tokio::test]
+    async fn width_larger_than_source_returns_original() {
+        let (state, _tmp) = test_state_with_files();
+        // test_state_with_files の画像は 64px 幅なので、どの許可幅より狭い。
+        let res = get_raw(state, "/api/image/1?w=1280").await;
+        assert_eq!(res.status(), 200);
+        assert_eq!(res.headers()[header::CONTENT_TYPE], "image/png");
+    }
+
+    #[tokio::test]
+    async fn invalid_width_is_400() {
+        let (state, _tmp) = test_state_with_files();
+        assert_eq!(
+            get_raw(state.clone(), "/api/image/1?w=0").await.status(),
+            400
+        );
+        assert_eq!(get_raw(state, "/api/image/1?w=abc").await.status(), 400);
     }
 }
