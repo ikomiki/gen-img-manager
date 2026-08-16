@@ -69,3 +69,48 @@ pub async fn get_raw(state: AppState, uri: &str) -> axum::response::Response {
         .await
         .unwrap()
 }
+
+/// `test_state` に加えて、id 1 の画像だけ実ファイル（PNG）とサムネイル（WebP）を
+/// ディスクに作り、DB のパスをそこへ向ける。id 2・3 の実体は作らない。
+pub fn test_state_with_files() -> (AppState, tempfile::TempDir) {
+    let (state, tmp) = test_state();
+    let data_dir = tmp.path().to_path_buf();
+
+    let img_path = data_dir.join("a.png");
+    let thumb_path = data_dir.join("thumbnails").join("a.webp");
+    write_png(&img_path, 64, 48);
+    // WebP としての妥当性はこのテストの関心事ではないので、バイト列は何でもよい。
+    std::fs::write(&thumb_path, b"fake-webp").unwrap();
+
+    let conn = rusqlite::Connection::open(data_dir.join("library.db")).unwrap();
+    conn.execute(
+        "UPDATE images SET path = ?1, thumb_path = ?2 WHERE filename = 'a.png'",
+        rusqlite::params![img_path.to_string_lossy(), thumb_path.to_string_lossy()],
+    )
+    .unwrap();
+    drop(conn);
+
+    (state, tmp)
+}
+
+/// テスト用の最小 PNG を書き出す。
+pub fn write_png(path: &std::path::Path, w: u32, h: u32) {
+    let buf = image::RgbImage::from_pixel(w, h, image::Rgb([120, 160, 200]));
+    buf.save_with_format(path, image::ImageFormat::Png).unwrap();
+}
+
+/// ヘッダ付きで GET する。
+pub async fn get_raw_with_headers(
+    state: AppState,
+    uri: &str,
+    headers: &[(&str, &str)],
+) -> axum::response::Response {
+    let mut req = Request::get(uri);
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    routes::router(state)
+        .oneshot(req.body(Body::empty()).unwrap())
+        .await
+        .unwrap()
+}
