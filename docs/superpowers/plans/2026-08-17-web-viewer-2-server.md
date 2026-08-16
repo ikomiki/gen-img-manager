@@ -623,7 +623,11 @@ async fn main() {
     }
     println!("データディレクトリ: {}", data_dir.display());
 
-    axum::serve(listener, routes::router(state)).await;
+    // 待受ループの異常終了を握り潰すと、終了コード 0 で静かに落ちる。
+    if let Err(e) = axum::serve(listener, routes::router(state)).await {
+        eprintln!("サーバが停止しました: {e}");
+        std::process::exit(1);
+    }
 }
 ```
 
@@ -1961,6 +1965,7 @@ EOF
 ## 完了条件
 
 - `cargo test --workspace` が緑（src-tauri 64 + gim-core 135 + gim-server 33）
+- `cargo clippy -p gim-server --all-targets` が警告ゼロ（途中のタスクでは、後続タスクで使う項目に `dead_code` 警告が出るが、Task 5 完了時点では解消していること）
 - `npm test` が緑（270件。この計画では Node 側を変更しないので変化なし）
 - `cargo run -p gim-server` が起動し、LAN アドレスを表示する
 - `curl` で以下がすべて期待どおり返る
