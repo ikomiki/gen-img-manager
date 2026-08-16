@@ -88,6 +88,12 @@ fn encode_resized(
     Ok(Some(bytes))
 }
 
+/// 起動時に呼ぶ。生成50回ごとの点検だけでは、少数回の生成で再起動を
+/// 繰り返す使い方（スライドショーを少し見て閉じる、等）で上限が守られない。
+pub fn sweep_on_startup(cache_dir: &Path) {
+    sweep(cache_dir, CACHE_LIMIT_BYTES);
+}
+
 /// 上限を超えていればアクセス時刻の古い順に削除する。
 fn sweep(cache_dir: &Path, limit: u64) {
     let Ok(entries) = std::fs::read_dir(cache_dir) else {

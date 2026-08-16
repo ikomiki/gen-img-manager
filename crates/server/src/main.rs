@@ -39,6 +39,7 @@ async fn main() {
         eprintln!("{} を作れません: {e}", state.cache_dir.display());
         std::process::exit(1);
     }
+    resize::sweep_on_startup(&state.cache_dir);
 
     let addr = format!("{}:{}", args.host, args.port);
     let listener = match tokio::net::TcpListener::bind(&addr).await {
