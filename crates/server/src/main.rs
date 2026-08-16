@@ -52,5 +52,8 @@ async fn main() {
     }
     println!("データディレクトリ: {}", data_dir.display());
 
-    axum::serve(listener, routes::router(state)).await;
+    if let Err(e) = axum::serve(listener, routes::router(state)).await {
+        eprintln!("サーバが停止しました: {e}");
+        std::process::exit(1);
+    }
 }
