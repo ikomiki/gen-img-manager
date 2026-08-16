@@ -88,7 +88,7 @@ const entries = (v: string) => [
   { file: "package.json", version: v },
   { file: "src-tauri/tauri.conf.json", version: v },
   { file: "src-tauri/Cargo.toml", version: v },
-  { file: "src-tauri/Cargo.lock", version: v },
+  { file: "Cargo.lock", version: v },
 ];
 
 describe("planBump", () => {
