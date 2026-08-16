@@ -1,0 +1,9 @@
+[package]
+name = "gim-core"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+chrono = "0.4"
