@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
 import { startSlideshow } from "../api/slideshow";
-import { matchHistory } from "../util/historyMatch";
-import { historyNav } from "../util/historyNav";
+import { matchHistory } from "@gim/shared/historyMatch";
+import { historyNav } from "@gim/shared/historyNav";
 import type { SortKey } from "../types";
 import { FilterDialog } from "./FilterDialog";
 

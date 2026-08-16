@@ -1,13 +1,13 @@
 mod backfill;
 mod commands;
-mod db;
 mod fs_guard;
 mod menu;
-mod models;
 mod parser;
-mod query;
 mod scanner;
 mod thumbnail;
+
+// 既存コードの `crate::db::...` 等のパスを維持するための再エクスポート。
+pub use gim_core::{db, models, query};
 
 use tauri::Emitter;
 use tauri::Manager;

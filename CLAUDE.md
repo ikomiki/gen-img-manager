@@ -20,20 +20,19 @@ npm run tauri build
 
 # フロントのテスト（vitest）
 npm test
-npx vitest run src/util/queryTokens.test.ts    # 単一ファイル
-npx vitest run -t "parseRatingToken"           # テスト名で絞り込み
+npx vitest run packages/shared/src/queryTokens.test.ts    # 単一ファイル
+npx vitest run -t "parseRatingToken"                      # テスト名で絞り込み
 
-# Rust（バックエンド）のテスト・lint。src-tauri 内で実行する
-cargo test --manifest-path src-tauri/Cargo.toml
-cargo clippy --manifest-path src-tauri/Cargo.toml
-cargo fmt --manifest-path src-tauri/Cargo.toml
+# Rust（workspace）のテスト・lint
+cargo test --workspace
+cargo clippy --workspace --all-targets
 ```
 
-Rustのテストは各モジュール内の `#[cfg(test)]` インラインテスト（別 `tests/` ディレクトリは無い）。
+Rustのテストは各モジュール内の `#[cfg(test)]` インラインテスト（別 `tests/` ディレクトリは無い）。`cargo fmt` は全体適用禁止（リポジトリは rustfmt 未整形のため）。周囲のスタイルに手で合わせる。
 
 ## バージョン管理（重要）
 
-アプリのバージョンは **4ファイル**（`package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` / `src-tauri/Cargo.lock`）に分散する。必ず専用スクリプトで一括更新し、**個別ファイルを手編集しない**。
+アプリのバージョンは **4ファイル**（`package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` / `Cargo.lock`）に分散する。必ず専用スクリプトで一括更新し、**個別ファイルを手編集しない**。
 
 ```bash
 npm run bump -- patch     # 0.1.1 -> 0.1.2
@@ -69,12 +68,12 @@ AI（Claude Code）が生成するコミットメッセージは、Conventional 
 
 ### バックエンドのデータフロー
 
-`src-tauri/src/` は層構造：`commands/`（`invoke_handler` に登録された公開API。一覧は `lib.rs`）→ `db/`（rusqlite）／`query/`（検索DSL）／`parser/`（メタデータ抽出）／`scanner.rs`／`thumbnail.rs`。
+Rust は Cargo workspace（`Cargo.toml`）で `src-tauri`（`gen-img-manager` クレート）と `crates/core`（`gim-core` クレート）に分かれる。`src-tauri/src/` は `commands/`（`invoke_handler` に登録された公開API。一覧は `lib.rs`）／`parser/`（メタデータ抽出）／`scanner.rs`／`thumbnail.rs`。`db/`・`query/`・`models.rs`・`parser/tags.rs` は `crates/core/src/` にあり、`src-tauri/src/lib.rs` の `pub use gim_core::{db, models, query};` で `crate::db::…` 等の既存パスをそのまま使える。
 
 1. **スキャン** (`scanner.rs`, `commands/scan.rs`): 登録ディレクトリを走査し、各画像を `parser` で解析、サムネイル生成、SQLite へ upsert。
-2. **メタデータ解析** (`parser/mod.rs`): 拡張子で振り分け。PNG の tEXt チャンク（A1111 の `parameters` / ComfyUI の `prompt`・`workflow`）、JPEG/WebP の EXIF UserComment を読み、`a1111.rs`／`comfyui.rs` で正規化。XMP サイドカーはレーティング用（`xmp.rs`）。
-3. **DB** (`db/`, `migrations.rs`): `images` 本体＋ **FTS5 仮想テーブル `images_fts`**（`positive`/`negative`/`model`/`filename`/`raw_parameters` を全文検索）。FTS はトリガで本体と自動同期。マイグレーションは `MIGRATIONS` 配列（index+1 = `PRAGMA user_version`、**追記のみ・並び替え禁止**）。
-4. **検索DSL** (`query/`): ユーザのクエリ文字列を `parse.rs` でトークン化 → `ParsedQuery`（FTS式 + 構造化条件 `Cond`）→ `compile.rs` で SQL の WHERE 式＋束縛値へ。`prompt:`/`model:` 等のテキストフィールドは FTS、`rating:`/`width:`/`created:` 等は構造化条件（範囲・集合・日付）。**SQLインジェクション対策**：列名は許可リストの `&'static str` のみ、値は必ずバインドパラメータ。
+2. **メタデータ解析** (`src-tauri/src/parser/mod.rs`): 拡張子で振り分け。PNG の tEXt チャンク（A1111 の `parameters` / ComfyUI の `prompt`・`workflow`）、JPEG/WebP の EXIF UserComment を読み、`a1111.rs`／`comfyui.rs` で正規化。XMP サイドカーはレーティング用（`xmp.rs`）。
+3. **DB** (`crates/core/src/db/`, `migrations.rs`): `images` 本体＋ **FTS5 仮想テーブル `images_fts`**（`positive`/`negative`/`model`/`filename`/`raw_parameters` を全文検索）。FTS はトリガで本体と自動同期。マイグレーションは `MIGRATIONS` 配列（index+1 = `PRAGMA user_version`、**追記のみ・並び替え禁止**）。
+4. **検索DSL** (`crates/core/src/query/`): ユーザのクエリ文字列を `parse.rs` でトークン化 → `ParsedQuery`（FTS式 + 構造化条件 `Cond`）→ `compile.rs` で SQL の WHERE 式＋束縛値へ。`prompt:`/`model:` 等のテキストフィールドは FTS、`rating:`/`width:`/`created:` 等は構造化条件（範囲・集合・日付）。**SQLインジェクション対策**：列名は許可リストの `&'static str` のみ、値は必ずバインドパラメータ。
 
 ### その他の要所
 
@@ -85,4 +84,4 @@ AI（Claude Code）が生成するコミットメッセージは、Conventional 
 
 ### テスト指向
 
-ロジックは UI/IO から純粋関数へ切り出してテストする方針（フロントは `src/util/*` に多数の vitest、Rust は各モジュールのインラインテスト）。新しいロジックを足すときは同じ分離を踏襲する。
+ロジックは UI/IO から純粋関数へ切り出してテストする方針（フロントは `src/util/*` と、フロント／web ビューアで共有する `packages/shared/src/*`（`@gim/shared`）に多数の vitest、Rust は各モジュールのインラインテスト）。新しいロジックを足すときは同じ分離を踏襲する。

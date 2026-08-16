@@ -10,6 +10,17 @@
 /** サポートするリリース種別。 */
 export const RELEASE_TYPES = /** @type {const} */ (["major", "minor", "patch"]);
 
+/**
+ * バージョンを保持するファイル（プロジェクトルート起点の相対パス）。
+ * Cargo.lock は Cargo workspace のルートにある。
+ */
+export const VERSION_FILES = /** @type {const} */ ([
+  "package.json",
+  "src-tauri/tauri.conf.json",
+  "src-tauri/Cargo.toml",
+  "Cargo.lock",
+]);
+
 // 厳密な x.y.z（各桁は0、または先頭ゼロなしの整数）。プレリリースは対象外。
 const SEMVER_RE = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 

@@ -1215,6 +1215,7 @@ name = "gen-img-manager"
 version = "0.1.1"
 dependencies = [
  "chrono",
+ "gim-core",
  "image",
  "kamadak-exif",
  "png 0.18.1",
@@ -1287,6 +1288,15 @@ checksum = "ee8cfcc411d9adbbaba82fb72661cc1bcca13e8bba98b364e62b2dba8f960159"
 dependencies = [
  "color_quant",
  "weezl",
+]
+
+[[package]]
+name = "gim-core"
+version = "0.0.0"
+dependencies = [
+ "chrono",
+ "rusqlite",
+ "serde",
 ]
 
 [[package]]

@@ -5,6 +5,7 @@ import {
   bumpVersion,
   analyzeVersions,
   planBump,
+  VERSION_FILES,
 } from "./version-core.mjs";
 
 describe("isValidVersion", () => {
@@ -87,7 +88,7 @@ const entries = (v: string) => [
   { file: "package.json", version: v },
   { file: "src-tauri/tauri.conf.json", version: v },
   { file: "src-tauri/Cargo.toml", version: v },
-  { file: "src-tauri/Cargo.lock", version: v },
+  { file: "Cargo.lock", version: v },
 ];
 
 describe("planBump", () => {
@@ -149,5 +150,20 @@ describe("planBump", () => {
       { file: "src-tauri/Cargo.toml", version: null },
     ];
     expect(() => planBump({ entries: bad, arg: "patch" })).toThrow(/Cargo\.toml/);
+  });
+});
+
+describe("VERSION_FILES", () => {
+  it("バージョンを持つ4ファイルを順に列挙する", () => {
+    expect([...VERSION_FILES]).toEqual([
+      "package.json",
+      "src-tauri/tauri.conf.json",
+      "src-tauri/Cargo.toml",
+      "Cargo.lock",
+    ]);
+  });
+
+  it("Cargo.lock は workspace ルートを指す", () => {
+    expect(VERSION_FILES).not.toContain("src-tauri/Cargo.lock");
   });
 });

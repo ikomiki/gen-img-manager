@@ -321,6 +321,13 @@ mod tests {
         COUNTER.fetch_add(1, Ordering::Relaxed)
     }
 
+    // gim-core 側の同名ヘルパは #[cfg(test)] 限定で crate 境界を越えて参照できないため、
+    // 本番コードと同じ images::list_meta_in_directory の上に組み直す（SQL 文字列は複製しない）。
+    fn count_in_directory(conn: &Connection, directory_id: i64) -> rusqlite::Result<i64> {
+        let rows = images::list_meta_in_directory(conn, directory_id)?;
+        Ok(rows.iter().filter(|(_, _, _, _, missing)| !missing).count() as i64)
+    }
+
     fn setup() -> (Arc<Mutex<Connection>>, std::path::PathBuf, Directory) {
         let c = Connection::open_in_memory().unwrap();
         migrations::run(&c).unwrap();
@@ -344,7 +351,7 @@ mod tests {
         let s1 = scan_directory(&c, &dir, &thumb_dir, 1000, 4, |_| {}).unwrap();
         assert!(s1.reachable);
         assert_eq!(s1.added_or_updated, 2);
-        assert_eq!(images::count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 2);
+        assert_eq!(count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 2);
 
         // 2回目: 変更なし → 全てスキップ。
         let s2 = scan_directory(&c, &dir, &thumb_dir, 1001, 4, |_| {}).unwrap();
@@ -367,13 +374,13 @@ mod tests {
         let a = base.join("a.png");
         write_png_with_params(&a, "x\nSteps: 1, Seed: 1");
         scan_directory(&c, &dir, &thumb_dir, 1000, 4, |_| {}).unwrap();
-        assert_eq!(images::count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 1);
+        assert_eq!(count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 1);
 
         std::fs::remove_file(&a).unwrap();
         let s = scan_directory(&c, &dir, &thumb_dir, 1001, 4, |_| {}).unwrap();
         assert_eq!(s.missing, 1);
         // missing は count から除外（行は残る）。
-        assert_eq!(images::count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 0);
+        assert_eq!(count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 0);
         let rows: i64 = c.lock().unwrap().query_row("SELECT count(*) FROM images", [], |r| r.get(0)).unwrap();
         assert_eq!(rows, 1);
 
@@ -444,7 +451,7 @@ mod tests {
         }
         let s1 = scan_directory(&c, &dir, &thumb_dir, 1000, 8, |_| {}).unwrap();
         assert_eq!(s1.added_or_updated, 30);
-        assert_eq!(images::count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 30);
+        assert_eq!(count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 30);
         let s2 = scan_directory(&c, &dir, &thumb_dir, 1001, 8, |_| {}).unwrap();
         assert_eq!(s2.added_or_updated, 0);
         assert_eq!(s2.skipped, 30);

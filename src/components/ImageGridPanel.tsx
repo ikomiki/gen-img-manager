@@ -3,7 +3,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
-import { moveIndex } from "../util/gridNav";
+import { moveIndex } from "@gim/shared/gridNav";
 import { nextUnratedIndex } from "../util/ratingNav";
 import { hasPrimaryModifier, isSelectAllKey } from "../util/platform";
 import { ContextMenu } from "./ContextMenu";

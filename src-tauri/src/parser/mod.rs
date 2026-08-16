@@ -2,8 +2,10 @@ pub mod a1111;
 pub mod comfyui;
 pub mod png;
 pub mod raster_exif;
-pub mod tags;
 pub mod xmp;
+
+// db::tags / db::analysis と共有するため gim-core にある。既存パス crate::parser::tags を維持する。
+pub use gim_core::parser::tags;
 
 use std::path::Path;
 
