@@ -22,6 +22,39 @@ pub struct ImageRow {
 const SELECT_COLS: &str = "id, path, filename, thumb_path, width, height, pixels, rating, \
                            created_at, modified_at, source_tool, model";
 
+/// 検索対象ディレクトリの範囲。
+#[derive(Debug, Clone, PartialEq)]
+pub enum DirScope {
+    /// visible = 1 のディレクトリのみ（デスクトップ版の従来の挙動）。
+    Visible,
+    /// 指定 ID のディレクトリのみ。
+    Ids(Vec<i64>),
+}
+
+impl DirScope {
+    /// WHERE 句に AND 連結する SQL 断片と、追加のバインド値を返す。
+    /// ID は必ずバインドパラメータで渡し、SQL には埋め込まない。
+    fn sql_and_params(&self) -> (String, Vec<Value>) {
+        match self {
+            DirScope::Visible => (
+                "directory_id IN (SELECT id FROM directories WHERE visible = 1)".to_string(),
+                Vec::new(),
+            ),
+            DirScope::Ids(ids) => {
+                if ids.is_empty() {
+                    // IN () は構文エラーになるため、常に偽になる式へ落とす。
+                    return ("0".to_string(), Vec::new());
+                }
+                let placeholders = vec!["?"; ids.len()].join(", ");
+                (
+                    format!("directory_id IN ({placeholders})"),
+                    ids.iter().map(|i| Value::Integer(*i)).collect(),
+                )
+            }
+        }
+    }
+}
+
 fn row_to_image(r: &rusqlite::Row) -> rusqlite::Result<ImageRow> {
     Ok(ImageRow {
         id: r.get(0)?,
@@ -43,22 +76,26 @@ fn row_to_image(r: &rusqlite::Row) -> rusqlite::Result<ImageRow> {
 pub fn query_images(
     conn: &Connection,
     query_text: &str,
+    scope: &DirScope,
     sort: SortKey,
     dir: SortDir,
     limit: i64,
     offset: i64,
 ) -> rusqlite::Result<Vec<ImageRow>> {
     let cf = compile::compile(&parse::parse(query_text));
+    let (dir_sql, dir_params) = scope.sql_and_params();
     let sql = format!(
         "SELECT {cols} FROM images WHERE ({where_sql}) \
-         AND directory_id IN (SELECT id FROM directories WHERE visible = 1) \
+         AND {dir_sql} \
          ORDER BY {sortcol} {sortdir}, id {sortdir} LIMIT ? OFFSET ?",
         cols = SELECT_COLS,
         where_sql = cf.where_sql,
+        dir_sql = dir_sql,
         sortcol = sort.column(),
         sortdir = dir.sql(),
     );
     let mut p = cf.params;
+    p.extend(dir_params);
     p.push(Value::Integer(limit));
     p.push(Value::Integer(offset));
 
@@ -68,14 +105,16 @@ pub fn query_images(
 }
 
 /// クエリ文字列に一致する画像件数を返す。
-pub fn count_query(conn: &Connection, query_text: &str) -> rusqlite::Result<i64> {
+pub fn count_query(conn: &Connection, query_text: &str, scope: &DirScope) -> rusqlite::Result<i64> {
     let cf = compile::compile(&parse::parse(query_text));
+    let (dir_sql, dir_params) = scope.sql_and_params();
     let sql = format!(
-        "SELECT count(*) FROM images WHERE ({}) \
-         AND directory_id IN (SELECT id FROM directories WHERE visible = 1)",
-        cf.where_sql
+        "SELECT count(*) FROM images WHERE ({}) AND {}",
+        cf.where_sql, dir_sql
     );
-    conn.query_row(&sql, params_from_iter(cf.params), |r| r.get(0))
+    let mut p = cf.params;
+    p.extend(dir_params);
+    conn.query_row(&sql, params_from_iter(p), |r| r.get(0))
 }
 
 /// ビューアのメタデータパネル用の全フィールド。
@@ -191,25 +230,25 @@ mod tests {
     fn empty_query_returns_all_non_missing() {
         let c = conn();
         seed(&c);
-        let rows = query_images(&c, "", SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
+        let rows = query_images(&c, "", &DirScope::Visible, SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
         assert_eq!(rows.len(), 3);
-        assert_eq!(count_query(&c, "").unwrap(), 3);
+        assert_eq!(count_query(&c, "", &DirScope::Visible).unwrap(), 3);
     }
 
     #[test]
     fn fts_include_filters() {
         let c = conn();
         seed(&c);
-        let rows = query_images(&c, "forest", SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
+        let rows = query_images(&c, "forest", &DirScope::Visible, SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
         assert_eq!(rows.len(), 2);
-        assert_eq!(count_query(&c, "forest").unwrap(), 2);
+        assert_eq!(count_query(&c, "forest", &DirScope::Visible).unwrap(), 2);
     }
 
     #[test]
     fn fts_exclude_filters() {
         let c = conn();
         seed(&c);
-        let rows = query_images(&c, "forest -blurry", SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
+        let rows = query_images(&c, "forest -blurry", &DirScope::Visible, SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].filename, "a.png");
     }
@@ -218,7 +257,7 @@ mod tests {
     fn rating_and_width_conds() {
         let c = conn();
         seed(&c);
-        let n = count_query(&c, "rating:>=4 width:>=1024").unwrap();
+        let n = count_query(&c, "rating:>=4 width:>=1024", &DirScope::Visible).unwrap();
         assert_eq!(n, 2);
     }
 
@@ -228,19 +267,19 @@ mod tests {
         seed(&c); // 5, 3, 4
         crate::db::images::upsert(&c, &img("/d/u.png", "unrated", None, 256)).unwrap();
         // なし(NULL) + 3 を選択 → u.png と b.png の 2件。
-        assert_eq!(count_query(&c, "rating:none,3").unwrap(), 2);
+        assert_eq!(count_query(&c, "rating:none,3", &DirScope::Visible).unwrap(), 2);
         // なしのみ → u.png の 1件。
-        assert_eq!(count_query(&c, "rating:none").unwrap(), 1);
+        assert_eq!(count_query(&c, "rating:none", &DirScope::Visible).unwrap(), 1);
         // 数値集合のみ（NULLは含まない） → 3 と 5 の 2件。
-        assert_eq!(count_query(&c, "rating:3,5").unwrap(), 2);
+        assert_eq!(count_query(&c, "rating:3,5", &DirScope::Visible).unwrap(), 2);
     }
 
     #[test]
     fn sort_asc_desc_by_filename() {
         let c = conn();
         seed(&c);
-        let asc = query_images(&c, "", SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
-        let desc = query_images(&c, "", SortKey::Filename, SortDir::Desc, 100, 0).unwrap();
+        let asc = query_images(&c, "", &DirScope::Visible, SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
+        let desc = query_images(&c, "", &DirScope::Visible, SortKey::Filename, SortDir::Desc, 100, 0).unwrap();
         assert_eq!(asc.first().unwrap().filename, "a.png");
         assert_eq!(desc.first().unwrap().filename, "c.png");
     }
@@ -249,8 +288,8 @@ mod tests {
     fn limit_and_offset_paginate() {
         let c = conn();
         seed(&c);
-        let page1 = query_images(&c, "", SortKey::Filename, SortDir::Asc, 2, 0).unwrap();
-        let page2 = query_images(&c, "", SortKey::Filename, SortDir::Asc, 2, 2).unwrap();
+        let page1 = query_images(&c, "", &DirScope::Visible, SortKey::Filename, SortDir::Asc, 2, 0).unwrap();
+        let page2 = query_images(&c, "", &DirScope::Visible, SortKey::Filename, SortDir::Asc, 2, 2).unwrap();
         assert_eq!(page1.len(), 2);
         assert_eq!(page2.len(), 1);
         assert_eq!(page2[0].filename, "c.png");
@@ -261,7 +300,7 @@ mod tests {
         let c = conn();
         seed(&c);
         c.execute("UPDATE images SET missing = 1 WHERE filename = 'a.png'", []).unwrap();
-        assert_eq!(count_query(&c, "").unwrap(), 2);
+        assert_eq!(count_query(&c, "", &DirScope::Visible).unwrap(), 2);
     }
 
     #[test]
@@ -317,10 +356,92 @@ mod tests {
     fn invisible_directory_excluded_from_query_and_count() {
         let c = conn();
         seed(&c);
-        assert_eq!(count_query(&c, "").unwrap(), 3);
+        assert_eq!(count_query(&c, "", &DirScope::Visible).unwrap(), 3);
         c.execute("UPDATE directories SET visible = 0 WHERE id = 1", []).unwrap();
-        assert_eq!(count_query(&c, "").unwrap(), 0);
-        let rows = query_images(&c, "", SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
+        assert_eq!(count_query(&c, "", &DirScope::Visible).unwrap(), 0);
+        let rows = query_images(&c, "", &DirScope::Visible, SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
         assert_eq!(rows.len(), 0);
+    }
+
+    /// 2つ目のディレクトリと、そこに属する画像1件を足す。
+    fn seed_second_dir(c: &Connection) {
+        c.execute(
+            "INSERT INTO directories (path, label, recursive) VALUES ('/e', 'e', 1)",
+            [],
+        )
+        .unwrap();
+        let mut extra = img("/e/z.png", "desert dune", Some(2), 800);
+        extra.directory_id = 2;
+        crate::db::images::upsert(c, &extra).unwrap();
+    }
+
+    #[test]
+    fn dir_scope_ids_limits_to_listed_directories() {
+        let c = conn();
+        seed(&c);
+        seed_second_dir(&c);
+        assert_eq!(count_query(&c, "", &DirScope::Visible).unwrap(), 4);
+
+        let only_first =
+            query_images(&c, "", &DirScope::Ids(vec![1]), SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
+        assert_eq!(only_first.len(), 3);
+
+        let only_second =
+            query_images(&c, "", &DirScope::Ids(vec![2]), SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
+        assert_eq!(only_second.len(), 1);
+        assert_eq!(only_second[0].filename, "z.png");
+
+        assert_eq!(count_query(&c, "", &DirScope::Ids(vec![1, 2])).unwrap(), 4);
+    }
+
+    #[test]
+    fn dir_scope_empty_ids_returns_nothing() {
+        let c = conn();
+        seed(&c);
+        let rows =
+            query_images(&c, "", &DirScope::Ids(vec![]), SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
+        assert!(rows.is_empty());
+        assert_eq!(count_query(&c, "", &DirScope::Ids(vec![])).unwrap(), 0);
+    }
+
+    #[test]
+    fn dir_scope_unknown_id_returns_nothing() {
+        let c = conn();
+        seed(&c);
+        let rows =
+            query_images(&c, "", &DirScope::Ids(vec![999]), SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
+        assert!(rows.is_empty());
+    }
+
+    #[test]
+    fn dir_scope_ids_still_applies_query_conditions() {
+        let c = conn();
+        seed(&c);
+        seed_second_dir(&c);
+        // FTS条件・構造化条件・スコープ・LIMIT/OFFSET のバインド順が崩れていないこと。
+        let rows = query_images(
+            &c,
+            "forest rating:>=4",
+            &DirScope::Ids(vec![1]),
+            SortKey::Filename,
+            SortDir::Asc,
+            100,
+            0,
+        )
+        .unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].filename, "a.png");
+        assert_eq!(count_query(&c, "forest rating:>=4", &DirScope::Ids(vec![1])).unwrap(), 1);
+    }
+
+    #[test]
+    fn dir_scope_visible_excludes_hidden_directories() {
+        let c = conn();
+        seed(&c);
+        seed_second_dir(&c);
+        c.execute("UPDATE directories SET visible = 0 WHERE id = 2", []).unwrap();
+        assert_eq!(count_query(&c, "", &DirScope::Visible).unwrap(), 3);
+        // Ids は visible を無視して指定 ID をそのまま対象にする。
+        assert_eq!(count_query(&c, "", &DirScope::Ids(vec![2])).unwrap(), 1);
     }
 }
