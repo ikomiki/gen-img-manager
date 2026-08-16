@@ -1,4 +1,5 @@
 mod cli;
+mod dirscope;
 mod error;
 mod routes;
 mod state;

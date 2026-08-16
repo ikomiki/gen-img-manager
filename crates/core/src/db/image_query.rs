@@ -173,6 +173,33 @@ fn row_to_detail(r: &rusqlite::Row) -> rusqlite::Result<ImageDetail> {
     })
 }
 
+/// クエリに一致する画像 ID を、一覧と同じ並び順で返す。
+/// スライドショーの再生順序に使う。行全体を送るより転送量が桁で小さい。
+pub fn list_ids(
+    conn: &Connection,
+    query_text: &str,
+    scope: &DirScope,
+    sort: SortKey,
+    dir: SortDir,
+) -> rusqlite::Result<Vec<i64>> {
+    let cf = compile::compile(&parse::parse(query_text));
+    let (dir_sql, dir_params) = scope.sql_and_params();
+    let sql = format!(
+        "SELECT id FROM images WHERE ({where_sql}) AND {dir_sql} \
+         ORDER BY {sortcol} {sortdir}, id {sortdir}",
+        where_sql = cf.where_sql,
+        dir_sql = dir_sql,
+        sortcol = sort.column(),
+        sortdir = dir.sql(),
+    );
+    let mut p = cf.params;
+    p.extend(dir_params);
+
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(params_from_iter(p), |r| r.get(0))?;
+    rows.collect()
+}
+
 /// 1画像の全メタデータを取得する。無ければ None。
 pub fn get_detail(conn: &Connection, id: i64) -> rusqlite::Result<Option<ImageDetail>> {
     let sql = format!("SELECT {DETAIL_COLS} FROM images WHERE id = ?1");
@@ -443,5 +470,25 @@ mod tests {
         assert_eq!(count_query(&c, "", &DirScope::Visible).unwrap(), 3);
         // Ids は visible を無視して指定 ID をそのまま対象にする。
         assert_eq!(count_query(&c, "", &DirScope::Ids(vec![2])).unwrap(), 1);
+    }
+
+    #[test]
+    fn list_ids_returns_ids_in_sort_order() {
+        let c = conn();
+        seed(&c);
+        let ids = list_ids(&c, "", &DirScope::Visible, SortKey::Filename, SortDir::Asc).unwrap();
+        let rows = query_images(&c, "", &DirScope::Visible, SortKey::Filename, SortDir::Asc, 100, 0).unwrap();
+        assert_eq!(ids, rows.iter().map(|r| r.id).collect::<Vec<_>>());
+        assert_eq!(ids.len(), 3);
+    }
+
+    #[test]
+    fn list_ids_applies_query_and_scope() {
+        let c = conn();
+        seed(&c);
+        let ids = list_ids(&c, "forest", &DirScope::Visible, SortKey::Filename, SortDir::Asc).unwrap();
+        assert_eq!(ids.len(), 2);
+        let none = list_ids(&c, "forest", &DirScope::Ids(vec![]), SortKey::Filename, SortDir::Asc).unwrap();
+        assert!(none.is_empty());
     }
 }
