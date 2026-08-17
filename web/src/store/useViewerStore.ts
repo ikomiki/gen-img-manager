@@ -79,6 +79,16 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
       set({ open: false, playing: false, order: [], pos: 0 });
       return;
     }
+    if (length > order.length) {
+      // 全体を作り直すと、シャッフル時はいま見ている画像が新しい並びの
+      // 一様ランダムな位置へ移動し、そこから末尾まで既視の画像を反復してしまう。
+      // 既存の並びは保ったまま、増えた分だけをシャッフルして末尾に足す。
+      const added = buildOrder(length - order.length, shuffle, mulberry32(Date.now())).map(
+        (i) => order.length + i,
+      );
+      set({ order: [...order, ...added] });
+      return;
+    }
     const current = order[pos];
     const next = makeOrder(length, shuffle, Date.now());
     const nextPos = current === undefined ? 0 : Math.max(0, next.indexOf(current));

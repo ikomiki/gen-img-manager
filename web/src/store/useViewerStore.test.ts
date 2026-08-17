@@ -110,6 +110,23 @@ describe("syncLength", () => {
     useViewerStore.getState().syncLength(0);
     expect(useViewerStore.getState().open).toBe(false);
   });
+
+  it("シャッフル中に件数が増えても、既に見た並びは崩さず増えた分だけ末尾に足す", () => {
+    useViewerStore.setState({ shuffle: true });
+    useViewerStore.getState().openAt(3, 5, 1);
+    const before = [...useViewerStore.getState().order];
+    const posBefore = useViewerStore.getState().pos;
+
+    useViewerStore.getState().syncLength(8);
+    const s = useViewerStore.getState();
+
+    // (a) 先頭側（既存部分）の並びは変わらない。
+    expect(s.order.slice(0, 5)).toEqual(before);
+    // (b) pos は動かない。
+    expect(s.pos).toBe(posBefore);
+    // (c) 0..newLength-1 の重複なしの全順列になっている。
+    expect([...s.order].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
 });
 
 describe("スライドショー設定", () => {
