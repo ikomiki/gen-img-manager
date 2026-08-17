@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
 import { imageUrl } from "../api/images";
 import { containedLongEdge, pickWidth } from "../util/pickWidth";
 import { createPreloader } from "../util/preloader";
+import { isPlainKey, isTypingTarget } from "../util/keys";
 import { buttonStyle } from "../ui";
 import { ZoomableImage } from "./ZoomableImage";
 import { SlideshowSheet } from "./SlideshowSheet";
@@ -24,12 +25,42 @@ export function Viewer() {
   const syncLength = useViewerStore((s) => s.syncLength);
   const playing = useViewerStore((s) => s.playing);
   const pause = useViewerStore((s) => s.pause);
+  const play = useViewerStore((s) => s.play);
   const intervalSec = useViewerStore((s) => s.intervalSec);
 
   const [slideshowOpen, setSlideshowOpen] = useState(false);
   // 表示中の画像が読み込み終わったか。読み込み前から数え始めると、
   // 遅い画像が表示時間を削られたり表示前に送られたりする。
   const [loadedPos, setLoadedPos] = useState<number | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (slideshowOpen) return;
+      if (isTypingTarget(e.target)) return;
+      if (isPlainKey(e, "ArrowRight")) {
+        e.preventDefault();
+        go(1);
+      } else if (isPlainKey(e, "ArrowLeft")) {
+        e.preventDefault();
+        go(-1);
+      } else if (isPlainKey(e, " ")) {
+        // Space はページスクロールの既定動作を持つ。
+        e.preventDefault();
+        if (useViewerStore.getState().playing) pause();
+        else play();
+      } else if (isPlainKey(e, "Escape")) {
+        e.preventDefault();
+        close();
+      } else if (isPlainKey(e, "f")) {
+        e.preventDefault();
+        toggleFullscreen(rootRef.current);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, go, pause, play, close, slideshowOpen]);
 
   useEffect(() => {
     if (!playing || loadedPos !== pos) return;
@@ -71,6 +102,7 @@ export function Viewer() {
 
   return (
     <div
+      ref={rootRef}
       style={{
         position: "fixed",
         inset: 0,
@@ -170,4 +202,15 @@ export function Viewer() {
 function widthFor(imgW: number, imgH: number): number {
   const longEdge = containedLongEdge(imgW, imgH, window.innerWidth, window.innerHeight);
   return pickWidth(longEdge, window.devicePixelRatio || 1);
+}
+
+/** iOS Safari は要素のフルスクリーンを実装していない。使えない環境では何もしない。 */
+function toggleFullscreen(el: HTMLElement | null): void {
+  if (!el) return;
+  try {
+    if (document.fullscreenElement) void document.exitFullscreen?.();
+    else void el.requestFullscreen?.();
+  } catch {
+    // フルスクリーンに入れなくても閲覧そのものは続けられる。
+  }
 }
