@@ -50,8 +50,14 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onLoaded }: Props) {
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.currentTarget.setPointerCapture?.(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try {
+      // 指がハンドラ実行前に離れている等では NotFoundError が飛ぶ。
+      // capture が取れなくても、座標からのジェスチャ判定自体は続けられる。
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // 上記コメントの通り、握れなくても無視して進む。
+    }
 
     const pair = twoPoints();
     if (pair) {
@@ -122,12 +128,19 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onLoaded }: Props) {
     if (isTap(dx, dy, dt)) onTap();
   };
 
+  // システム割り込み等によるキャンセルは、指を離した操作ではないので送り・タップに繋げない。
+  const onPointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinchStart.current = null;
+    hadPinch.current = false;
+  };
+
   return (
     <div
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endPointer}
-      onPointerCancel={endPointer}
+      onPointerCancel={onPointerCancel}
       style={{
         flex: 1,
         minHeight: 0,

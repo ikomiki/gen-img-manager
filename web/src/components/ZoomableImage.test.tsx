@@ -103,6 +103,31 @@ describe("ZoomableImage", () => {
     expect(onTap).not.toHaveBeenCalled();
   });
 
+  it("setPointerCapture が例外を投げても、スワイプ判定は続く", () => {
+    Element.prototype.setPointerCapture = vi.fn(() => {
+      throw new DOMException("", "NotFoundError");
+    });
+    const { onTap, onSwipe, el } = renderImage();
+
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 300, clientY: 100 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 150, clientY: 105 });
+    fireEvent.pointerUp(el, { pointerId: 1, clientX: 150, clientY: 105 });
+
+    expect(onSwipe).toHaveBeenCalledWith("next");
+    expect(onTap).not.toHaveBeenCalled();
+  });
+
+  it("pointercancel では送りもタップも起こさない", () => {
+    const { onTap, onSwipe, el } = renderImage();
+
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 300, clientY: 100 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 150, clientY: 105 });
+    fireEvent.pointerCancel(el, { pointerId: 1, clientX: 150, clientY: 105 });
+
+    expect(onSwipe).not.toHaveBeenCalled();
+    expect(onTap).not.toHaveBeenCalled();
+  });
+
   it("2本目を離した後のパンが飛ばない", () => {
     useViewerStore.setState({ scale: 2 });
     const { el } = renderImage();
