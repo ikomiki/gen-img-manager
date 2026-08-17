@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryStore } from "../store/useQueryStore";
 import { thumbUrl } from "../api/images";
+import { gridLayout } from "../util/gridLayout";
+import { buttonStyle } from "../ui";
 
 const MIN_CELL = 110;
 const GAP = 4;
@@ -24,8 +26,7 @@ export function ImageGrid() {
     return () => ro.disconnect();
   }, []);
 
-  const columns = Math.max(1, Math.floor((width + GAP) / (MIN_CELL + GAP)));
-  const cell = columns > 0 ? (width - GAP * (columns - 1)) / columns : MIN_CELL;
+  const { columns, cell } = gridLayout(width, MIN_CELL, GAP);
   const rowCount = Math.ceil(results.length / columns);
 
   const rowVirtualizer = useVirtualizer({
@@ -34,6 +35,11 @@ export function ImageGrid() {
     estimateSize: () => cell + GAP,
     overscan: 4,
   });
+
+  // estimateSize は測定メモの依存に含まれないため、cell が変わっても再計算されない（@tanstack/virtual-core）。
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [cell]);
 
   // 末尾付近まで来たら次のページを取る。
   const items = rowVirtualizer.getVirtualItems();
@@ -44,7 +50,7 @@ export function ImageGrid() {
     }
   }, [lastRow, rowCount, exhausted, loadMore]);
 
-  if (error) {
+  if (error && results.length === 0) {
     return <p style={{ padding: 16, color: "var(--text-dim)" }}>読み込みに失敗しました: {error}</p>;
   }
 
@@ -96,6 +102,18 @@ export function ImageGrid() {
           );
         })}
       </div>
+      {error && (
+        <div style={{ padding: 16, textAlign: "center", color: "var(--text-dim)" }}>
+          <p>追加の読み込みに失敗しました: {error}</p>
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            style={{ ...buttonStyle, minWidth: "var(--tap)", padding: "0 16px" }}
+          >
+            再試行
+          </button>
+        </div>
+      )}
     </div>
   );
 }
