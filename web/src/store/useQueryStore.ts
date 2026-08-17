@@ -1,8 +1,9 @@
 import { create } from "zustand";
 import type { SortKey, SortDir } from "@gim/shared/types";
+import { recordHistory } from "@gim/shared/history";
 import * as imagesApi from "../api/images";
 import type { ImageDto } from "../api/images";
-import { loadPrefs, savePrefs } from "../storage";
+import { loadPrefs, savePrefs, HISTORY_MAX } from "../storage";
 
 export const PAGE_SIZE = 200;
 
@@ -18,9 +19,11 @@ interface QueryState {
   error: string | null;
   /** 実行中のクエリの世代。古い応答が新しい結果を上書きするのを防ぐ。 */
   seq: number;
+  history: string[];
 
   init: () => Promise<void>;
   setQuery: (q: string) => void;
+  commitQuery: () => Promise<void>;
   setSort: (sort: SortKey, dir: SortDir) => Promise<void>;
   setDirs: (dirs: number[] | null) => Promise<void>;
   runQuery: () => Promise<void>;
@@ -38,15 +41,24 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   exhausted: false,
   error: null,
   seq: 0,
+  history: [],
 
   init: async () => {
     const p = loadPrefs();
-    set({ query: p.query, sort: p.sort, dir: p.dir, dirs: p.dirs });
+    set({ query: p.query, sort: p.sort, dir: p.dir, dirs: p.dirs, history: p.history });
     await get().runQuery();
   },
 
   // 打鍵ごとに保存すると重い。保存は runQuery 実行時（Enter・履歴選択等）にまとめて行う。
   setQuery: (q) => set({ query: q }),
+
+  commitQuery: async () => {
+    const { query, history } = get();
+    const next = recordHistory(history, query, HISTORY_MAX);
+    set({ history: next });
+    savePrefs({ history: next });
+    await get().runQuery();
+  },
 
   setSort: async (sort, dir) => {
     set({ sort, dir });

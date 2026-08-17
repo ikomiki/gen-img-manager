@@ -30,6 +30,7 @@ beforeEach(() => {
     exhausted: false,
     error: null,
     seq: 0,
+    history: [],
   });
 });
 
@@ -141,6 +142,30 @@ describe("setSort / setDirs", () => {
     const saved = JSON.parse(localStorage.getItem("gim.web.prefs")!);
     expect(saved.sort).toBe("filename");
     expect(saved.dirs).toEqual([2]);
+  });
+});
+
+describe("commitQuery", () => {
+  it("履歴へ記録して検索する", async () => {
+    vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
+    vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 0 });
+
+    useQueryStore.setState({ query: "rating:5", history: [] });
+    await useQueryStore.getState().commitQuery();
+
+    expect(useQueryStore.getState().history).toEqual(["rating:5"]);
+    expect(JSON.parse(localStorage.getItem("gim.web.prefs")!).history).toEqual(["rating:5"]);
+  });
+
+  it("空のクエリは履歴に残さないが検索はする", async () => {
+    const spy = vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
+    vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 0 });
+
+    useQueryStore.setState({ query: "  ", history: ["a"] });
+    await useQueryStore.getState().commitQuery();
+
+    expect(useQueryStore.getState().history).toEqual(["a"]);
+    expect(spy).toHaveBeenCalled();
   });
 });
 
