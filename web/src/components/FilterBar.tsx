@@ -21,7 +21,14 @@ interface NavState {
 const CLOSED: NavState = { open: false, index: -1, items: [], draft: "" };
 
 export function FilterBar({ onOpenFilter, onOpenDirectories }: Props) {
-  const { query, setQuery, commitQuery, history, total, sort, dir, setSort } = useQueryStore();
+  const query = useQueryStore((s) => s.query);
+  const setQuery = useQueryStore((s) => s.setQuery);
+  const commitQuery = useQueryStore((s) => s.commitQuery);
+  const history = useQueryStore((s) => s.history);
+  const total = useQueryStore((s) => s.total);
+  const sort = useQueryStore((s) => s.sort);
+  const dir = useQueryStore((s) => s.dir);
+  const setSort = useQueryStore((s) => s.setSort);
   const [nav, setNav] = useState<NavState>(CLOSED);
 
   const candidates = (q: string) => (q.trim() === "" ? history : matchHistory(q, history));
@@ -59,7 +66,13 @@ export function FilterBar({ onOpenFilter, onOpenDirectories }: Props) {
   };
 
   return (
-    <div style={{ background: "var(--surface)", borderBottom: "1px solid var(--border)" }}>
+    <div
+      style={{
+        background: "var(--surface)",
+        borderBottom: "1px solid var(--border)",
+        paddingTop: "env(safe-area-inset-top, 0px)",
+      }}
+    >
       <div style={{ display: "flex", gap: 8, padding: "8px 12px", alignItems: "center" }}>
         <input
           type="search"

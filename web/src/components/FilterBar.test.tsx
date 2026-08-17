@@ -53,4 +53,27 @@ describe("FilterBar", () => {
     fireEvent.click(screen.getByText("絞り込み"));
     expect(onOpenFilter).toHaveBeenCalled();
   });
+
+  it("↓キーで履歴を1件ずつ選び、入力欄にプレビューされる", () => {
+    render(<FilterBar onOpenFilter={() => {}} onOpenDirectories={() => {}} />);
+    const input = screen.getByPlaceholderText("検索");
+
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(useQueryStore.getState().query).toBe("rating:5");
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(useQueryStore.getState().query).toBe("forest");
+  });
+
+  it("Escape で履歴が閉じる", () => {
+    render(<FilterBar onOpenFilter={() => {}} onOpenDirectories={() => {}} />);
+    const input = screen.getByPlaceholderText("検索");
+
+    fireEvent.focus(input);
+    expect(screen.getByText("forest")).toBeTruthy();
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByText("forest")).toBeNull();
+  });
 });
