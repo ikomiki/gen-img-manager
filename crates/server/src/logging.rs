@@ -1,7 +1,7 @@
 use axum::extract::Request;
 use axum::middleware::Next;
 use axum::response::Response;
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 /// 到達性の問題（URL 違い・ファイアウォール・404）を切り分ける最低限の手掛かり。
 /// スマホから繋がらないとき、サーバ側に何も出ないと原因が絞れない。
@@ -16,8 +16,12 @@ pub async fn access_log(req: Request, next: Next) -> Response {
 
     let res = next.run(req).await;
 
+    let unix_secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
     eprintln!(
-        "{} {} -> {} ({} ms)",
+        "[{unix_secs}] {} {} -> {} ({} ms)",
         method,
         path,
         res.status().as_u16(),
