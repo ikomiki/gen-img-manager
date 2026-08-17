@@ -1571,8 +1571,9 @@ EOF
 
 ### 決定事項
 
-- 許可する幅は **640 / 1280 / 1920 / 2560**。要求値は「それ以上で最小の許可値」へスナップし、超える場合は最大値。任意の値を受け付けるとキャッシュが際限なく増える
-- **縮小のみ。** 原画像の幅が選ばれた幅以下なら原画像をそのまま返す（拡大しない）
+- 許可する値は **640 / 1280 / 1920 / 2560**。要求値は「それ以上で最小の許可値」へスナップし、超える場合は最大値。任意の値を受け付けるとキャッシュが際限なく増える
+- **`w` は幅ではなく長辺の上限。** アスペクト比を保ったまま、長辺が `w` に収まるよう縮小する。幅基準にすると、AI生成で頻出する縦長（832×1216・1024×1536 など）は幅が 1280 以下のため縮小が一切効かない
+- **縮小のみ。** 原画像の長辺が選ばれた値以下なら原画像をそのまま返す（拡大しない）
 - 出力は **WebP 品質 82**
 - キャッシュキーは `FNV-1a(元パス + mtime + 幅)` の16進 + `.webp`
 - 書き込みは一時ファイル → `rename`。同一画像への同時リクエストが競合しても壊れない
@@ -1747,18 +1748,16 @@ fn encode_resized(
     cache_dir: &Path,
     key: &str,
 ) -> Result<Option<Vec<u8>>, ApiError> {
-    let img = image::open(src).map_err(|e| match e {
-        image::ImageError::IoError(io) if io.kind() == std::io::ErrorKind::NotFound => {
-            ApiError::NotFound
-        }
-        other => ApiError::Internal(format!("画像を読めません: {other}")),
-    })?;
-
-    if img.width() <= width {
+    // 幅の判定だけならヘッダで足りる。全体をデコードして捨てると、原画像が
+    // 十分狭い場合に毎リクエストぶんの CPU を無駄にする。
+    let (src_w, src_h) = image::image_dimensions(src).map_err(image_open_err)?;
+    if src_w.max(src_h) <= width {
         return Ok(None);
     }
-    let height = ((img.height() as u64 * width as u64) / img.width() as u64).max(1) as u32;
-    let resized = img.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
+    let img = image::open(src).map_err(image_open_err)?;
+
+    // resize は resize_exact と違い、指定した境界ボックス内にアスペクト比を保って収める。
+    let resized = img.resize(width, width, image::imageops::FilterType::Lanczos3);
 
     let rgb = resized.to_rgb8();
     let encoder = webp::Encoder::from_rgb(rgb.as_raw(), rgb.width(), rgb.height());
