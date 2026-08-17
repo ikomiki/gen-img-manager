@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { swipeAction, isTap, distance, pinchScale, MAX_SCALE } from "./gesture";
+import { swipeAction, isTap, distance, pinchScale, clampPan, MAX_SCALE } from "./gesture";
 
 describe("swipeAction", () => {
   it("左へ十分引けば次へ", () => {
@@ -79,5 +79,49 @@ describe("pinchScale", () => {
 
   it("開始距離が 0 なら倍率を変えない（測定できていない）", () => {
     expect(pinchScale(0, 100, 1.5)).toBe(1.5);
+  });
+});
+
+describe("clampPan", () => {
+  // 表示領域 390x800。画像は収めた状態で 390x300 なので、拡大後は 390s x 300s。
+  const view = [390, 800] as const;
+
+  it("2倍なら中心から動かせるのは（拡大後の幅 - 画面の幅）の半分まで", () => {
+    // 横: (780 - 390)/2 = 195
+    expect(clampPan({ x: 500, y: 0 }, 780, 600, ...view)).toEqual({ x: 195, y: 0 });
+    expect(clampPan({ x: -500, y: 0 }, 780, 600, ...view)).toEqual({ x: -195, y: 0 });
+  });
+
+  it("上限の内側はそのまま通す", () => {
+    expect(clampPan({ x: 100, y: 0 }, 780, 600, ...view)).toEqual({ x: 100, y: 0 });
+  });
+
+  it("拡大しても画面より小さい軸は中央に固定する", () => {
+    // 縦: 600 < 800 なので、縦にずらす余地はない
+    expect(clampPan({ x: 0, y: 200 }, 780, 600, ...view)).toEqual({ x: 0, y: 0 });
+  });
+
+  it("画面より大きい軸だけ動かせる", () => {
+    // 縦: (900 - 800)/2 = 50
+    expect(clampPan({ x: 0, y: 200 }, 1170, 900, ...view)).toEqual({ x: 0, y: 50 });
+  });
+
+  it("等倍では中央に戻す（拡大後も画面に収まっているため）", () => {
+    expect(clampPan({ x: 120, y: 90 }, 390, 300, ...view)).toEqual({ x: 0, y: 0 });
+  });
+
+  it("両軸が同時に効く", () => {
+    expect(clampPan({ x: 999, y: -999 }, 1170, 900, ...view)).toEqual({ x: 390, y: -50 });
+  });
+
+  it("小数の実測値でも端がぴったり合う（整数へ丸めると端に余白が残る）", () => {
+    // 実測: 拡大後 1134.625、表示領域 730 → 上限は 202.3125。
+    // offsetHeight の 284 から 284*4=1136 で計算すると 203 になり 0.7px の余白が出る。
+    expect(clampPan({ x: 0, y: 999 }, 1560, 1134.625, 390, 730).y).toBeCloseTo(202.3125, 6);
+  });
+
+  it("寸法が測れていないときは制限しない（レイアウト前に中央固定して動かせなくしない）", () => {
+    expect(clampPan({ x: 40, y: 30 }, 0, 0, 390, 800)).toEqual({ x: 40, y: 30 });
+    expect(clampPan({ x: 40, y: 30 }, 780, 600, 0, 0)).toEqual({ x: 40, y: 30 });
   });
 });

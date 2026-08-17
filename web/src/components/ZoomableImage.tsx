@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { distance, isTap, pinchScale, swipeAction, type SwipeAction } from "../util/gesture";
+import { clampPan, distance, isTap, pinchScale, swipeAction, type SwipeAction } from "../util/gesture";
 import { useViewerStore } from "../store/useViewerStore";
 
 interface Props {
@@ -24,6 +24,9 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onSettled }: Props) {
 
   const [offset, setOffset] = useState<Point>({ x: 0, y: 0 });
 
+  const areaRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+
   // 押されている指。pointerId をキーに現在位置を持つ。
   const pointers = useRef(new Map<number, Point>());
   const startAt = useRef(0);
@@ -34,9 +37,22 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onSettled }: Props) {
   // タップ・スワイプとして拾わないようにする判定に使う。
   const hadPinch = useRef(false);
 
-  // 拡大を解いたのに画像が画面外にいる状態を作らない。
+  /**
+   * 画像の端より外（余白）が見える位置には行かせない。
+   * 寸法は `getBoundingClientRect` の実測値を使う。`offsetWidth` / `offsetHeight` は
+   * 整数へ丸められるため、倍率を掛けると端に 1px 弱の余白が残る。
+   * rect は transform 適用後なので、拡大後のサイズがそのまま得られる（translate は幅高に影響しない）。
+   */
+  const clamp = (next: Point): Point => {
+    const img = imgRef.current?.getBoundingClientRect();
+    const area = areaRef.current?.getBoundingClientRect();
+    return clampPan(next, img?.width ?? 0, img?.height ?? 0, area?.width ?? 0, area?.height ?? 0);
+  };
+
+  // 倍率が下がると上限も縮むので、それまでの位置がはみ出したままになる。
+  // 等倍では上限が 0 になるため、拡大を解いたときの中央への復帰もここで済む。
   useEffect(() => {
-    if (scale === 1) setOffset({ x: 0, y: 0 });
+    setOffset((o) => clamp(o));
   }, [scale]);
 
   // 別の画像に切り替わったら位置を戻す。
@@ -85,10 +101,12 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onSettled }: Props) {
     }
     // 拡大中の1本指はパン。拡大していないときは指を離すまで判断を保留する。
     if (scale > 1 && pointers.current.size === 1) {
-      setOffset({
-        x: startOffset.current.x + (e.clientX - startPoint.current.x),
-        y: startOffset.current.y + (e.clientY - startPoint.current.y),
-      });
+      setOffset(
+        clamp({
+          x: startOffset.current.x + (e.clientX - startPoint.current.x),
+          y: startOffset.current.y + (e.clientY - startPoint.current.y),
+        }),
+      );
     }
   };
 
@@ -137,6 +155,7 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onSettled }: Props) {
 
   return (
     <div
+      ref={areaRef}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endPointer}
@@ -154,6 +173,7 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onSettled }: Props) {
       }}
     >
       <img
+        ref={imgRef}
         src={src}
         alt={alt}
         decoding="async"

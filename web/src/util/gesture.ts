@@ -39,3 +39,32 @@ export function pinchScale(startDist: number, dist: number, startScale: number):
   const next = startScale * (dist / startDist);
   return Math.min(MAX_SCALE, Math.max(1, next));
 }
+
+/**
+ * パンの位置を「拡大後の画像が表示領域を覆う」範囲へ収める。
+ * 画像は表示領域の中央に置いて transform でずらすので、ずらせる量は片側
+ * (拡大後のサイズ - 表示領域のサイズ) / 2 まで。拡大してもまだ表示領域より小さい軸は
+ * 上限が 0 になり中央へ固定される（動かしても余白しか出ないため）。
+ *
+ * 受け取るのは**拡大後**のサイズ。呼び出し側が倍率を掛けた値ではなく実測値を渡せるように
+ * してあるのは、`offsetHeight` のような整数へ丸められた値から計算すると端に 1px 弱の
+ * 余白が残るため（丸め誤差が倍率の分だけ拡大される）。
+ *
+ * 寸法が 0（レイアウト前で測れていない）のときは制限しない。測れないのに中央固定すると
+ * 動かせなくなるので、一時的に自由に動く方を選ぶ。
+ */
+export function clampPan(
+  offset: { x: number; y: number },
+  scaledW: number,
+  scaledH: number,
+  viewW: number,
+  viewH: number,
+): { x: number; y: number } {
+  if (scaledW <= 0 || scaledH <= 0 || viewW <= 0 || viewH <= 0) return offset;
+  const maxX = Math.max(0, (scaledW - viewW) / 2);
+  const maxY = Math.max(0, (scaledH - viewH) / 2);
+  return {
+    x: Math.min(maxX, Math.max(-maxX, offset.x)),
+    y: Math.min(maxY, Math.max(-maxY, offset.y)),
+  };
+}

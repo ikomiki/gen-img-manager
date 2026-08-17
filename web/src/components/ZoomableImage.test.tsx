@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { ZoomableImage } from "./ZoomableImage";
 import { useViewerStore } from "../store/useViewerStore";
 
@@ -144,5 +144,108 @@ describe("ZoomableImage", () => {
     // 「離した後の移動量」(170-140=30) に対応していること。
     // 1本目の最初の down 位置 (100) からの累積 (70) になっていないこと。
     expect(img.style.transform).toContain("translate(30px, 0px)");
+  });
+});
+
+describe("拡大中のパンの範囲", () => {
+  // jsdom はレイアウトしないので getBoundingClientRect が常に 0 を返す。このブロックだけ
+  // 実寸を返すよう差し替え、afterEach で必ず元へ戻す（他のテストファイルへ漏らさない）。
+  const stubbed: HTMLElement[] = [];
+
+  function stubRect(el: HTMLElement, size: () => { width: number; height: number }) {
+    Object.defineProperty(el, "getBoundingClientRect", {
+      configurable: true,
+      value: () => {
+        const { width, height } = size();
+        return { width, height, x: 0, y: 0, top: 0, left: 0, right: width, bottom: height } as DOMRect;
+      },
+    });
+    stubbed.push(el);
+  }
+
+  afterEach(() => {
+    for (const el of stubbed) Reflect.deleteProperty(el, "getBoundingClientRect");
+    stubbed.length = 0;
+  });
+
+  /**
+   * 表示領域 390x800。画像は収めた状態で 390x300 で、拡大後は倍率を掛けた値になる。
+   * 端数のある高さにしてあるのは、整数へ丸めた寸法で計算すると端に余白が残ることを
+   * このテストでも踏むようにするため。
+   */
+  const LAYOUT_W = 390;
+  const LAYOUT_H = 300.4;
+
+  function renderSized() {
+    const r = renderImage();
+    const img = screen.getByAltText("a.png");
+    stubRect(img, () => {
+      const s = useViewerStore.getState().scale;
+      return { width: LAYOUT_W * s, height: LAYOUT_H * s };
+    });
+    stubRect(r.el, () => ({ width: 390, height: 800 }));
+    return { ...r, img };
+  }
+
+  function pan(el: HTMLElement, dx: number, dy: number) {
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 200, clientY: 400 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 200 + dx, clientY: 400 + dy });
+    fireEvent.pointerUp(el, { pointerId: 1, clientX: 200 + dx, clientY: 400 + dy });
+  }
+
+  it("画像の端より外へは動かせない", () => {
+    useViewerStore.setState({ scale: 2 });
+    const { el, img } = renderSized();
+
+    pan(el, 500, 0);
+
+    // 横の上限は (390*2 - 390)/2 = 195
+    expect(img.style.transform).toContain("translate(195px, 0px)");
+  });
+
+  it("拡大しても画面より小さい軸は中央から動かない", () => {
+    useViewerStore.setState({ scale: 2 });
+    const { el, img } = renderSized();
+
+    pan(el, 0, 300);
+
+    // 縦は 300.4*2 = 600.8 < 800 なのでずらす余地がない
+    expect(img.style.transform).toContain("translate(0px, 0px)");
+  });
+
+  it("上限の内側なら指の動きどおりに動く", () => {
+    useViewerStore.setState({ scale: 2 });
+    const { el, img } = renderSized();
+
+    pan(el, 100, 0);
+
+    expect(img.style.transform).toContain("translate(100px, 0px)");
+  });
+
+  it("端数のある高さでも端がぴったり合う", () => {
+    useViewerStore.setState({ scale: 3 });
+    const { el, img } = renderSized();
+
+    pan(el, 0, -999);
+
+    // 縦の上限は (300.4*3 - 800)/2 = 50.6。整数へ丸めた 300 から計算すると 50 になり 0.6px ずれる。
+    // 文字列比較だと浮動小数の表記（-50.599999999999966）に振り回されるので数値で見る。
+    const ty = Number(/translate\(0px, (-?[\d.]+)px\)/.exec(img.style.transform)![1]);
+    expect(ty).toBeCloseTo(-50.6, 6);
+  });
+
+  it("倍率を下げると、はみ出していた分を詰め直す", () => {
+    useViewerStore.setState({ scale: 3 });
+    const { el, img } = renderSized();
+
+    pan(el, 380, 0); // 3倍の上限 (390*3-390)/2 = 390 の内側
+    expect(img.style.transform).toContain("translate(380px, 0px)");
+
+    // 2倍へ縮めると上限が 195 になるので、380 のままでは画像の外側が見えてしまう。
+    // 描画後にストアを書き換えるので act で包む（包まないと再レンダリング前に検証してしまう）。
+    act(() => {
+      useViewerStore.setState({ scale: 2 });
+    });
+    expect(img.style.transform).toContain("translate(195px, 0px)");
   });
 });
