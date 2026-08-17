@@ -5,6 +5,7 @@ import { imageUrl, listImageIds, listImages } from "../api/images";
 import { containedLongEdge, pickWidth } from "../util/pickWidth";
 import { createPreloader } from "../util/preloader";
 import { createRowWindow, WINDOW_SIZE } from "../util/rowWindow";
+import { useFullscreen } from "../hooks/useFullscreen";
 import { useSlideshowTimer } from "../hooks/useSlideshowTimer";
 import { useViewerKeys } from "../hooks/useViewerKeys";
 import { buttonStyle } from "../ui";
@@ -31,6 +32,8 @@ export function Viewer() {
   const syncLength = useViewerStore((s) => s.syncLength);
   const playing = useViewerStore((s) => s.playing);
   const pause = useViewerStore((s) => s.pause);
+  const zoomMode = useViewerStore((s) => s.zoomMode);
+  const toggleZoomMode = useViewerStore((s) => s.toggleZoomMode);
 
   const results = useQueryStore((s) => s.results);
   const exhausted = useQueryStore((s) => s.exhausted);
@@ -38,13 +41,13 @@ export function Viewer() {
   const seq = useQueryStore((s) => s.seq);
 
   const [slideshowOpen, setSlideshowOpen] = useState(false);
-  const [loadedPos, setLoadedPos] = useState<number | null>(null);
+  const [settledSrc, setSettledSrc] = useState<string | null>(null);
   // 行キャッシュが増えたことを描画へ伝えるためだけの世代。
   const [rowsVersion, setRowsVersion] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useViewerKeys({ enabled: open && !slideshowOpen, rootRef });
-  useSlideshowTimer(loadedPos === pos);
+  const fullscreen = useFullscreen(rootRef);
 
   const preloader = useMemo(() => createPreloader(), []);
 
@@ -113,6 +116,8 @@ export function Viewer() {
   const row =
     sortedIndex === undefined ? undefined : (results[sortedIndex] ?? rowWindow.get(sortedIndex));
   const id = sortedIndex === undefined ? undefined : (ids[sortedIndex] ?? results[sortedIndex]?.id);
+  // 計時の条件に使うので、早期 return より前で決めておく。
+  const src = id === undefined ? null : imageUrl(id, widthFor(row));
 
   // 表示中と先読み分の行を取りにいく。results にある位置は取りにいかない
   // （行キャッシュは results とは別なので、確認しないと同じ行を二重に取る）。
@@ -139,9 +144,14 @@ export function Viewer() {
     }
   }, [open, order, pos, ids, results, preloader, rowWindow, rowsVersion]);
 
-  if (!open || id === undefined) return null;
+  // 「どの位置が読み終わったか」ではなく「どの画像が読み終わったか」で数える。
+  // order を作り直すと（全件ID の到着・シャッフル切替）表示中の画像は同じまま pos だけが
+  // 動く。位置で持つと src が変わらないので load が発火せず、古い位置のまま残って
+  // 自動送りが始まらなくなる。
+  useSlideshowTimer(src !== null && settledSrc === src);
 
-  const src = imageUrl(id, widthFor(row));
+  if (!open || src === null) return null;
+
   const filename = row?.filename ?? "";
 
   return (
@@ -196,7 +206,7 @@ export function Viewer() {
         alt={filename}
         onTap={toggleChrome}
         onSwipe={(a) => go(a === "next" ? 1 : -1)}
-        onSettled={() => setLoadedPos(pos)}
+        onSettled={() => setSettledSrc(src)}
       />
 
       {chromeVisible && (
@@ -210,6 +220,19 @@ export function Viewer() {
             borderTop: "1px solid var(--border)",
           }}
         >
+          <button
+            type="button"
+            aria-label="常に画面にあわせる"
+            aria-pressed={zoomMode === "always"}
+            onClick={toggleZoomMode}
+            style={{
+              ...buttonStyle,
+              flex: 1,
+              background: zoomMode === "always" ? "var(--accent)" : buttonStyle.background,
+            }}
+          >
+            ⤢
+          </button>
           <button
             type="button"
             aria-label="前へ"
@@ -234,6 +257,21 @@ export function Viewer() {
           >
             ›
           </button>
+          {fullscreen.supported && (
+            <button
+              type="button"
+              aria-label="フルスクリーン"
+              aria-pressed={fullscreen.active}
+              onClick={fullscreen.toggle}
+              style={{
+                ...buttonStyle,
+                flex: 1,
+                background: fullscreen.active ? "var(--accent)" : buttonStyle.background,
+              }}
+            >
+              ⛶
+            </button>
+          )}
         </div>
       )}
 

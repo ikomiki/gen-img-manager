@@ -4,6 +4,7 @@ import { Viewer } from "./Viewer";
 import { useViewerStore } from "../store/useViewerStore";
 import { useQueryStore } from "../store/useQueryStore";
 import * as imagesApi from "../api/images";
+import { loadPrefs } from "../storage";
 
 function rows(from: number, count: number) {
   return Array.from({ length: count }, (_, i) => ({
@@ -37,6 +38,7 @@ beforeEach(() => {
     intervalSec: 5,
     loop: true,
     shuffle: false,
+    zoomMode: "shrink",
   });
 });
 
@@ -176,5 +178,85 @@ describe("Viewer", () => {
     expect(useViewerStore.getState().pos).toBe(0);
 
     vi.useRealTimers();
+  });
+});
+
+describe("ズームモードの切替", () => {
+  it("ボタンで切り替わり、localStorage に残る", () => {
+    useViewerStore.getState().openAt(0, 5);
+    render(<Viewer />);
+
+    const button = screen.getByLabelText("常に画面にあわせる");
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(button);
+    expect(useViewerStore.getState().zoomMode).toBe("always");
+    expect(loadPrefs().viewer.zoomMode).toBe("always");
+    expect(button.getAttribute("aria-pressed")).toBe("true");
+
+    fireEvent.click(button);
+    expect(useViewerStore.getState().zoomMode).toBe("shrink");
+    expect(loadPrefs().viewer.zoomMode).toBe("shrink");
+  });
+
+  it("切り替えると拡大は解ける（基準の大きさが変わるため）", () => {
+    useViewerStore.getState().openAt(0, 5);
+    useViewerStore.setState({ scale: 4 });
+    render(<Viewer />);
+
+    fireEvent.click(screen.getByLabelText("常に画面にあわせる"));
+    expect(useViewerStore.getState().scale).toBe(1);
+  });
+});
+
+describe("フルスクリーンボタン", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(document, "fullscreenEnabled");
+    Reflect.deleteProperty(document, "fullscreenElement");
+    Reflect.deleteProperty(Element.prototype, "requestFullscreen");
+  });
+
+  function stubSupport(request: () => Promise<void>) {
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, value: true });
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, value: null });
+    Object.defineProperty(Element.prototype, "requestFullscreen", {
+      configurable: true,
+      value: request,
+    });
+  }
+
+  it("非対応の環境（iPhone Safari）では出さない", () => {
+    useViewerStore.getState().openAt(0, 5);
+    render(<Viewer />);
+    expect(screen.queryByLabelText("フルスクリーン")).toBeNull();
+  });
+
+  it("対応環境では押すとフルスクリーンを要求する", () => {
+    const request = vi.fn(() => Promise.resolve());
+    stubSupport(request);
+    useViewerStore.getState().openAt(0, 5);
+    render(<Viewer />);
+
+    fireEvent.click(screen.getByLabelText("フルスクリーン"));
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("ブラウザ側の状態変化に押下状態が追従する", () => {
+    stubSupport(() => Promise.resolve());
+    useViewerStore.getState().openAt(0, 5);
+    render(<Viewer />);
+
+    const button = screen.getByLabelText("フルスクリーン");
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+
+    // Esc やブラウザ UI からの出入りは click を経由しない。
+    Object.defineProperty(document, "fullscreenElement", {
+      configurable: true,
+      value: document.body,
+    });
+    act(() => {
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+    expect(button.getAttribute("aria-pressed")).toBe("true");
   });
 });

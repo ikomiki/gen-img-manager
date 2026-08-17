@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { RefObject } from "react";
 import { useViewerStore } from "../store/useViewerStore";
 import { isPlainKey, isTypingTarget } from "../util/keys";
+import { toggleFullscreen } from "../util/fullscreen";
 
 interface Options {
   /** シートが開いている間などは切る。 */
@@ -42,15 +43,4 @@ export function useViewerKeys({ enabled, rootRef }: Options): void {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [enabled, go, pause, play, close, rootRef]);
-}
-
-/** iOS Safari は要素のフルスクリーンを実装していない。使えない環境では何もしない。 */
-function toggleFullscreen(el: HTMLElement | null): void {
-  if (!el) return;
-  try {
-    if (document.fullscreenElement) void document.exitFullscreen?.();
-    else void el.requestFullscreen?.();
-  } catch {
-    // フルスクリーンに入れなくても閲覧そのものは続けられる。
-  }
 }

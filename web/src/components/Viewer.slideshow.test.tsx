@@ -81,6 +81,26 @@ describe("スライドショーの計時", () => {
     expect(useViewerStore.getState().pos).toBe(posAtClose);
   });
 
+  it("並びが作り直されて pos が動いても送りは止まらない", async () => {
+    vi.mocked(imagesApi.listImageIds).mockResolvedValue(
+      Array.from({ length: 50 }, (_, i) => i + 1),
+    );
+    act(() => useViewerStore.getState().openAt(0, 3));
+    render(<Viewer />);
+    await act(async () => {});
+    act(() => settle());
+    act(() => useViewerStore.getState().play());
+
+    // シャッフルを入れると order を作り直す。見ている画像は同じなので src は変わらず、
+    // pos だけが動く。
+    act(() => useViewerStore.getState().setShuffle(true, 12345));
+    const posBefore = useViewerStore.getState().pos;
+    expect(posBefore).not.toBe(0);
+
+    act(() => void vi.advanceTimersByTime(3000));
+    expect(useViewerStore.getState().pos).not.toBe(posBefore);
+  });
+
   it("停止すると送らない", () => {
     act(() => useViewerStore.getState().openAt(0, 3));
     render(<Viewer />);

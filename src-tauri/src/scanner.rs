@@ -46,7 +46,9 @@ pub fn decide(size: i64, mtime: i64, prev: Option<&PrevMeta>) -> Decision {
 
 /// 進捗 emit すべきか（一定間隔ごと、かつ最終件は必ず）。
 pub fn should_emit(processed: usize, total: usize, interval: usize) -> bool {
-    processed == total || (interval > 0 && processed % interval == 0)
+    // interval == 0 を除くのは、is_multiple_of(0) が processed == 0 で真になり、
+    // 「間隔なし」の指定が先頭1件だけ emit する挙動に化けるため。
+    processed == total || (interval > 0 && processed.is_multiple_of(interval))
 }
 
 /// 進捗イベントのペイロード。
@@ -312,7 +314,7 @@ mod tests {
         encoder.set_depth(::png::BitDepth::Eight);
         encoder.add_text_chunk("parameters".into(), params.into()).unwrap();
         let mut writer = encoder.write_header().unwrap();
-        writer.write_image_data(&vec![0u8; 4 * 2 * 4]).unwrap();
+        writer.write_image_data(&[0u8; 4 * 2 * 4]).unwrap();
     }
 
     fn unique_id() -> u64 {

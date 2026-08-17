@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { swipeAction, isTap, distance, pinchScale, clampPan, MAX_SCALE } from "./gesture";
+import { swipeAction, isTap, distance, pinchScale, clampPan, containedSize, MAX_SCALE } from "./gesture";
 
 describe("swipeAction", () => {
   it("左へ十分引けば次へ", () => {
@@ -123,5 +123,29 @@ describe("clampPan", () => {
   it("寸法が測れていないときは制限しない（レイアウト前に中央固定して動かせなくしない）", () => {
     expect(clampPan({ x: 40, y: 30 }, 0, 0, 390, 800)).toEqual({ x: 40, y: 30 });
     expect(clampPan({ x: 40, y: 30 }, 780, 600, 0, 0)).toEqual({ x: 40, y: 30 });
+  });
+});
+
+describe("containedSize", () => {
+  it("縦横比が同じなら矩形をそのまま返す", () => {
+    expect(containedSize(1000, 500, 400, 200)).toEqual({ w: 400, h: 200 });
+  });
+
+  it("横長の絵を正方形の矩形に入れると高さが縮む", () => {
+    expect(containedSize(1000, 500, 400, 400)).toEqual({ w: 400, h: 200 });
+  });
+
+  it("縦長の絵を正方形の矩形に入れると幅が縮む", () => {
+    expect(containedSize(500, 1000, 400, 400)).toEqual({ w: 200, h: 400 });
+  });
+
+  it("拡大後の矩形でも比率どおりに絵の大きさが出る", () => {
+    // 表示領域 390x800 を 3 倍したのが矩形。絵は 1024x768。
+    expect(containedSize(1024, 768, 1170, 2400)).toEqual({ w: 1170, h: 877.5 });
+  });
+
+  it("自然サイズが分からないときは矩形をそのまま返す（制限しない側に倒す）", () => {
+    expect(containedSize(0, 0, 390, 800)).toEqual({ w: 390, h: 800 });
+    expect(containedSize(1024, 768, 0, 0)).toEqual({ w: 0, h: 0 });
   });
 });

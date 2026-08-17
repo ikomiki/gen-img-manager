@@ -41,6 +41,28 @@ export function pinchScale(startDist: number, dist: number, startScale: number):
 }
 
 /**
+ * `object-fit: contain` で要素の矩形に絵を収めたときに、実際に絵が描かれる大きさ。
+ *
+ * 要素の矩形と絵の大きさは一致しない。「常に画面にあわせる」モードでは要素へ
+ * `width: 100%` / `height: 100%` を与えるので、要素は表示領域いっぱいになり、
+ * 縦横比の差の分だけ絵より大きくなる。パンの上限を要素の矩形で決めると、
+ * 絵の外の余白まで動けてしまう。
+ *
+ * 自然サイズが分からない（読み込み前で 0）ときは矩形をそのまま返す。制限しない側に
+ * 倒すのは、測れないのに中央固定すると動かせなくなるため。
+ */
+export function containedSize(
+  natW: number,
+  natH: number,
+  boxW: number,
+  boxH: number,
+): { w: number; h: number } {
+  if (natW <= 0 || natH <= 0 || boxW <= 0 || boxH <= 0) return { w: boxW, h: boxH };
+  const s = Math.min(boxW / natW, boxH / natH);
+  return { w: natW * s, h: natH * s };
+}
+
+/**
  * パンの位置を「拡大後の画像が表示領域を覆う」範囲へ収める。
  * 画像は表示領域の中央に置いて transform でずらすので、ずらせる量は片側
  * (拡大後のサイズ - 表示領域のサイズ) / 2 まで。拡大してもまだ表示領域より小さい軸は

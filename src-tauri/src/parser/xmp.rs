@@ -230,12 +230,14 @@ pub fn upsert_rating_in_xmp(xml: &str, rating: Option<i64>) -> String {
             }
             Ok(Event::End(e)) if e.name().as_ref() == b"rdf:Description" => {
                 // 既存Ratingが無く Some の場合、Description 終了直前に要素を挿入。
-                if rating.is_some() && !found && !injected {
-                    let r = rating.unwrap().clamp(0, 5);
-                    let _ = writer.write_event(WEvent::Start(BytesStart::new("xmp:Rating")));
-                    let _ = writer.write_event(WEvent::Text(BytesText::new(&r.to_string())));
-                    let _ = writer.write_event(WEvent::End(BytesEnd::new("xmp:Rating")));
-                    injected = true;
+                if !found && !injected {
+                    if let Some(r) = rating {
+                        let r = r.clamp(0, 5);
+                        let _ = writer.write_event(WEvent::Start(BytesStart::new("xmp:Rating")));
+                        let _ = writer.write_event(WEvent::Text(BytesText::new(&r.to_string())));
+                        let _ = writer.write_event(WEvent::End(BytesEnd::new("xmp:Rating")));
+                        injected = true;
+                    }
                 }
                 let _ = writer.write_event(WEvent::End(e.to_owned()));
             }

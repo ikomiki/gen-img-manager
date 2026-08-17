@@ -17,6 +17,7 @@ pub fn content_type_for_path(path: &str) -> &'static str {
         Some("js") | Some("mjs") => "text/javascript; charset=utf-8",
         Some("css") => "text/css; charset=utf-8",
         Some("json") | Some("map") => "application/json",
+        Some("webmanifest") => "application/manifest+json",
         Some("svg") => "image/svg+xml",
         Some("png") => "image/png",
         Some("webp") => "image/webp",
@@ -96,6 +97,16 @@ mod tests {
         assert_eq!(content_type_for_path("assets/a.css"), "text/css; charset=utf-8");
         assert_eq!(content_type_for_path("favicon.svg"), "image/svg+xml");
         assert_eq!(content_type_for_path("x.bin"), "application/octet-stream");
+    }
+
+    #[test]
+    fn manifest_has_its_own_content_type() {
+        // octet-stream で返すと iOS が manifest を読まず、「ホーム画面に追加」しても
+        // standalone にならない（アドレスバーが消えない）。
+        assert_eq!(
+            content_type_for_path("manifest.webmanifest"),
+            "application/manifest+json"
+        );
     }
 
     #[tokio::test]

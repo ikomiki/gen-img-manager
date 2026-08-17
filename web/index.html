@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>gen-img-manager</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#121212" />
+    <!--
+      iPhone の Safari は要素のフルスクリーン API を持たないため、アドレスバーを消す
+      手段が「ホーム画面に追加」しかない。standalone を効かせるには manifest だけでなく
+      apple- 付きの meta も要る。black-translucent は状態バーの下まで描くので、
+      上下のバーは env(safe-area-inset-*) で避けている前提。
+    -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="gen-img" />
+    <link rel="apple-touch-icon" href="./icon-512.png" />
   </head>
   <body>
     <div id="root"></div>

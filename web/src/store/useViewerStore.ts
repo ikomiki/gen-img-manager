@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { buildOrder, mulberry32, step } from "@gim/shared/playlist";
-import { loadPrefs, savePrefs } from "../storage";
+import { loadPrefs, savePrefs, type ZoomMode } from "../storage";
 
 interface ViewerState {
   open: boolean;
@@ -9,6 +9,7 @@ interface ViewerState {
   /** order 上の位置。表示中の画像は ids があれば ids[order[pos]]、無ければ results[order[pos]]。 */
   pos: number;
   scale: number;
+  zoomMode: ZoomMode;
   /** 上下のバーを出すか。画像をタップするたびに切り替わる。 */
   chromeVisible: boolean;
   playing: boolean;
@@ -29,6 +30,7 @@ interface ViewerState {
   /** クエリが変わって sort 順インデックスの意味が変わったときに ids を捨てる。 */
   invalidateIds: () => void;
   setScale: (s: number) => void;
+  toggleZoomMode: () => void;
   toggleChrome: () => void;
   play: () => void;
   pause: () => void;
@@ -46,6 +48,7 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   order: [],
   pos: 0,
   scale: 1,
+  zoomMode: "shrink",
   chromeVisible: true,
   playing: false,
   intervalSec: 5,
@@ -55,11 +58,12 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   idsSeq: null,
 
   initPrefs: () => {
-    const { slideshow } = loadPrefs();
+    const { slideshow, viewer } = loadPrefs();
     set({
       intervalSec: slideshow.intervalSec,
       loop: slideshow.loop,
       shuffle: slideshow.shuffle,
+      zoomMode: viewer.zoomMode,
     });
   },
 
@@ -125,6 +129,14 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   invalidateIds: () => set({ ids: [], idsSeq: null }),
 
   setScale: (s) => set({ scale: s }),
+
+  // 基準の大きさが変わるので拡大は解く。拡大したまま切り替えると、
+  // 同じ倍率でも見えている範囲が変わって、どこを見ているのか分からなくなる。
+  toggleZoomMode: () => {
+    const zoomMode: ZoomMode = get().zoomMode === "shrink" ? "always" : "shrink";
+    set({ zoomMode, scale: 1 });
+    savePrefs({ viewer: { zoomMode } });
+  },
 
   toggleChrome: () => set({ chromeVisible: !get().chromeVisible }),
 
