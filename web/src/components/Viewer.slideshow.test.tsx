@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, act } from "@testing-library/react";
+import { render, fireEvent, act, screen } from "@testing-library/react";
 import { Viewer } from "./Viewer";
 import { useViewerStore } from "../store/useViewerStore";
 import { useQueryStore } from "../store/useQueryStore";
@@ -121,5 +121,37 @@ describe("全件ID の取得", () => {
     await act(async () => {});
 
     expect(useViewerStore.getState().order.length).toBe(50);
+  });
+
+  it("未読み込みの位置でも ids から正しい画像とファイル名を出す", async () => {
+    vi.mocked(imagesApi.listImageIds).mockResolvedValue(
+      Array.from({ length: 100 }, (_, i) => i + 1),
+    );
+    vi.mocked(imagesApi.listImages).mockImplementation(async (p) => {
+      const offset = p.offset ?? 0;
+      const limit = p.limit ?? 0;
+      return Array.from({ length: limit }, (_, i) => row(offset + i + 1));
+    });
+    useQueryStore.setState({ results: [row(1)], total: 1, exhausted: true, seq: 1 });
+
+    act(() => useViewerStore.getState().openAt(0, 1));
+    render(<Viewer />);
+    // ids（1..100）が入るのを待つ。
+    await act(async () => {});
+    expect(useViewerStore.getState().ids.length).toBe(100);
+
+    // shuffle:false なら order[pos] === pos。40 以上まで送って未読み込みの窓に入る。
+    act(() => {
+      for (let i = 0; i < 40; i++) useViewerStore.getState().go(1);
+    });
+    // 窓（offset:40, limit:40）の取得が終わるのを待つ。
+    await act(async () => {});
+
+    expect(imagesApi.listImages).toHaveBeenCalledWith(
+      expect.objectContaining({ offset: 40, limit: 40 }),
+    );
+    const img = document.querySelector("img");
+    expect(img?.getAttribute("src")).toContain("/api/image/41");
+    expect(screen.getByText("41.png")).toBeTruthy();
   });
 });
