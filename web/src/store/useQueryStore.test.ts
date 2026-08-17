@@ -207,3 +207,34 @@ describe("setQuery", () => {
     expect(JSON.parse(localStorage.getItem("gim.web.prefs")!).query).toBe("rating:5");
   });
 });
+
+describe("runQueryDebounced", () => {
+  it("連続して呼んでも検索は1回だけ走る", async () => {
+    vi.useFakeTimers();
+    const spy = vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
+    vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 0 });
+
+    useQueryStore.getState().runQueryDebounced();
+    useQueryStore.getState().runQueryDebounced();
+    useQueryStore.getState().runQueryDebounced();
+    expect(spy).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(spy).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it("間隔を空ければそれぞれ走る", async () => {
+    vi.useFakeTimers();
+    const spy = vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
+    vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 0 });
+
+    useQueryStore.getState().runQueryDebounced();
+    await vi.advanceTimersByTimeAsync(500);
+    useQueryStore.getState().runQueryDebounced();
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+});

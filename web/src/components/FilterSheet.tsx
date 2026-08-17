@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { extractField, upsertField } from "@gim/shared/queryTokens";
 import { applyPromptField, promptFieldToInput } from "@gim/shared/promptQuery";
 import {
@@ -22,29 +23,39 @@ export function FilterSheet({ open, onClose }: Props) {
   const query = useQueryStore((s) => s.query);
   const setQuery = useQueryStore((s) => s.setQuery);
   const commitQuery = useQueryStore((s) => s.commitQuery);
+  const runQuery = useQueryStore((s) => s.runQuery);
+  const runQueryDebounced = useQueryStore((s) => s.runQueryDebounced);
 
   // シートは状態を持たない。クエリ文字列が唯一の正で、毎回そこから読む。
   const ratings = parseRatingToken(extractField(query, "rating"));
 
-  const setField = (field: string, value: string) =>
+  /** 自由入力の欄。打鍵ごとにクエリ文字列は直すが、検索は落ち着いてから投げる。 */
+  const setField = (field: string, value: string) => {
     setQuery(upsertField(query, field, value.trim() === "" ? null : value.trim()));
+    runQueryDebounced();
+  };
 
   const toggleRating = (v: RatingValue) => {
     const next = new Set(ratings);
     if (next.has(v)) next.delete(v);
     else next.add(v);
     setQuery(upsertField(query, "rating", buildRatingToken(next)));
+    void runQuery();
   };
 
   const clearFields = () => {
     const withoutStructured = STRUCTURED.reduce((q, f) => upsertField(q, f, null), query);
     setQuery(applyPromptField(withoutStructured, "prompt", ""));
+    void runQuery();
   };
 
-  const apply = () => {
-    onClose();
-    void commitQuery();
-  };
+  // シート操作中の検索は履歴に残さない（チップ1つで1件増えると使い物にならない）。
+  // 閉じた時点の文字列だけを1件記録する。
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !open) void commitQuery();
+    wasOpen.current = open;
+  }, [open, commitQuery]);
 
   return (
     <Sheet open={open} title="絞り込み" onClose={onClose}>
@@ -54,7 +65,10 @@ export function FilterSheet({ open, onClose }: Props) {
           type="text"
           value={promptFieldToInput(query, "prompt")}
           placeholder="forest -blurry"
-          onChange={(e) => setQuery(applyPromptField(query, "prompt", e.target.value))}
+          onChange={(e) => {
+            setQuery(applyPromptField(query, "prompt", e.target.value));
+            runQueryDebounced();
+          }}
           style={{ ...inputStyle, width: "100%" }}
         />
       </Field>
@@ -128,9 +142,10 @@ export function FilterSheet({ open, onClose }: Props) {
           aria-label="作成日"
           type="date"
           value={(extractField(query, "created") ?? "").replace(/^>=/, "")}
-          onChange={(e) =>
-            setField("created", e.target.value === "" ? "" : `>=${e.target.value}`)
-          }
+          onChange={(e) => {
+            setQuery(upsertField(query, "created", e.target.value === "" ? null : `>=${e.target.value}`));
+            void runQuery();
+          }}
           style={{ ...inputStyle, width: "100%" }}
         />
       </Field>
@@ -138,13 +153,6 @@ export function FilterSheet({ open, onClose }: Props) {
       <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
         <button type="button" onClick={clearFields} style={{ ...buttonStyle, flex: 1 }}>
           クリア
-        </button>
-        <button
-          type="button"
-          onClick={apply}
-          style={{ ...buttonStyle, flex: 2, background: "var(--accent)" }}
-        >
-          適用
         </button>
       </div>
     </Sheet>

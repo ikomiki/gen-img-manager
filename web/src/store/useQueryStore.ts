@@ -7,6 +7,13 @@ import { loadPrefs, savePrefs, HISTORY_MAX } from "../storage";
 
 export const PAGE_SIZE = 200;
 
+/** 自由入力からの検索を遅らせる時間。17,000件へ打鍵ごとに投げないため。 */
+const DEBOUNCE_MS = 400;
+
+// タイマーの識別子はストアの状態ではない（描画に関係しない）ので、
+// 再レンダリングを誘発しないようモジュールスコープに置く。
+let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
 interface QueryState {
   query: string;
   sort: SortKey;
@@ -27,6 +34,7 @@ interface QueryState {
   setSort: (sort: SortKey, dir: SortDir) => Promise<void>;
   setDirs: (dirs: number[] | null) => Promise<void>;
   runQuery: () => Promise<void>;
+  runQueryDebounced: () => void;
   loadMore: () => Promise<void>;
 }
 
@@ -100,6 +108,13 @@ export const useQueryStore = create<QueryState>((set, get) => ({
         error: e instanceof Error ? e.message : String(e),
       });
     }
+  },
+
+  runQueryDebounced: () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      void get().runQuery();
+    }, DEBOUNCE_MS);
   },
 
   loadMore: async () => {
