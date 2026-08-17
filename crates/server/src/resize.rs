@@ -50,13 +50,13 @@ pub async fn get_or_create(
         .resize_slots
         .acquire()
         .await
-        .map_err(|e| ApiError::Internal(format!("{e}")))?;
+        .map_err(|e| ApiError::internal("リサイズの実行枠を取れません", e))?;
 
     let src = src.to_path_buf();
     let cache_dir = state.cache_dir.clone();
     let out = tokio::task::spawn_blocking(move || encode_resized(&src, width, &cache_dir, &key))
         .await
-        .map_err(|e| ApiError::Internal(format!("リサイズに失敗しました: {e}")))??;
+        .map_err(|e| ApiError::internal("リサイズに失敗しました", e))??;
 
     if out.is_some() {
         let n = state.generated.fetch_add(1, Ordering::Relaxed) + 1;
@@ -73,7 +73,7 @@ fn image_open_err(e: image::ImageError) -> ApiError {
         image::ImageError::IoError(io) if io.kind() == std::io::ErrorKind::NotFound => {
             ApiError::NotFound
         }
-        other => ApiError::Internal(format!("画像を読めません: {other}")),
+        other => ApiError::internal("画像を読めません", other),
     }
 }
 
@@ -105,7 +105,7 @@ fn encode_resized(
     let tmp = cache_dir.join(format!("{key}.{}.{seq}.tmp", std::process::id()));
     if let Err(e) = std::fs::write(&tmp, &bytes) {
         let _ = std::fs::remove_file(&tmp);
-        return Err(ApiError::Internal(format!("キャッシュを書けません: {e}")));
+        return Err(ApiError::internal("キャッシュを書けません", e));
     }
     if let Err(e) = std::fs::rename(&tmp, cache_dir.join(key)) {
         eprintln!("キャッシュファイルの rename に失敗しました: {e}");

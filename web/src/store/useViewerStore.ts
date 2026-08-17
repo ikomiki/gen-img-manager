@@ -6,7 +6,7 @@ interface ViewerState {
   open: boolean;
   /** results 上のインデックス列。シャッフル時は並びが変わる。 */
   order: number[];
-  /** order 上の位置。表示中の画像は results[order[pos]]。 */
+  /** order 上の位置。表示中の画像は ids があれば ids[order[pos]]、無ければ results[order[pos]]。 */
   pos: number;
   scale: number;
   /** 上下のバーを出すか。画像をタップするたびに切り替わる。 */
@@ -15,12 +15,19 @@ interface ViewerState {
   intervalSec: number;
   loop: boolean;
   shuffle: boolean;
+  /** 検索結果全体の画像ID列（sort 順）。空なら未取得で、order は results の長さに留まる。 */
+  ids: number[];
+  /** ids を取った時点の useQueryStore.seq。クエリが変わったら取り直す目印。 */
+  idsSeq: number | null;
 
   initPrefs: () => void;
   openAt: (index: number, length: number, seed?: number) => void;
   close: () => void;
   go: (delta: 1 | -1) => void;
   syncLength: (length: number) => void;
+  setIds: (ids: number[], seq: number, seed?: number) => void;
+  /** クエリが変わって sort 順インデックスの意味が変わったときに ids を捨てる。 */
+  invalidateIds: () => void;
   setScale: (s: number) => void;
   toggleChrome: () => void;
   play: () => void;
@@ -44,6 +51,8 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   intervalSec: 5,
   loop: true,
   shuffle: false,
+  ids: [],
+  idsSeq: null,
 
   initPrefs: () => {
     const { slideshow } = loadPrefs();
@@ -94,6 +103,26 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
     const nextPos = current === undefined ? 0 : Math.max(0, next.indexOf(current));
     set({ order: next, pos: nextPos });
   },
+
+  setIds: (ids, seq, seed = Date.now()) => {
+    if (ids.length === 0) {
+      // 0件は「本当に0件」か「取れなかった」。どちらでも並びは触らず、
+      // results の範囲で送る従来の経路に落とす。0件での閉じ処理は syncLength が担う。
+      set({ ids, idsSeq: seq });
+      return;
+    }
+    const { order, pos, shuffle } = get();
+    // 増分を末尾に足すのではなく作り直す。シャッフル時に増分追加だと
+    // 「先頭200件のシャッフル → 残り全部」という偏った並びになる。
+    // 作り直しても、いま見ている画像（sort順インデックス）はそのまま見せ続ける。
+    const current = order[pos] ?? 0;
+    const next = makeOrder(ids.length, shuffle, seed);
+    set({ ids, idsSeq: seq, order: next, pos: Math.max(0, next.indexOf(current)) });
+  },
+
+  // order と pos は触らない。ここで並びを壊すと、取り直しが終わるまで
+  // 表示が飛ぶ。ids を空にしておけば、その間は results の範囲で読まれる。
+  invalidateIds: () => set({ ids: [], idsSeq: null }),
 
   setScale: (s) => set({ scale: s }),
 

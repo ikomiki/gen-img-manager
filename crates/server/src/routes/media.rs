@@ -1,7 +1,8 @@
 use crate::error::ApiError;
+use crate::extract::{ApiPath, ApiQuery};
 use crate::fileserve;
 use crate::state::AppState;
-use axum::extract::{Path, Query, State};
+use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::response::Response;
 use gim_core::db::images::MediaInfo;
@@ -15,10 +16,9 @@ fn media_info(state: &AppState, id: i64) -> Result<MediaInfo, ApiError> {
 
 pub async fn thumb(
     State(state): State<AppState>,
-    id: Result<Path<i64>, axum::extract::rejection::PathRejection>,
+    ApiPath(id): ApiPath<i64>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    let Path(id) = id?;
     let info = media_info(&state, id)?;
     let thumb = info.thumb_path.ok_or(ApiError::NotFound)?;
     let mtime = fileserve::read_meta_with_timeout(PathBuf::from(&thumb)).await?;
@@ -37,12 +37,10 @@ pub struct ImageParams {
 
 pub async fn image(
     State(state): State<AppState>,
-    id: Result<Path<i64>, axum::extract::rejection::PathRejection>,
-    params: Result<Query<ImageParams>, axum::extract::rejection::QueryRejection>,
+    ApiPath(id): ApiPath<i64>,
+    ApiQuery(params): ApiQuery<ImageParams>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    let Path(id) = id?;
-    let Query(params) = params?;
     let info = media_info(&state, id)?;
     let src = PathBuf::from(&info.path);
 
@@ -158,5 +156,11 @@ mod tests {
             400
         );
         assert_eq!(get_raw(state, "/api/image/1?w=abc").await.status(), 400);
+    }
+
+    #[tokio::test]
+    async fn non_numeric_id_is_400() {
+        let (state, _tmp) = test_state_with_files();
+        assert_eq!(get_raw(state, "/api/image/abc").await.status(), 400);
     }
 }

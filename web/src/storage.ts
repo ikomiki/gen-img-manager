@@ -53,6 +53,10 @@ function asBool(v: unknown, fallback: boolean): boolean {
   return typeof v === "boolean" ? v : fallback;
 }
 
+function asOneOf<T extends string>(v: unknown, allowed: readonly string[], fallback: T): T {
+  return typeof v === "string" && allowed.includes(v) ? (v as T) : fallback;
+}
+
 /**
  * 保存内容をフィールド単位で検証して `Prefs` を組み立てる。
  * 型が違う値をそのまま通すと、`dirs: "abc"` のようなゴミが実行時エラーになって
@@ -68,8 +72,8 @@ export function sanitizePrefs(raw: unknown): Prefs {
 
   return {
     query: typeof r.query === "string" ? r.query : DEFAULT_PREFS.query,
-    sort: SORT_KEYS.includes(r.sort as string) ? (r.sort as SortKey) : DEFAULT_PREFS.sort,
-    dir: SORT_DIRS.includes(r.dir as string) ? (r.dir as SortDir) : DEFAULT_PREFS.dir,
+    sort: asOneOf<SortKey>(r.sort, SORT_KEYS, DEFAULT_PREFS.sort),
+    dir: asOneOf<SortDir>(r.dir, SORT_DIRS, DEFAULT_PREFS.dir),
     dirs: asNumberArrayOrNull(r.dirs),
     history: asStringArray(r.history),
     slideshow: {

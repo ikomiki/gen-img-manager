@@ -101,7 +101,7 @@ gim-server [--host 0.0.0.0] [--port 5180] [--data-dir <path>]
 
 `--data-dir` の既定値は `~/Library/Application Support/com.technonet.genimgmanager`。ここから `library.db`・`thumbnails/`・`web-cache/` を導く。起動時に DB を検証し、LAN 側の待受アドレスを標準出力に表示する（`http://192.168.x.x:5180 で待受中`）。
 
-web フロントは `rust-embed` でバイナリに埋め込む。`crates/server/build.rs` が `web/dist` の存在を確認し、無ければ「先に `npm run build -w web` を実行してください」と表示して失敗する。
+web フロントは `rust-embed` でバイナリに埋め込む。`crates/server/build.rs` が `web/dist` の存在を確認し、無ければ案内文だけの `index.html` を置いて `cargo::warning` を出す（`web/dist` は .gitignore 対象でクローン直後には無く、ここで失敗させると `cargo test --workspace` が JS のビルド無しに動かなくなる）。同梱されていないときはブラウザに `pnpm -C web build` の案内が出る。
 
 ### API
 
@@ -172,7 +172,7 @@ desktop 側は `src/util/x.ts` を削除して import を `@gim/shared` へ差�
 
 **ビューア**: 全画面表示、左右スワイプで送り、ピンチズーム、タップで UI 表示切替。
 
-**スライドショー**: ビューアから起動。間隔・ループ・シャッフルを設定できる。順序生成は `playlist.ts` の `buildOrder` / `step` を使い、次の2枚を `new Image()` でプリロードする。
+**スライドショー**: ビューアから起動。間隔・ループ・シャッフルを設定できる。再生対象は `/api/images/ids` が返す検索結果全体で、表示に必要な行（ファイル名・寸法）は 40 件単位の窓で必要になった時だけ取る。順序生成は `playlist.ts` の `buildOrder` / `step` を使い、次の2枚を `new Image()` でプリロードする。
 
 PC ブラウザではキーボードも効かせる（←→ で送り、Space で再生/停止、F でフルスクリーン、`/` でクエリ入力へフォーカス）。修飾キーは完全一致で判定する。
 
@@ -183,7 +183,7 @@ zustand ストア2つ:
 - `useQueryStore` — クエリ・ソート・ディレクトリ選択・結果・総数・ページング
 - `useViewerStore` — 現在位置・ズーム・スライドショー設定
 
-localStorage は `gim.web.*` の名前空間に `history`（最大50件、新しい順・重複は先頭へ昇格）・`query`・`sort`・`dirs`・`slideshow` を保存する。読み書きはロジックから分離し、ロジック側を `packages/shared` の純粋関数としてテストする。
+localStorage は `gim.web.prefs` の1キーに JSON でまとめて保存する（`history`（最大50件、新しい順・重複は先頭へ昇格）・`query`・`sort`・`dir`・`dirs`・`slideshow`）。キーを分けないのは、読み書きのたびに部分的に壊れた組み合わせが残らないようにするため。読み込み時はフィールド単位で型を検証して既定値へ落とす（`sanitizePrefs`）。読み書きはロジックから分離し、ロジック側を `packages/shared` の純粋関数としてテストする。
 
 ## テスト
 

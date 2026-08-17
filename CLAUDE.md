@@ -23,6 +23,9 @@ npm test
 npx vitest run packages/shared/src/queryTokens.test.ts    # 単一ファイル
 npx vitest run -t "parseRatingToken"                      # テスト名で絞り込み
 
+# 型検査・テスト・lint をまとめて実行
+npm run check
+
 # Rust（workspace）のテスト・lint
 cargo test --workspace
 cargo clippy --workspace --all-targets

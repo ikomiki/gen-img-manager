@@ -13,6 +13,8 @@ beforeEach(() => {
     intervalSec: 5,
     loop: true,
     shuffle: false,
+    ids: [],
+    idsSeq: null,
   });
 });
 
@@ -169,5 +171,103 @@ describe("close", () => {
     const s = useViewerStore.getState();
     expect(s.open).toBe(false);
     expect(s.playing).toBe(false);
+  });
+});
+
+describe("setIds", () => {
+  it("並びを全件へ広げ、いま見ている画像は変わらない", () => {
+    useViewerStore.setState({ shuffle: false, ids: [], idsSeq: null });
+    useViewerStore.getState().openAt(3, 200);
+    expect(useViewerStore.getState().order.length).toBe(200);
+
+    const ids = Array.from({ length: 17000 }, (_, i) => 1000 + i);
+    useViewerStore.getState().setIds(ids, 1);
+
+    const s = useViewerStore.getState();
+    expect(s.order.length).toBe(17000);
+    expect(s.idsSeq).toBe(1);
+    // シャッフルしていないので order は昇順。位置3のまま。
+    expect(s.order[s.pos]).toBe(3);
+    expect(s.ids[s.order[s.pos]]).toBe(1003);
+  });
+
+  it("シャッフル時も、いま見ている画像を見せ続ける", () => {
+    useViewerStore.setState({ shuffle: true, ids: [], idsSeq: null });
+    useViewerStore.getState().openAt(7, 200, 1);
+    const before = useViewerStore.getState();
+    const shownSortedIndex = before.order[before.pos];
+
+    const ids = Array.from({ length: 5000 }, (_, i) => i);
+    useViewerStore.getState().setIds(ids, 2, 42);
+
+    const after = useViewerStore.getState();
+    expect(after.order.length).toBe(5000);
+    expect(after.order[after.pos]).toBe(shownSortedIndex);
+  });
+
+  it("シャッフル時は全件をまたいだ並びになる", () => {
+    useViewerStore.setState({ shuffle: true, ids: [], idsSeq: null });
+    useViewerStore.getState().openAt(0, 200, 1);
+
+    const ids = Array.from({ length: 5000 }, (_, i) => i);
+    useViewerStore.getState().setIds(ids, 2, 42);
+
+    const order = useViewerStore.getState().order;
+    // 先頭200件だけが前半に固まっていない＝増分追加ではなく作り直しになっている。
+    const firstTwoHundredInFrontHalf = order
+      .slice(0, 2500)
+      .filter((i) => i < 200).length;
+    expect(firstTwoHundredInFrontHalf).toBeLessThan(180);
+    // 重複が無い
+    expect(new Set(order).size).toBe(5000);
+  });
+
+  it("0件なら並びを触らず、記録だけして従来の経路へ落とす", () => {
+    useViewerStore.setState({ shuffle: false, ids: [], idsSeq: null });
+    useViewerStore.getState().openAt(2, 10);
+
+    useViewerStore.getState().setIds([], 3);
+
+    const s = useViewerStore.getState();
+    expect(s.ids).toEqual([]);
+    expect(s.idsSeq).toBe(3);
+    expect(s.open).toBe(true);
+    expect(s.order.length).toBe(10);
+    expect(s.pos).toBe(2);
+  });
+});
+
+describe("invalidateIds", () => {
+  it("ids だけを捨て、表示中の並びと位置は保つ", () => {
+    useViewerStore.setState({ shuffle: false, ids: [], idsSeq: null });
+    useViewerStore.getState().openAt(3, 200);
+    useViewerStore.getState().setIds(
+      Array.from({ length: 500 }, (_, i) => i),
+      1,
+    );
+    const posBefore = useViewerStore.getState().pos;
+    const orderLenBefore = useViewerStore.getState().order.length;
+
+    useViewerStore.getState().invalidateIds();
+
+    const s = useViewerStore.getState();
+    expect(s.ids).toEqual([]);
+    expect(s.idsSeq).toBeNull();
+    expect(s.open).toBe(true);
+    expect(s.pos).toBe(posBefore);
+    expect(s.order.length).toBe(orderLenBefore);
+  });
+});
+
+describe("go", () => {
+  it("ループ有効なら先頭から前へで末尾へ回る", () => {
+    useViewerStore.setState({ shuffle: false, loop: true, ids: [], idsSeq: null });
+    useViewerStore.getState().openAt(0, 5);
+    expect(useViewerStore.getState().pos).toBe(0);
+
+    useViewerStore.getState().go(-1);
+
+    expect(useViewerStore.getState().pos).toBe(4);
+    expect(useViewerStore.getState().playing).toBe(false);
   });
 });

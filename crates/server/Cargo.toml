@@ -2,6 +2,7 @@
 name = "gim-server"
 version = "0.0.0"
 edition = "2021"
+build = "build.rs"
 
 [[bin]]
 name = "gim-server"
@@ -17,6 +18,7 @@ serde_json = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 image = { workspace = true }
 webp = { workspace = true }
+rust-embed = { version = "8", features = ["interpolate-folder-path"] }
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

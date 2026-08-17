@@ -2,12 +2,14 @@ mod cli;
 mod dirscope;
 mod dto;
 mod error;
+mod extract;
 mod fileserve;
 mod hostcheck;
 mod logging;
 mod resize;
 mod routes;
 mod state;
+mod webui;
 #[cfg(test)]
 mod test_support;
 

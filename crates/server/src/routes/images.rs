@@ -1,7 +1,8 @@
 use crate::dirscope::parse_dirs;
 use crate::error::ApiError;
+use crate::extract::ApiQuery;
 use crate::state::AppState;
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::Json;
 use gim_core::db::image_query::{self, DirScope};
 use gim_core::query::{SortDir, SortKey};
@@ -52,9 +53,8 @@ fn scope(params: &ListParams) -> Result<DirScope, ApiError> {
 
 pub async fn list(
     State(state): State<AppState>,
-    params: Result<Query<ListParams>, axum::extract::rejection::QueryRejection>,
+    ApiQuery(params): ApiQuery<ListParams>,
 ) -> Result<Json<Vec<crate::dto::ImageDto>>, ApiError> {
-    let Query(params) = params?;
     let conn = state.conn()?;
     let rows = image_query::query_images(
         &conn,
@@ -75,9 +75,8 @@ pub struct CountBody {
 
 pub async fn count(
     State(state): State<AppState>,
-    params: Result<Query<ListParams>, axum::extract::rejection::QueryRejection>,
+    ApiQuery(params): ApiQuery<ListParams>,
 ) -> Result<Json<CountBody>, ApiError> {
-    let Query(params) = params?;
     let conn = state.conn()?;
     let total = image_query::count_query(&conn, &params.q, &scope(&params)?)?;
     Ok(Json(CountBody { total }))
@@ -85,9 +84,8 @@ pub async fn count(
 
 pub async fn ids(
     State(state): State<AppState>,
-    params: Result<Query<ListParams>, axum::extract::rejection::QueryRejection>,
+    ApiQuery(params): ApiQuery<ListParams>,
 ) -> Result<Json<Vec<i64>>, ApiError> {
-    let Query(params) = params?;
     let conn = state.conn()?;
     let ids = image_query::list_ids(
         &conn,
