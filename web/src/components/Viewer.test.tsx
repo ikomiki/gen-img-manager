@@ -126,4 +126,37 @@ describe("Viewer", () => {
 
     await vi.waitFor(() => expect(spy).toHaveBeenCalled());
   });
+
+  it("再生中は、画像の読み込み完了から間隔だけ経つと次へ送る", async () => {
+    vi.useFakeTimers();
+    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+    useViewerStore.getState().openAt(0, 5);
+    useViewerStore.setState({ playing: true, intervalSec: 5 });
+    render(<Viewer />);
+
+    // 読み込みが終わるまでは数え始めない。
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(useViewerStore.getState().pos).toBe(0);
+
+    fireEvent.load(screen.getByAltText("f1.png"));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(useViewerStore.getState().pos).toBe(1);
+
+    vi.useRealTimers();
+  });
+
+  it("停止中は送らない", async () => {
+    vi.useFakeTimers();
+    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+    useViewerStore.getState().openAt(0, 5);
+    render(<Viewer />);
+
+    fireEvent.load(screen.getByAltText("f1.png"));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(useViewerStore.getState().pos).toBe(0);
+
+    vi.useRealTimers();
+  });
 });

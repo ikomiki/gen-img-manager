@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
 import { imageUrl } from "../api/images";
@@ -6,6 +6,7 @@ import { containedLongEdge, pickWidth } from "../util/pickWidth";
 import { createPreloader } from "../util/preloader";
 import { buttonStyle } from "../ui";
 import { ZoomableImage } from "./ZoomableImage";
+import { SlideshowSheet } from "./SlideshowSheet";
 
 /** 末尾からこの枚数以内に来たら次のページを取りにいく。 */
 const LOAD_MORE_MARGIN = 5;
@@ -21,6 +22,20 @@ export function Viewer() {
   const go = useViewerStore((s) => s.go);
   const toggleChrome = useViewerStore((s) => s.toggleChrome);
   const syncLength = useViewerStore((s) => s.syncLength);
+  const playing = useViewerStore((s) => s.playing);
+  const pause = useViewerStore((s) => s.pause);
+  const intervalSec = useViewerStore((s) => s.intervalSec);
+
+  const [slideshowOpen, setSlideshowOpen] = useState(false);
+  // 表示中の画像が読み込み終わったか。読み込み前から数え始めると、
+  // 遅い画像が表示時間を削られたり表示前に送られたりする。
+  const [loadedPos, setLoadedPos] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!playing || loadedPos !== pos) return;
+    const id = setTimeout(() => go(1), intervalSec * 1000);
+    return () => clearTimeout(id);
+  }, [playing, loadedPos, pos, intervalSec, go]);
 
   const results = useQueryStore((s) => s.results);
   const exhausted = useQueryStore((s) => s.exhausted);
@@ -105,6 +120,7 @@ export function Viewer() {
         alt={image.filename}
         onTap={toggleChrome}
         onSwipe={(a) => go(a === "next" ? 1 : -1)}
+        onLoaded={() => setLoadedPos(pos)}
       />
 
       {chromeVisible && (
@@ -128,6 +144,14 @@ export function Viewer() {
           </button>
           <button
             type="button"
+            aria-label={playing ? "停止" : "スライドショー"}
+            onClick={() => (playing ? pause() : setSlideshowOpen(true))}
+            style={{ ...buttonStyle, flex: 1 }}
+          >
+            {playing ? "■" : "▶"}
+          </button>
+          <button
+            type="button"
             aria-label="次へ"
             onClick={() => go(1)}
             style={{ ...buttonStyle, flex: 1 }}
@@ -136,6 +160,8 @@ export function Viewer() {
           </button>
         </div>
       )}
+
+      <SlideshowSheet open={slideshowOpen} onClose={() => setSlideshowOpen(false)} />
     </div>
   );
 }
