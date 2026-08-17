@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { historyNav, openItems } from "@gim/shared/historyNav";
 import type { SortKey, SortDir } from "@gim/shared/types";
 import { useQueryStore } from "../store/useQueryStore";
 import { HistoryList } from "./HistoryList";
 import { buttonStyle, inputStyle } from "../ui";
+import { isPlainKey, isTypingTarget } from "../util/keys";
 
 interface Props {
   onOpenFilter: () => void;
@@ -31,6 +32,17 @@ export function FilterBar({ onOpenFilter, onOpenDirectories }: Props) {
   const setSort = useQueryStore((s) => s.setSort);
   const loading = useQueryStore((s) => s.loading);
   const [nav, setNav] = useState<NavState>(CLOSED);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!isPlainKey(e, "/") || isTypingTarget(e.target)) return;
+      e.preventDefault();
+      inputRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const pick = (q: string) => {
     setQuery(q);
@@ -74,6 +86,7 @@ export function FilterBar({ onOpenFilter, onOpenDirectories }: Props) {
     >
       <div style={{ display: "flex", gap: 8, padding: "8px 12px", alignItems: "center" }}>
         <input
+          ref={inputRef}
           type="search"
           inputMode="search"
           enterKeyHint="search"

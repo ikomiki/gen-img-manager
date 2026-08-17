@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { isPlainKey } from "../util/keys";
 
 interface Props {
   open: boolean;
@@ -8,6 +9,15 @@ interface Props {
 }
 
 export function Sheet({ open, title, onClose, children }: Props) {
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (isPlainKey(e, "Escape")) onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <div
@@ -24,12 +34,15 @@ export function Sheet({ open, title, onClose, children }: Props) {
     >
       <div
         role="dialog"
+        aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: "100%",
           maxHeight: "85vh",
           overflowY: "auto",
+          // シート内のスクロールが端で背後のグリッドへ連鎖しないようにする。
+          overscrollBehavior: "contain",
           background: "var(--surface)",
           borderRadius: "12px 12px 0 0",
           paddingBottom: "env(safe-area-inset-bottom)",
