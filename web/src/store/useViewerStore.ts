@@ -6,7 +6,7 @@ interface ViewerState {
   open: boolean;
   /** results 上のインデックス列。シャッフル時は並びが変わる。 */
   order: number[];
-  /** order 上の位置。表示中の画像は results[order[pos]]。 */
+  /** order 上の位置。表示中の画像は ids があれば ids[order[pos]]、無ければ results[order[pos]]。 */
   pos: number;
   scale: number;
   /** 上下のバーを出すか。画像をタップするたびに切り替わる。 */

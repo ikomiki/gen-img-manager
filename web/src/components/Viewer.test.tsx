@@ -21,11 +21,14 @@ function rows(from: number, count: number) {
 
 beforeEach(() => {
   localStorage.clear();
+  vi.spyOn(imagesApi, "listImageIds").mockResolvedValue([]);
   vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
   vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 0 });
   useQueryStore.setState({ results: rows(1, 5), total: 5, exhausted: true, loading: false });
   useViewerStore.setState({
     open: false,
+    ids: [],
+    idsSeq: null,
     order: [],
     pos: 0,
     scale: 1,
