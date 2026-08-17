@@ -73,5 +73,4 @@ mod tests {
             .unwrap();
         assert_eq!(p.n, 7);
     }
-
 }
