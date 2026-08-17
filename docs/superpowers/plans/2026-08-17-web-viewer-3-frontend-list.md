@@ -560,7 +560,7 @@ async fn method_not_allowed() -> impl IntoResponse {
 }
 ```
 
-**注意:** `method_not_allowed_fallback` が axum 0.8 に存在するかを最初に確認してください。存在しない場合は、各ルートに `.route(path, get(handler).fallback(method_not_allowed))` を付けるか、`Router::fallback` だけで 405 を諦めて 404 に倒します。**どちらを採ったかをレポートに書くこと。** テストの期待値（405）も、採った方式に合わせて調整してよい（405 を諦めるなら 404 を期待する形に変え、その理由をテスト名かコメントに残す）。
+`Router::method_not_allowed_fallback` は導入済みの axum 0.8.9 に存在します（`src/routing/mod.rs:374` で確認済み）。`QueryRejection` / `PathRejection` の `body_text()` も同様に存在します。
 
 - [ ] **Step 6: アクセスログを書く**
 
