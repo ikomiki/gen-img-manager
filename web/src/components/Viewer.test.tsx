@@ -186,11 +186,15 @@ describe("ズームモードの切替", () => {
     useViewerStore.getState().openAt(0, 5);
     render(<Viewer />);
 
-    fireEvent.click(screen.getByLabelText("画面にあわせる（縮小のみ）"));
+    const button = screen.getByLabelText("常に画面にあわせる");
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+
+    fireEvent.click(button);
     expect(useViewerStore.getState().zoomMode).toBe("always");
     expect(loadPrefs().viewer.zoomMode).toBe("always");
+    expect(button.getAttribute("aria-pressed")).toBe("true");
 
-    fireEvent.click(screen.getByLabelText("常に画面にあわせる"));
+    fireEvent.click(button);
     expect(useViewerStore.getState().zoomMode).toBe("shrink");
     expect(loadPrefs().viewer.zoomMode).toBe("shrink");
   });
@@ -200,7 +204,7 @@ describe("ズームモードの切替", () => {
     useViewerStore.setState({ scale: 4 });
     render(<Viewer />);
 
-    fireEvent.click(screen.getByLabelText("画面にあわせる（縮小のみ）"));
+    fireEvent.click(screen.getByLabelText("常に画面にあわせる"));
     expect(useViewerStore.getState().scale).toBe(1);
   });
 });
@@ -237,11 +241,15 @@ describe("フルスクリーンボタン", () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
-  it("ブラウザ側で解除されてもラベルが追従する", () => {
+  it("ブラウザ側の状態変化に押下状態が追従する", () => {
     stubSupport(() => Promise.resolve());
     useViewerStore.getState().openAt(0, 5);
     render(<Viewer />);
 
+    const button = screen.getByLabelText("フルスクリーン");
+    expect(button.getAttribute("aria-pressed")).toBe("false");
+
+    // Esc やブラウザ UI からの出入りは click を経由しない。
     Object.defineProperty(document, "fullscreenElement", {
       configurable: true,
       value: document.body,
@@ -249,6 +257,6 @@ describe("フルスクリーンボタン", () => {
     act(() => {
       document.dispatchEvent(new Event("fullscreenchange"));
     });
-    expect(screen.getByLabelText("フルスクリーンを終了")).toBeTruthy();
+    expect(button.getAttribute("aria-pressed")).toBe("true");
   });
 });

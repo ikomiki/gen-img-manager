@@ -222,7 +222,7 @@ export function Viewer() {
         >
           <button
             type="button"
-            aria-label={zoomMode === "always" ? "常に画面にあわせる" : "画面にあわせる（縮小のみ）"}
+            aria-label="常に画面にあわせる"
             aria-pressed={zoomMode === "always"}
             onClick={toggleZoomMode}
             style={{
@@ -260,7 +260,7 @@ export function Viewer() {
           {fullscreen.supported && (
             <button
               type="button"
-              aria-label={fullscreen.active ? "フルスクリーンを終了" : "フルスクリーン"}
+              aria-label="フルスクリーン"
               aria-pressed={fullscreen.active}
               onClick={fullscreen.toggle}
               style={{
