@@ -105,7 +105,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   loadMore: async () => {
     const { loading, exhausted, results, query, sort, dir, dirs, total, seq } = get();
     if (loading || exhausted) return;
-    set({ loading: true });
+    set({ loading: true, error: null });
     try {
       const rows = await imagesApi.listImages({
         q: query,

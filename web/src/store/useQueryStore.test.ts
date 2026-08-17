@@ -106,6 +106,31 @@ describe("loadMore", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
+  it("失敗しても results は保つ", async () => {
+    vi.spyOn(imagesApi, "listImages").mockRejectedValue(new Error("boom"));
+    useQueryStore.setState({ results: rows(1, 200), total: 400 });
+
+    await useQueryStore.getState().loadMore();
+
+    expect(useQueryStore.getState().results).toHaveLength(200);
+    expect(useQueryStore.getState().error).toContain("boom");
+  });
+
+  it("開始時に error をクリアする", async () => {
+    let resolveMore!: (v: ImageDto[]) => void;
+    const more = new Promise<ImageDto[]>((r) => {
+      resolveMore = r;
+    });
+    vi.spyOn(imagesApi, "listImages").mockReturnValue(more);
+    useQueryStore.setState({ results: rows(1, 200), total: 400, error: "前回失敗した" });
+
+    const p = useQueryStore.getState().loadMore();
+    expect(useQueryStore.getState().error).toBeNull();
+
+    resolveMore(rows(201, 2));
+    await p;
+  });
+
   it("loadMore の途中で runQuery が走ったら、古いページを継ぎ足さない", async () => {
     let resolveMore!: (v: ImageDto[]) => void;
     const more = new Promise<ImageDto[]>((r) => {
