@@ -1,7 +1,7 @@
 import { useViewerStore } from "../store/useViewerStore";
 import { INTERVAL_CHOICES } from "../storage";
 import { Sheet } from "./Sheet";
-import { buttonStyle } from "../ui";
+import { buttonStyle, chipStyle } from "../ui";
 
 interface Props {
   open: boolean;
@@ -83,16 +83,3 @@ const rowStyle: React.CSSProperties = {
   minHeight: "var(--tap)",
   cursor: "pointer",
 };
-
-function chipStyle(active: boolean): React.CSSProperties {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    minHeight: "var(--tap)",
-    padding: "0 12px",
-    background: active ? "var(--accent)" : "var(--surface-raised)",
-    border: "1px solid var(--border)",
-    borderRadius: 8,
-    cursor: "pointer",
-  };
-}

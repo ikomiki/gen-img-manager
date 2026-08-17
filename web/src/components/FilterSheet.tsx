@@ -9,7 +9,7 @@ import {
 } from "@gim/shared/ratingFilter";
 import { useQueryStore } from "../store/useQueryStore";
 import { Sheet } from "./Sheet";
-import { buttonStyle, inputStyle } from "../ui";
+import { buttonStyle, chipStyle, inputStyle } from "../ui";
 
 interface Props {
   open: boolean;
@@ -166,17 +166,4 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {children}
     </div>
   );
-}
-
-function chipStyle(active: boolean): React.CSSProperties {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    minHeight: "var(--tap)",
-    padding: "0 12px",
-    background: active ? "var(--accent)" : "var(--surface-raised)",
-    border: "1px solid var(--border)",
-    borderRadius: 8,
-    cursor: "pointer",
-  };
 }

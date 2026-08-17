@@ -19,3 +19,16 @@ export const inputStyle: CSSProperties = {
   color: "var(--text)",
   font: "inherit",
 };
+
+export function chipStyle(active: boolean): CSSProperties {
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    minHeight: "var(--tap)",
+    padding: "0 12px",
+    background: active ? "var(--accent)" : "var(--surface-raised)",
+    border: "1px solid var(--border)",
+    borderRadius: 8,
+    cursor: "pointer",
+  };
+}
