@@ -18,16 +18,26 @@ async fn method_not_allowed() -> impl IntoResponse {
     ApiError::MethodNotAllowed
 }
 
+/// `/api` の下に載せるルータ。プレフィックスは含まない。
+/// 自前の fallback を持たせているのは、外側に SPA のフォールバックを置いても
+/// `/api/*` の未知パスは JSON の 404 のままにするため（nest したルータの
+/// fallback は外側の fallback より優先される）。
+pub fn api_router(_state: AppState) -> Router<AppState> {
+    Router::new()
+        .route("/health", get(health::health))
+        .route("/directories", get(directories::list))
+        .route("/images", get(images::list))
+        .route("/images/count", get(images::count))
+        .route("/images/ids", get(images::ids))
+        .route("/thumb/{id}", get(media::thumb))
+        .route("/image/{id}", get(media::image))
+        .method_not_allowed_fallback(method_not_allowed)
+        .fallback(not_found)
+}
+
 pub fn router(state: AppState) -> Router {
     Router::new()
-        .route("/api/health", get(health::health))
-        .route("/api/directories", get(directories::list))
-        .route("/api/images", get(images::list))
-        .route("/api/images/count", get(images::count))
-        .route("/api/images/ids", get(images::ids))
-        .route("/api/thumb/{id}", get(media::thumb))
-        .route("/api/image/{id}", get(media::image))
-        .method_not_allowed_fallback(method_not_allowed)
+        .nest("/api", api_router(state.clone()))
         .fallback(not_found)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -53,6 +63,16 @@ mod tests {
         let bytes = res.into_body().collect().await.unwrap().to_bytes();
         let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert!(v.get("error").is_some(), "error キーが無い: {v}");
+    }
+
+    #[tokio::test]
+    async fn api_router_is_mounted_under_api_prefix() {
+        let (state, _tmp) = test_state();
+        // nest 後もエンドポイントの外向き URL は変わらない。
+        assert_eq!(get_raw(state.clone(), "/api/health").await.status(), 200);
+        assert_eq!(get_raw(state.clone(), "/api/images").await.status(), 200);
+        assert_eq!(get_raw(state.clone(), "/api/images/count").await.status(), 200);
+        assert_eq!(get_raw(state, "/api/images/ids").await.status(), 200);
     }
 
     #[tokio::test]
