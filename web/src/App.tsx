@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueryStore } from "./store/useQueryStore";
 import { ImageGrid } from "./components/ImageGrid";
 import { FilterBar } from "./components/FilterBar";
+import { FilterSheet } from "./components/FilterSheet";
 
 export function App() {
   const init = useQueryStore((s) => s.init);
@@ -16,14 +17,7 @@ export function App() {
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <FilterBar onOpenFilter={() => setFilterOpen(true)} onOpenDirectories={() => setDirectoriesOpen(true)} />
       <ImageGrid />
-      {filterOpen && (
-        <div style={sheetStyle}>
-          <span>フィルタ（Task 8 で実装）</span>
-          <button type="button" onClick={() => setFilterOpen(false)} style={closeButtonStyle}>
-            閉じる
-          </button>
-        </div>
-      )}
+      <FilterSheet open={filterOpen} onClose={() => setFilterOpen(false)} />
       {directoriesOpen && (
         <div style={sheetStyle}>
           <span>場所（Task 9 で実装）</span>
