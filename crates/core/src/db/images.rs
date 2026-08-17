@@ -64,12 +64,15 @@ pub fn upsert(conn: &Connection, img: &NewImage) -> rusqlite::Result<i64> {
     )
 }
 
+/// (path, id, size, mtime, missing)。
+pub type ImageMetaRow = (String, i64, i64, i64, bool);
+
 /// ディレクトリ配下の (path, id, size, mtime, missing) 一覧。
 /// 変更検出（事前ロードマップ）と missing 検出の両方に使う。
 pub fn list_meta_in_directory(
     conn: &Connection,
     directory_id: i64,
-) -> rusqlite::Result<Vec<(String, i64, i64, i64, bool)>> {
+) -> rusqlite::Result<Vec<ImageMetaRow>> {
     let mut stmt = conn.prepare(
         "SELECT path, id, size, mtime, missing FROM images WHERE directory_id = ?1",
     )?;
