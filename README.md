@@ -76,6 +76,7 @@ src-tauri/src/    Rust バックエンド（Tauri コマンド）
 crates/core/src/  Rust 共有ロジック（gim-core）
   db/             SQLite（FTS5、マイグレーション）
   query/          検索 DSL のパース＆SQL コンパイル
+crates/server/src/  LAN 向け HTTP サーバ（gim-server）
 docs/usage.html   ユーザー向け使用方法ドキュメント
 ```
 
