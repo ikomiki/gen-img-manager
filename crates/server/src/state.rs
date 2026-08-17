@@ -39,6 +39,29 @@ impl AppState {
     /// 次のリクエストから追随でき、長い読み取りトランザクションで WAL が肥大しない。
     pub fn conn(&self) -> Result<rusqlite::Connection, ApiError> {
         gim_core::db::open_read_only(&self.db_path)
-            .map_err(|e| ApiError::Internal(format!("DBを開けません: {e}")))
+            .map_err(|e| ApiError::internal("DBを開けません", e))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::response::IntoResponse;
+    use http_body_util::BodyExt;
+
+    #[tokio::test]
+    async fn db_open_failure_does_not_leak_the_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let state = AppState::new(tmp.path().join("no-such-dir"));
+        let err = state.conn().unwrap_err();
+
+        let res = err.into_response();
+        assert_eq!(res.status(), 500);
+        let bytes = res.into_body().collect().await.unwrap().to_bytes();
+        let body = String::from_utf8(bytes.to_vec()).unwrap();
+        assert!(
+            !body.contains("no-such-dir"),
+            "DBのパスが応答に漏れている: {body}"
+        );
     }
 }

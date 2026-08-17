@@ -24,7 +24,7 @@ pub async fn read_with_timeout(path: PathBuf) -> Result<(Vec<u8>, u64), ApiError
 
     match tokio::time::timeout(READ_TIMEOUT, job).await {
         Err(_) => Err(ApiError::Unavailable),
-        Ok(Err(e)) => Err(ApiError::Internal(format!("読み出しに失敗しました: {e}"))),
+        Ok(Err(e)) => Err(ApiError::internal("読み出しに失敗しました", e)),
         Ok(Ok(Err(e))) if e.kind() == std::io::ErrorKind::NotFound => Err(ApiError::NotFound),
         Ok(Ok(Err(_))) => Err(ApiError::Unavailable),
         Ok(Ok(Ok(v))) => Ok(v),
@@ -45,7 +45,7 @@ pub async fn read_meta_with_timeout(path: PathBuf) -> Result<u64, ApiError> {
 
     match tokio::time::timeout(READ_TIMEOUT, job).await {
         Err(_) => Err(ApiError::Unavailable),
-        Ok(Err(e)) => Err(ApiError::Internal(format!("読み出しに失敗しました: {e}"))),
+        Ok(Err(e)) => Err(ApiError::internal("読み出しに失敗しました", e)),
         Ok(Ok(Err(e))) if e.kind() == std::io::ErrorKind::NotFound => Err(ApiError::NotFound),
         Ok(Ok(Err(_))) => Err(ApiError::Unavailable),
         Ok(Ok(Ok(mtime))) => Ok(mtime),

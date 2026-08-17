@@ -10,7 +10,17 @@ pub enum ApiError {
     Forbidden(String),
     /// ファイルには届かないが、消えたとは限らない（オフラインの外部ドライブなど）。
     Unavailable,
-    Internal(String),
+    /// 詳細は標準エラーへ出し、応答は定型文だけにする。認証なしで LAN へ公開するため、
+    /// 絶対パス・SQL断片・システムエラー文をブラウザへ渡さない。
+    Internal,
+}
+
+impl ApiError {
+    /// 内部エラーを記録して `Internal` を返す。`context` は原因を追える程度の短い日本語。
+    pub fn internal(context: &str, detail: impl std::fmt::Display) -> Self {
+        eprintln!("{context}: {detail}");
+        ApiError::Internal
+    }
 }
 
 impl IntoResponse for ApiError {
@@ -27,7 +37,10 @@ impl IntoResponse for ApiError {
                 StatusCode::SERVICE_UNAVAILABLE,
                 "ファイルに到達できません".to_string(),
             ),
-            ApiError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, m),
+            ApiError::Internal => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "内部エラーが発生しました".to_string(),
+            ),
         };
         (status, Json(serde_json::json!({ "error": message }))).into_response()
     }
@@ -35,10 +48,7 @@ impl IntoResponse for ApiError {
 
 impl From<rusqlite::Error> for ApiError {
     fn from(e: rusqlite::Error) -> Self {
-        // rusqlite のエラー文字列は DB ファイルのパスや SQL 断片を含みうる。
-        // 認証なしで LAN に公開するため、詳細は標準エラーへ、応答には定型文だけを出す。
-        eprintln!("DBエラー: {e}");
-        ApiError::Internal("内部エラーが発生しました".to_string())
+        ApiError::internal("DBエラー", e)
     }
 }
 
