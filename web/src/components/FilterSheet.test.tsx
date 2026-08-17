@@ -6,13 +6,17 @@ import * as imagesApi from "../api/images";
 import { extractField } from "@gim/shared/queryTokens";
 
 beforeEach(() => {
+  vi.useFakeTimers();
   localStorage.clear();
   vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
   vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 0 });
   useQueryStore.setState({ query: "", history: [] });
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("FilterSheet", () => {
   it("レーティングを選ぶとクエリ文字列に反映される", () => {
@@ -56,14 +60,12 @@ describe("FilterSheet", () => {
   });
 
   it("自由入力はすぐには検索せず、少し待ってから走る", async () => {
-    vi.useFakeTimers();
     render(<FilterSheet open onClose={() => {}} />);
     fireEvent.change(screen.getByLabelText("幅"), { target: { value: ">=1024" } });
 
     expect(imagesApi.listImages).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(500);
     expect(imagesApi.listImages).toHaveBeenCalled();
-    vi.useRealTimers();
   });
 
   it("閉じるときに履歴へ記録する", async () => {
