@@ -1,5 +1,6 @@
 mod cli;
 mod dirscope;
+mod dto;
 mod error;
 mod fileserve;
 mod resize;
