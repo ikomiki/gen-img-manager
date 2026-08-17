@@ -5,6 +5,7 @@ import { imageUrl } from "../api/images";
 import { containedLongEdge, pickWidth } from "../util/pickWidth";
 import { createPreloader } from "../util/preloader";
 import { buttonStyle } from "../ui";
+import { ZoomableImage } from "./ZoomableImage";
 
 /** 末尾からこの枚数以内に来たら次のページを取りにいく。 */
 const LOAD_MORE_MARGIN = 5;
@@ -99,29 +100,12 @@ export function Viewer() {
         </div>
       )}
 
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          overflow: "hidden",
-        }}
-      >
-        <img
-          src={src}
-          alt={image.filename}
-          onClick={toggleChrome}
-          decoding="async"
-          style={{
-            maxWidth: "100%",
-            maxHeight: "100%",
-            objectFit: "contain",
-            display: "block",
-          }}
-        />
-      </div>
+      <ZoomableImage
+        src={src}
+        alt={image.filename}
+        onTap={toggleChrome}
+        onSwipe={(a) => go(a === "next" ? 1 : -1)}
+      />
 
       {chromeVisible && (
         <div

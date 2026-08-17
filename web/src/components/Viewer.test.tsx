@@ -79,12 +79,30 @@ describe("Viewer", () => {
   });
 
   it("画像をタップするとバーの表示が切り替わる", () => {
+    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
     useViewerStore.getState().openAt(0, 5);
     render(<Viewer />);
 
+    const area = screen.getByAltText("f1.png").parentElement!;
     expect(useViewerStore.getState().chromeVisible).toBe(true);
-    fireEvent.click(screen.getByAltText("f1.png"));
+    fireEvent.pointerDown(area, { pointerId: 1, clientX: 10, clientY: 10 });
+    fireEvent.pointerUp(area, { pointerId: 1, clientX: 11, clientY: 10 });
     expect(useViewerStore.getState().chromeVisible).toBe(false);
+  });
+
+  it("左へ払うと次の画像へ送る", () => {
+    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+    useViewerStore.getState().openAt(0, 5);
+    render(<Viewer />);
+
+    const area = screen.getByAltText("f1.png").parentElement!;
+    fireEvent.pointerDown(area, { pointerId: 1, clientX: 300, clientY: 100 });
+    fireEvent.pointerMove(area, { pointerId: 1, clientX: 150, clientY: 105 });
+    fireEvent.pointerUp(area, { pointerId: 1, clientX: 150, clientY: 105 });
+
+    expect(useViewerStore.getState().pos).toBe(1);
   });
 
   it("結果が変わったら順序を合わせ直す", () => {
