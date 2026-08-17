@@ -2,6 +2,7 @@ mod cli;
 mod dirscope;
 mod dto;
 mod error;
+mod extract;
 mod fileserve;
 mod hostcheck;
 mod logging;
