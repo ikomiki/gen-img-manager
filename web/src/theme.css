@@ -1,0 +1,30 @@
+:root {
+  --bg: #121212;
+  --bg-media: #0d0d0d;
+  --surface: #1a1a1a;
+  --surface-raised: #232323;
+  --border: #2e2e2e;
+  --text: #e6e6e6;
+  --text-dim: #8a8a8a;
+  --accent: #3a6ea5;
+  --tap: 44px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+  /* モバイルでのバウンススクロールが固定バーと喧嘩するのを避ける。 */
+  overscroll-behavior: none;
+}

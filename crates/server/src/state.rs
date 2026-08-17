@@ -12,6 +12,8 @@ pub struct AppState {
     /// フルデコード＋Lanczos3リサイズの同時実行数を制限する。認証なしでLANに
     /// 公開するため、並列リクエストだけで全コアとメモリを持っていかれないようにする。
     pub resize_slots: Arc<tokio::sync::Semaphore>,
+    /// `--allow-host` で明示的に許可されたホスト名（DNSリバインディング対策の例外リスト）。
+    pub allowed_hosts: Arc<Vec<String>>,
 }
 
 impl AppState {
@@ -24,7 +26,13 @@ impl AppState {
             cache_dir: data_dir.join("web-cache"),
             generated: Arc::new(AtomicU64::new(0)),
             resize_slots: Arc::new(tokio::sync::Semaphore::new(parallelism)),
+            allowed_hosts: Arc::new(Vec::new()),
         }
+    }
+
+    pub fn with_allowed_hosts(mut self, hosts: Vec<String>) -> Self {
+        self.allowed_hosts = Arc::new(hosts);
+        self
     }
 
     /// 接続はプールせずリクエストごとに開く。デスクトップ版によるスキーマ変更に

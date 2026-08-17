@@ -3,7 +3,7 @@ use crate::error::ApiError;
 use crate::state::AppState;
 use axum::extract::{Query, State};
 use axum::Json;
-use gim_core::db::image_query::{self, DirScope, ImageRow};
+use gim_core::db::image_query::{self, DirScope};
 use gim_core::query::{SortDir, SortKey};
 use serde::{Deserialize, Serialize};
 
@@ -52,8 +52,9 @@ fn scope(params: &ListParams) -> Result<DirScope, ApiError> {
 
 pub async fn list(
     State(state): State<AppState>,
-    Query(params): Query<ListParams>,
-) -> Result<Json<Vec<ImageRow>>, ApiError> {
+    params: Result<Query<ListParams>, axum::extract::rejection::QueryRejection>,
+) -> Result<Json<Vec<crate::dto::ImageDto>>, ApiError> {
+    let Query(params) = params?;
     let conn = state.conn()?;
     let rows = image_query::query_images(
         &conn,
@@ -64,7 +65,7 @@ pub async fn list(
         params.limit()?,
         params.offset()?,
     )?;
-    Ok(Json(rows))
+    Ok(Json(rows.into_iter().map(Into::into).collect()))
 }
 
 #[derive(Serialize)]
@@ -74,8 +75,9 @@ pub struct CountBody {
 
 pub async fn count(
     State(state): State<AppState>,
-    Query(params): Query<ListParams>,
+    params: Result<Query<ListParams>, axum::extract::rejection::QueryRejection>,
 ) -> Result<Json<CountBody>, ApiError> {
+    let Query(params) = params?;
     let conn = state.conn()?;
     let total = image_query::count_query(&conn, &params.q, &scope(&params)?)?;
     Ok(Json(CountBody { total }))
@@ -83,8 +85,9 @@ pub async fn count(
 
 pub async fn ids(
     State(state): State<AppState>,
-    Query(params): Query<ListParams>,
+    params: Result<Query<ListParams>, axum::extract::rejection::QueryRejection>,
 ) -> Result<Json<Vec<i64>>, ApiError> {
+    let Query(params) = params?;
     let conn = state.conn()?;
     let ids = image_query::list_ids(
         &conn,
@@ -167,6 +170,32 @@ mod tests {
         ] {
             let res = get_raw(state.clone(), uri).await;
             assert_eq!(res.status(), 400, "{uri} は 400 を返すべき");
+        }
+    }
+
+    #[tokio::test]
+    async fn list_does_not_expose_filesystem_paths() {
+        let (state, _tmp) = test_state();
+        let body = get_json(state, "/api/images").await;
+        let first = &body.as_array().unwrap()[0];
+
+        assert!(first.get("path").is_none(), "絶対パスを返してはいけない");
+        assert!(
+            first.get("thumb_path").is_none(),
+            "サムネイルの絶対パスも返してはいけない"
+        );
+
+        // フロントが必要とする列は残っていること。
+        for key in [
+            "id",
+            "filename",
+            "width",
+            "height",
+            "rating",
+            "created_at",
+            "source_tool",
+        ] {
+            assert!(first.get(key).is_some(), "{key} が欠けている");
         }
     }
 }

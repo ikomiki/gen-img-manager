@@ -15,9 +15,10 @@ fn media_info(state: &AppState, id: i64) -> Result<MediaInfo, ApiError> {
 
 pub async fn thumb(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    id: Result<Path<i64>, axum::extract::rejection::PathRejection>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
+    let Path(id) = id?;
     let info = media_info(&state, id)?;
     let thumb = info.thumb_path.ok_or(ApiError::NotFound)?;
     let mtime = fileserve::read_meta_with_timeout(PathBuf::from(&thumb)).await?;
@@ -36,10 +37,12 @@ pub struct ImageParams {
 
 pub async fn image(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
-    Query(params): Query<ImageParams>,
+    id: Result<Path<i64>, axum::extract::rejection::PathRejection>,
+    params: Result<Query<ImageParams>, axum::extract::rejection::QueryRejection>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
+    let Path(id) = id?;
+    let Query(params) = params?;
     let info = media_info(&state, id)?;
     let src = PathBuf::from(&info.path);
 

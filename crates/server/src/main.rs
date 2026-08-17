@@ -1,7 +1,10 @@
 mod cli;
 mod dirscope;
+mod dto;
 mod error;
 mod fileserve;
+mod hostcheck;
+mod logging;
 mod resize;
 mod routes;
 mod state;
@@ -28,7 +31,7 @@ async fn main() {
         eprintln!("データディレクトリを決められません。--data-dir を指定してください。");
         std::process::exit(1);
     };
-    let state = AppState::new(data_dir.clone());
+    let state = AppState::new(data_dir.clone()).with_allowed_hosts(args.allow_host.clone());
 
     if let Err(e) = gim_core::db::open_read_only(&state.db_path) {
         eprintln!("{} を開けません: {e}", state.db_path.display());
