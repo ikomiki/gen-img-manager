@@ -16,6 +16,8 @@ interface QueryState {
   loading: boolean;
   exhausted: boolean;
   error: string | null;
+  /** 実行中のクエリの世代。古い応答が新しい結果を上書きするのを防ぐ。 */
+  seq: number;
 
   init: () => Promise<void>;
   setQuery: (q: string) => void;
@@ -35,6 +37,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   loading: false,
   exhausted: false,
   error: null,
+  seq: 0,
 
   init: async () => {
     const p = loadPrefs();
@@ -42,6 +45,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     await get().runQuery();
   },
 
+  // 打鍵ごとに保存すると重い。保存は runQuery 実行時（Enter・履歴選択等）にまとめて行う。
   setQuery: (q) => set({ query: q }),
 
   setSort: async (sort, dir) => {
@@ -57,14 +61,16 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   },
 
   runQuery: async () => {
+    const seq = get().seq + 1;
+    set({ seq, loading: true, error: null });
     const { query, sort, dir, dirs } = get();
-    set({ loading: true, error: null });
     const params = { q: query, sort, dir, dirs };
     try {
       const [rows, count] = await Promise.all([
         imagesApi.listImages({ ...params, limit: PAGE_SIZE, offset: 0 }),
         imagesApi.countImages(params),
       ]);
+      if (get().seq !== seq) return;
       set({
         results: rows,
         total: count.total,
@@ -73,6 +79,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       });
       savePrefs({ query });
     } catch (e) {
+      if (get().seq !== seq) return;
       set({
         results: [],
         total: 0,
@@ -84,7 +91,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   },
 
   loadMore: async () => {
-    const { loading, exhausted, results, query, sort, dir, dirs, total } = get();
+    const { loading, exhausted, results, query, sort, dir, dirs, total, seq } = get();
     if (loading || exhausted) return;
     set({ loading: true });
     try {
@@ -96,6 +103,8 @@ export const useQueryStore = create<QueryState>((set, get) => ({
         limit: PAGE_SIZE,
         offset: results.length,
       });
+      // runQuery に追い越されていたら、その runQuery が最終的に loading: false を書く。
+      if (get().seq !== seq) return;
       const next = [...results, ...rows];
       set({
         results: next,
@@ -103,6 +112,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
         loading: false,
       });
     } catch (e) {
+      if (get().seq !== seq) return;
       set({ loading: false, error: e instanceof Error ? e.message : String(e) });
     }
   },

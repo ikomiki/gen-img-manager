@@ -14,7 +14,7 @@ export function App() {
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       <header
         style={{
-          padding: `env(safe-area-inset-top) 12px 8px`,
+          padding: `env(safe-area-inset-top, 0px) 12px 8px`,
           background: "var(--surface)",
           borderBottom: "1px solid var(--border)",
         }}

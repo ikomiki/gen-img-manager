@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useQueryStore } from "./useQueryStore";
 import * as imagesApi from "../api/images";
+import type { ImageDto } from "../api/images";
 
 function rows(from: number, count: number) {
   return Array.from({ length: count }, (_, i) => ({
@@ -28,6 +29,7 @@ beforeEach(() => {
     loading: false,
     exhausted: false,
     error: null,
+    seq: 0,
   });
 });
 
@@ -54,6 +56,24 @@ describe("runQuery", () => {
     await useQueryStore.getState().runQuery();
     expect(useQueryStore.getState().error).toContain("boom");
     expect(useQueryStore.getState().results).toEqual([]);
+  });
+
+  it("古い runQuery の応答が新しい結果を上書きしない", async () => {
+    let resolveFirst!: (v: ImageDto[]) => void;
+    const first = new Promise<ImageDto[]>((r) => {
+      resolveFirst = r;
+    });
+    vi.spyOn(imagesApi, "listImages")
+      .mockReturnValueOnce(first)
+      .mockResolvedValueOnce(rows(50, 1));
+    vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 1 });
+
+    const p1 = useQueryStore.getState().runQuery();
+    const p2 = useQueryStore.getState().runQuery();
+    resolveFirst(rows(1, 3)); // 古い方をあとから解決させる
+    await Promise.all([p1, p2]);
+
+    expect(useQueryStore.getState().results.map((r) => r.id)).toEqual([50]);
   });
 });
 
@@ -84,20 +104,51 @@ describe("loadMore", () => {
     await useQueryStore.getState().loadMore();
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it("loadMore の途中で runQuery が走ったら、古いページを継ぎ足さない", async () => {
+    let resolveMore!: (v: ImageDto[]) => void;
+    const more = new Promise<ImageDto[]>((r) => {
+      resolveMore = r;
+    });
+    vi.spyOn(imagesApi, "listImages")
+      .mockReturnValueOnce(more) // loadMore の分
+      .mockResolvedValueOnce(rows(500, 2)); // runQuery の分
+    vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 2 });
+
+    useQueryStore.setState({ results: rows(1, 200), total: 400 });
+    const pMore = useQueryStore.getState().loadMore();
+    const pRun = useQueryStore.getState().runQuery();
+    resolveMore(rows(201, 200));
+    await Promise.all([pMore, pRun]);
+
+    expect(useQueryStore.getState().results.map((r) => r.id)).toEqual([500, 501]);
+  });
 });
 
-describe("setQuery / setSort / setDirs", () => {
-  it("localStorage へ保存する", async () => {
+describe("setSort / setDirs", () => {
+  it("localStorage へ即座に保存する", async () => {
     vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
     vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 0 });
 
-    useQueryStore.getState().setQuery("rating:5");
     await useQueryStore.getState().setSort("filename", "asc");
     await useQueryStore.getState().setDirs([2]);
 
     const saved = JSON.parse(localStorage.getItem("gim.web.prefs")!);
-    expect(saved.query).toBe("rating:5");
     expect(saved.sort).toBe("filename");
     expect(saved.dirs).toEqual([2]);
+  });
+});
+
+describe("setQuery", () => {
+  it("状態だけ更新し、保存はクエリ実行時に行う", async () => {
+    vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
+    vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 0 });
+
+    useQueryStore.getState().setQuery("rating:5");
+    expect(useQueryStore.getState().query).toBe("rating:5");
+    expect(localStorage.getItem("gim.web.prefs")).toBeNull();
+
+    await useQueryStore.getState().runQuery();
+    expect(JSON.parse(localStorage.getItem("gim.web.prefs")!).query).toBe("rating:5");
   });
 });
