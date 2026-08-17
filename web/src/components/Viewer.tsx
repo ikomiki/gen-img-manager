@@ -243,13 +243,15 @@ export function Viewer() {
 }
 
 /**
- * 要求する w を決める。行がまだ届いていない位置では、画像の寸法が分からないので
- * ビューポートの長辺から決める。プレースホルダで待たせないのは、行の取得が失敗しても
- * スライドショーが止まらないようにするため。
+ * 要求する w を決める。行がまだ届いていない位置では、画像の寸法が分からない。
+ * プレースホルダで待たせないのは、行の取得が失敗してもスライドショーが止まらないように
+ * するため。ビューポートの短辺から見積もるのは、収めた画像の長辺は必ず短辺以上になるため
+ * （長辺から見積もると行到着後より大きい tier を先取りしてしまい、同じ画像を2つの URL で
+ * 二重に落としたり、サーバがリサイズを諦めて原寸を返したりする）。
  */
 function widthFor(row: { width: number; height: number } | undefined): number {
   const dpr = window.devicePixelRatio || 1;
-  const viewLongEdge = Math.max(window.innerWidth, window.innerHeight);
-  if (!row) return pickWidth(viewLongEdge, dpr);
+  const viewShortEdge = Math.min(window.innerWidth, window.innerHeight);
+  if (!row) return pickWidth(viewShortEdge, dpr);
   return pickWidth(containedLongEdge(row.width, row.height, window.innerWidth, window.innerHeight), dpr);
 }
