@@ -30,6 +30,9 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onLoaded }: Props) {
   const startPoint = useRef<Point>({ x: 0, y: 0 });
   const startOffset = useRef<Point>({ x: 0, y: 0 });
   const pinchStart = useRef<{ dist: number; scale: number } | null>(null);
+  // このジェスチャ中に2本指になった（ピンチした）かどうか。最後の1本を離した瞬間に
+  // タップ・スワイプとして拾わないようにする判定に使う。
+  const hadPinch = useRef(false);
 
   // 拡大を解いたのに画像が画面外にいる状態を作らない。
   useEffect(() => {
@@ -52,6 +55,7 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onLoaded }: Props) {
 
     const pair = twoPoints();
     if (pair) {
+      hadPinch.current = true;
       pinchStart.current = {
         dist: distance(pair[0].x, pair[0].y, pair[1].x, pair[1].y),
         scale,
@@ -86,9 +90,25 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onLoaded }: Props) {
     const wasPinching = pointers.current.size >= 2;
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) pinchStart.current = null;
-    if (wasPinching) return;
+
+    if (wasPinching) {
+      // 2本指のどちらかが離れて1本指になった。残った指の「今の位置」を新しい起点にし直さないと、
+      // ピンチ中に動いた分だけパンの位置が飛ぶ（起点が2本指になる前の値のまま残ってしまうため）。
+      const remaining = [...pointers.current.values()][0];
+      if (remaining) {
+        startAt.current = performance.now();
+        startPoint.current = remaining;
+        startOffset.current = offset;
+      }
+      return;
+    }
+
+    const pinchedThisGesture = hadPinch.current;
+    hadPinch.current = false;
 
     if (scale > 1) return; // パンの終わり。送りもタップも起こさない。
+    // ピンチで縮めて戻しただけの操作が、最後の1本を離した瞬間に送り・タップとして拾われないようにする。
+    if (pinchedThisGesture) return;
 
     const dx = e.clientX - startPoint.current.x;
     const dy = e.clientY - startPoint.current.y;

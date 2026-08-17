@@ -86,4 +86,38 @@ describe("ZoomableImage", () => {
     const img = el.querySelector("img")!;
     expect(img.style.transform).toContain("scale(2.5)");
   });
+
+  it("ピンチして縮小し、1本目を離しても送られない", () => {
+    useViewerStore.setState({ scale: 2 });
+    const { onTap, onSwipe, el } = renderImage();
+
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerDown(el, { pointerId: 2, clientX: 300, clientY: 100 });
+    // 縮める向きに動かして scale を 1 まで戻す（pinchScale の下限クランプ）。
+    fireEvent.pointerMove(el, { pointerId: 2, clientX: 150, clientY: 100 });
+    fireEvent.pointerUp(el, { pointerId: 2, clientX: 150, clientY: 100 });
+    // 1本目は大きく動かさずに離す。
+    fireEvent.pointerUp(el, { pointerId: 1, clientX: 102, clientY: 101 });
+
+    expect(onSwipe).not.toHaveBeenCalled();
+    expect(onTap).not.toHaveBeenCalled();
+  });
+
+  it("2本目を離した後のパンが飛ばない", () => {
+    useViewerStore.setState({ scale: 2 });
+    const { el } = renderImage();
+    const img = el.querySelector("img")!;
+
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerDown(el, { pointerId: 2, clientX: 300, clientY: 100 });
+    // ピンチ中に1本目も動く。
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 140, clientY: 100 });
+    fireEvent.pointerUp(el, { pointerId: 2, clientX: 300, clientY: 100 });
+    // 2本目を離した後、残った1本目をさらに動かす。
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 170, clientY: 100 });
+
+    // 「離した後の移動量」(170-140=30) に対応していること。
+    // 1本目の最初の down 位置 (100) からの累積 (70) になっていないこと。
+    expect(img.style.transform).toContain("translate(30px, 0px)");
+  });
 });
