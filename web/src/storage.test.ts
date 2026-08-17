@@ -95,6 +95,13 @@ describe("sanitizePrefs", () => {
     expect("bogus" in p).toBe(false);
   });
 
+  it("sort / dir に文字列以外が入っていても既定値へ落ちる", () => {
+    const p = sanitizePrefs({ sort: 3, dir: { a: 1 }, query: 7 });
+    expect(p.sort).toBe(DEFAULT_PREFS.sort);
+    expect(p.dir).toBe(DEFAULT_PREFS.dir);
+    expect(p.query).toBe(DEFAULT_PREFS.query);
+  });
+
   it("間隔の選択肢", () => {
     expect(INTERVAL_CHOICES).toEqual([3, 5, 10, 30]);
   });
