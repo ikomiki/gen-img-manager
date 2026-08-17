@@ -3,6 +3,7 @@ mod dirscope;
 mod dto;
 mod error;
 mod fileserve;
+mod logging;
 mod resize;
 mod routes;
 mod state;

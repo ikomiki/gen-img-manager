@@ -115,6 +115,20 @@ pub fn write_png(path: &std::path::Path, w: u32, h: u32) {
     buf.save_with_format(path, image::ImageFormat::Png).unwrap();
 }
 
+/// メソッドを指定してリクエストする。
+pub async fn request_raw(state: AppState, method: &str, uri: &str) -> axum::response::Response {
+    routes::router(state)
+        .oneshot(
+            Request::builder()
+                .method(method)
+                .uri(uri)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
 /// ヘッダ付きで GET する。
 pub async fn get_raw_with_headers(
     state: AppState,

@@ -52,8 +52,9 @@ fn scope(params: &ListParams) -> Result<DirScope, ApiError> {
 
 pub async fn list(
     State(state): State<AppState>,
-    Query(params): Query<ListParams>,
+    params: Result<Query<ListParams>, axum::extract::rejection::QueryRejection>,
 ) -> Result<Json<Vec<crate::dto::ImageDto>>, ApiError> {
+    let Query(params) = params?;
     let conn = state.conn()?;
     let rows = image_query::query_images(
         &conn,
@@ -74,8 +75,9 @@ pub struct CountBody {
 
 pub async fn count(
     State(state): State<AppState>,
-    Query(params): Query<ListParams>,
+    params: Result<Query<ListParams>, axum::extract::rejection::QueryRejection>,
 ) -> Result<Json<CountBody>, ApiError> {
+    let Query(params) = params?;
     let conn = state.conn()?;
     let total = image_query::count_query(&conn, &params.q, &scope(&params)?)?;
     Ok(Json(CountBody { total }))
@@ -83,8 +85,9 @@ pub async fn count(
 
 pub async fn ids(
     State(state): State<AppState>,
-    Query(params): Query<ListParams>,
+    params: Result<Query<ListParams>, axum::extract::rejection::QueryRejection>,
 ) -> Result<Json<Vec<i64>>, ApiError> {
+    let Query(params) = params?;
     let conn = state.conn()?;
     let ids = image_query::list_ids(
         &conn,

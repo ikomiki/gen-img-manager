@@ -31,3 +31,15 @@ impl From<rusqlite::Error> for ApiError {
         ApiError::Internal(e.to_string())
     }
 }
+
+impl From<axum::extract::rejection::QueryRejection> for ApiError {
+    fn from(r: axum::extract::rejection::QueryRejection) -> Self {
+        ApiError::BadRequest(r.body_text())
+    }
+}
+
+impl From<axum::extract::rejection::PathRejection> for ApiError {
+    fn from(r: axum::extract::rejection::PathRejection) -> Self {
+        ApiError::BadRequest(r.body_text())
+    }
+}
