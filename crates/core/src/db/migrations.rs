@@ -157,6 +157,11 @@ const MIGRATIONS: &[&str] = &[
                OR COALESCE(t.base_name, t.name) NOT IN (SELECT name FROM analysis_excluded_tags));",
 ];
 
+/// 適用済みなら `PRAGMA user_version` がこの値になる。
+pub fn latest_version() -> i64 {
+    MIGRATIONS.len() as i64
+}
+
 /// 未適用のマイグレーションを順に適用し PRAGMA user_version を更新する。
 pub fn run(conn: &Connection) -> rusqlite::Result<()> {
     let current: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
@@ -369,5 +374,14 @@ mod tests {
             )
             .unwrap();
         assert_eq!(c, 1);
+    }
+
+    #[test]
+    fn latest_version_matches_applied_version() {
+        let conn = Connection::open_in_memory().unwrap();
+        run(&conn).unwrap();
+        let applied: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0)).unwrap();
+        assert_eq!(latest_version(), applied);
+        assert!(latest_version() >= 6, "既存マイグレーションは v6 まである");
     }
 }

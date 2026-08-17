@@ -128,6 +128,29 @@ pub fn delete_by_directory(conn: &Connection, directory_id: i64) -> rusqlite::Re
     Ok(())
 }
 
+/// 配信に必要な最小限の情報。詳細メタデータ（raw_parameters や comfy_workflow）は
+/// 大きいので、画像配信の経路では読まない。
+#[derive(Debug, Clone, PartialEq)]
+pub struct MediaInfo {
+    pub path: String,
+    pub thumb_path: Option<String>,
+    pub format: String,
+}
+
+pub fn get_media_info(conn: &Connection, id: i64) -> rusqlite::Result<Option<MediaInfo>> {
+    let mut stmt =
+        conn.prepare("SELECT path, thumb_path, format FROM images WHERE id = ?1 AND missing = 0")?;
+    let mut rows = stmt.query(params![id])?;
+    match rows.next()? {
+        Some(r) => Ok(Some(MediaInfo {
+            path: r.get(0)?,
+            thumb_path: r.get(1)?,
+            format: r.get(2)?,
+        })),
+        None => Ok(None),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -264,5 +287,24 @@ mod tests {
             .query_row("SELECT rating FROM images WHERE id = ?1", params![id], |r| r.get(0))
             .unwrap();
         assert_eq!(r, Some(5), "manual rating must survive a rescan");
+    }
+
+    #[test]
+    fn get_media_info_returns_paths_and_format() {
+        let c = conn();
+        let mut img = sample("/d/a.png");
+        img.thumb_path = Some("/t/abc.webp".to_string());
+        let id = upsert(&c, &img).unwrap();
+
+        let info = get_media_info(&c, id).unwrap().unwrap();
+        assert_eq!(info.path, "/d/a.png");
+        assert_eq!(info.thumb_path.as_deref(), Some("/t/abc.webp"));
+        assert_eq!(info.format, "png");
+    }
+
+    #[test]
+    fn get_media_info_is_none_for_unknown_id() {
+        let c = conn();
+        assert!(get_media_info(&c, 12345).unwrap().is_none());
     }
 }
