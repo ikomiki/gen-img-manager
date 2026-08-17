@@ -2774,3 +2774,27 @@ EOF
 - スライドショーの再生順序は `/api/images/ids` で ID 配列だけ取る。順序生成は `@gim/shared/playlist` の `buildOrder` / `step` を使う
 - 先読みは `new Image()` で次の2枚。同一画像への同時リクエストはサーバ側で single-flight されていないので、重複を避ける制御はクライアント側に置く
 - `tsconfig` の project references 化（`web/` が増えて単一 tsconfig では管理しきれなくなったら）
+
+### ブランチ全体レビューから追加された申し送り
+
+**先に決めること（計画4の起草前）**
+
+- **シートの確定モデルを1つに揃える。** 現在 `FilterSheet` は「適用」を押すまで検索せず、`DirectorySheet` はチェック1つで即時反映という別々の作法になっている。加えて `FilterSheet` を適用せず閉じると、クエリ入力欄だけが書き換わって表示中の結果と一致しない状態が残り、画面上にその不一致を示すものが無い。(a) 両方とも即時反映 (b) 両方とも「適用／取消」 のどちらかへ揃える
+- 次の計画の Global Constraints に「ボタン／入力のスタイルは `web/src/ui.ts` から取る」「シートの確定モデルはこれ」を1行ずつ書く。計画3で割れたのはこの2点だけで、どちらも構造的に防げる
+
+**実装タスクとして置くこと**
+
+- **`routes/mod.rs` の `.fallback(not_found)` は `rust-embed` の SPA fallback と正面衝突する。** API を `Router::nest("/api", …)` へ寄せるタスクを、埋め込みタスクより先に置くこと
+- **spec 177行目の「`/` でクエリ入力へフォーカス」が未実装。** 一覧画面の機能なので計画3が引き受けるべきだった計画の穴。計画4で拾うこと
+- `Sheet` に Escape での閉じ・背景スクロールのロック・`aria-modal` を入れる（spec は PC でのキーボード操作を求めている）
+- `storage.ts` の `JSON.parse(raw) as Partial<Prefs>` は検証ではない。壊れた localStorage（`dirs: "abc"` 等）が素通りして `dirsParam` で TypeError になり「読み込みに失敗しました」に化ける。`sort` / `dir` / `dirs` の型だけでも絞り込む
+- `state.rs` / `fileserve.rs` / `resize.rs` の7箇所が `ApiError::Internal(format!("…{e}"))` で生のエラー文字列を応答本文に載せている。`error.rs` の `From<rusqlite::Error>` と同じ扱いへ揃える
+- `images.rs` / `media.rs` の `Result<Query<T>, QueryRejection>` + `let Query(params) = params?;` の反復は、`#[derive(FromRequest)]` の `ApiQuery<T>` を1つ作れば計画4で増えるハンドラも自動的に揃う
+- `hostcheck.rs` の `extract_hostname` は、閉じ括弧が無い／`]` の後に余分な文字が続く異常な `Host`（例: `[127.0.0.1]evil.example.com:5180`）を IP リテラルとして通す。`Host` はブラウザが script から設定できない forbidden header なので DNS リバインディングの脅威モデルでは到達不能だが、判定関数としては塞いでおく
+- `ImageGrid.test.tsx` が `beforeEach` で `HTMLElement.prototype.offsetHeight` を `defineProperty` しており、`vi.restoreAllMocks()` では戻らない。他のテストファイルへ漏れうる
+- `"check": "tsc --noEmit && pnpm -C web exec tsc --noEmit && vitest run"` のような入口を1つ用意する。型チェックが2コマンドに割れているので、片方を忘れる事故を防げる
+- `FilterSheet` の `created` 欄は、範囲指定（`2026-01-01..2026-06-30`）が入っていると `type="date"` の欄が無言で空になる。「複雑な条件が設定されています」程度の注記があると事故が減る
+
+**spec 側を直すこと**
+
+- spec 186行目は localStorage を `gim.web.*` の個別キー（`history` / `query` / `sort` / `dirs` / `slideshow`）に分けて保存すると書いているが、実装は `gim.web.prefs` の単一 blob。単一 blob のほうが `savePrefs` の read-modify-write と相性が良く妥当な判断なので、**spec 側を実装に合わせて直す**
