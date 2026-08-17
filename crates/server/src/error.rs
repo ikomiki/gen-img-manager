@@ -15,7 +15,7 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, message) = match self {
             ApiError::BadRequest(m) => (StatusCode::BAD_REQUEST, m),
-            ApiError::NotFound => (StatusCode::NOT_FOUND, "not found".to_string()),
+            ApiError::NotFound => (StatusCode::NOT_FOUND, "見つかりません".to_string()),
             ApiError::Unavailable => (
                 StatusCode::SERVICE_UNAVAILABLE,
                 "ファイルに到達できません".to_string(),

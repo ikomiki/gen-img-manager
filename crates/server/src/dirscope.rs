@@ -61,10 +61,16 @@ mod tests {
 
     #[test]
     fn too_many_ids_are_rejected() {
-        let raw = (0..=MAX_DIR_IDS)
+        let at_limit = (0..MAX_DIR_IDS)
             .map(|i| i.to_string())
             .collect::<Vec<_>>()
             .join(",");
-        assert!(parse_dirs(Some(&raw)).is_err());
+        assert!(parse_dirs(Some(&at_limit)).is_ok(), "上限ちょうどは通る");
+
+        let over_limit = (0..=MAX_DIR_IDS)
+            .map(|i| i.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        assert!(parse_dirs(Some(&over_limit)).is_err());
     }
 }
