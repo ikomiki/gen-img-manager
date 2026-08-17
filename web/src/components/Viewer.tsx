@@ -247,7 +247,8 @@ export function Viewer() {
  * プレースホルダで待たせないのは、行の取得が失敗してもスライドショーが止まらないように
  * するため。ビューポートの短辺から見積もるのは、収めた画像の長辺は必ず短辺以上になるため
  * （長辺から見積もると行到着後より大きい tier を先取りしてしまい、同じ画像を2つの URL で
- * 二重に落としたり、サーバがリサイズを諦めて原寸を返したりする）。
+ * 二重に落としたり、サーバがリサイズを諦めて原寸を返したりする）。代償として、行が
+ * 結局取れなかった位置は少し粗いままになる。
  */
 function widthFor(row: { width: number; height: number } | undefined): number {
   const dpr = window.devicePixelRatio || 1;

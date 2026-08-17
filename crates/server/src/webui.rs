@@ -51,7 +51,7 @@ pub async fn spa_handler(uri: Uri) -> Response {
             // JS の代わりに HTML が返ってモジュール解析エラーで白画面になり、
             // 原因が分からなくなる。
             if requested.rsplit('/').next().is_some_and(|seg| seg.contains('.')) {
-                return (StatusCode::NOT_FOUND, "not found").into_response();
+                return (StatusCode::NOT_FOUND, "見つかりません").into_response();
             }
             match WebAssets::get(INDEX) {
                 Some(f) => (INDEX, f),
