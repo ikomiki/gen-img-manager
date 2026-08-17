@@ -20,19 +20,19 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 gim-core = { path = "../crates/core" }
 tauri = { version = "2", features = ["protocol-asset"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+rusqlite = { workspace = true }
 tauri-plugin-dialog = "2"
-image = "0.25"
-webp = "0.3"
+image = { workspace = true }
+webp = { workspace = true }
 png = "0.18"
 walkdir = "2"
 kamadak-exif = "0.6"
 quick-xml = "0.39"
-thiserror = "1"
+thiserror = { workspace = true }
 rayon = "1"
-chrono = "0.4"
+chrono = { workspace = true }
 trash = "5"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
