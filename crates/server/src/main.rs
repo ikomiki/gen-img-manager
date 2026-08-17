@@ -9,6 +9,7 @@ mod logging;
 mod resize;
 mod routes;
 mod state;
+mod webui;
 #[cfg(test)]
 mod test_support;
 

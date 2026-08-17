@@ -38,7 +38,8 @@ pub fn api_router(_state: AppState) -> Router<AppState> {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .nest("/api", api_router(state.clone()))
-        .fallback(not_found)
+        // /api 以外はすべて web フロント。SPA なので未知パスも index.html へ落とす。
+        .fallback(crate::webui::spa_handler)
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             crate::hostcheck::host_guard,
@@ -105,5 +106,20 @@ mod tests {
         )
         .await;
         assert_json_error(res, 403).await;
+    }
+
+    #[tokio::test]
+    async fn api_unknown_path_stays_json_while_others_serve_the_spa() {
+        let (state, _tmp) = test_state();
+        // /api 配下は JSON の 404（クライアントが res.json() を無条件に呼べる状態を保つ）
+        assert_json_error(get_raw(state.clone(), "/api/nope").await, 404).await;
+
+        // それ以外は index.html
+        let res = get_raw(state, "/some/deep/link").await;
+        assert_eq!(res.status(), 200);
+        assert_eq!(
+            res.headers()[header::CONTENT_TYPE],
+            "text/html; charset=utf-8"
+        );
     }
 }
