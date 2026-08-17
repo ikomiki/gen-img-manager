@@ -7,7 +7,8 @@ import {
   type RatingValue,
 } from "@gim/shared/ratingFilter";
 import { useQueryStore } from "../store/useQueryStore";
-import { Sheet, buttonStyle } from "./Sheet";
+import { Sheet } from "./Sheet";
+import { buttonStyle, inputStyle } from "../ui";
 
 interface Props {
   open: boolean;
@@ -54,7 +55,7 @@ export function FilterSheet({ open, onClose }: Props) {
           value={promptFieldToInput(query, "prompt")}
           placeholder="forest -blurry"
           onChange={(e) => setQuery(applyPromptField(query, "prompt", e.target.value))}
-          style={inputStyle}
+          style={{ ...inputStyle, width: "100%" }}
         />
       </Field>
 
@@ -86,7 +87,7 @@ export function FilterSheet({ open, onClose }: Props) {
           value={extractField(query, "width") ?? ""}
           placeholder=">=1024"
           onChange={(e) => setField("width", e.target.value)}
-          style={inputStyle}
+          style={{ ...inputStyle, width: "100%" }}
         />
       </Field>
 
@@ -97,7 +98,7 @@ export function FilterSheet({ open, onClose }: Props) {
           value={extractField(query, "height") ?? ""}
           placeholder=">=1024"
           onChange={(e) => setField("height", e.target.value)}
-          style={inputStyle}
+          style={{ ...inputStyle, width: "100%" }}
         />
       </Field>
 
@@ -107,7 +108,7 @@ export function FilterSheet({ open, onClose }: Props) {
           type="text"
           value={extractField(query, "model") ?? ""}
           onChange={(e) => setField("model", e.target.value)}
-          style={inputStyle}
+          style={{ ...inputStyle, width: "100%" }}
         />
       </Field>
 
@@ -118,7 +119,7 @@ export function FilterSheet({ open, onClose }: Props) {
           value={extractField(query, "tool") ?? ""}
           placeholder="a1111"
           onChange={(e) => setField("tool", e.target.value)}
-          style={inputStyle}
+          style={{ ...inputStyle, width: "100%" }}
         />
       </Field>
 
@@ -130,7 +131,7 @@ export function FilterSheet({ open, onClose }: Props) {
           onChange={(e) =>
             setField("created", e.target.value === "" ? "" : `>=${e.target.value}`)
           }
-          style={inputStyle}
+          style={{ ...inputStyle, width: "100%" }}
         />
       </Field>
 
@@ -158,17 +159,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  minHeight: "var(--tap)",
-  padding: "0 12px",
-  background: "var(--surface-raised)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  color: "var(--text)",
-  font: "inherit",
-};
 
 function chipStyle(active: boolean): React.CSSProperties {
   return {

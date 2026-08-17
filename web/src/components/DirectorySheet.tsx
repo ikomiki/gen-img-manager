@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { listDirectories, type DirectoryDto } from "../api/directories";
 import { useQueryStore } from "../store/useQueryStore";
-import { Sheet, buttonStyle } from "./Sheet";
+import { Sheet } from "./Sheet";
+import { buttonStyle } from "../ui";
 
 interface Props {
   open: boolean;
