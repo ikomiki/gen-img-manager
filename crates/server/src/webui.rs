@@ -26,13 +26,14 @@ pub fn content_type_for_path(path: &str) -> &'static str {
     }
 }
 
-/// 資産はファイル名にハッシュが入るので永続キャッシュしてよい。
-/// index.html は固定名なので、毎回サーバに確認させる。
+/// ファイル名にハッシュが入るのは Vite が出す `assets/` 配下だけ。それ以外
+/// （`index.html` や `web/public/` 直下の固定名ファイル）を immutable にすると、
+/// 差し替え後の新しいファイルが永久に降りてこない。
 fn cache_control_for(path: &str) -> &'static str {
-    if path == "index.html" {
-        "no-cache"
-    } else {
+    if path.starts_with("assets/") {
         "public, max-age=31536000, immutable"
+    } else {
+        "no-cache"
     }
 }
 
@@ -43,11 +44,21 @@ pub async fn spa_handler(uri: Uri) -> Response {
     // 実体があればそれを返し、無ければ index.html。クライアント側のルーティングに任せる。
     let (path, file) = match WebAssets::get(requested) {
         Some(f) => (requested, f),
-        None => match WebAssets::get(INDEX) {
-            Some(f) => (INDEX, f),
-            // build.rs が index.html を必ず用意するので、ここへは来ない。
-            None => return (StatusCode::NOT_FOUND, "web フロントが同梱されていません").into_response(),
-        },
+        None => {
+            // 拡張子を持つパスは資産の URL であり、SPA のクライアント側ルートは
+            // 拡張子を持たない。ここを index.html に落とすと、フロント差し替え後に
+            // 古い index.html を持つブラウザが古い /assets/*.js を要求したとき、
+            // JS の代わりに HTML が返ってモジュール解析エラーで白画面になり、
+            // 原因が分からなくなる。
+            if requested.rsplit('/').next().is_some_and(|seg| seg.contains('.')) {
+                return (StatusCode::NOT_FOUND, "not found").into_response();
+            }
+            match WebAssets::get(INDEX) {
+                Some(f) => (INDEX, f),
+                // build.rs が index.html を必ず用意するので、ここへは来ない。
+                None => return (StatusCode::NOT_FOUND, "web フロントが同梱されていません").into_response(),
+            }
+        }
     };
 
     let etag = format!("\"{}\"", hex_of(&file.metadata.sha256_hash()));
@@ -105,12 +116,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn unknown_asset_path_is_404() {
+        let res = spa_handler("/assets/nope.js".parse().unwrap()).await;
+        assert_eq!(res.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
     async fn index_html_is_not_cached_forever() {
         // 資産のファイル名はハッシュ付きだが index.html は固定名。
         // immutable にすると新しいフロントが永久に降りてこない。
         let res = spa_handler("/".parse().unwrap()).await;
         let cc = res.headers()[header::CACHE_CONTROL].to_str().unwrap();
         assert!(cc.contains("no-cache"), "index.html の Cache-Control: {cc}");
+    }
+
+    #[test]
+    fn cache_control_is_immutable_only_under_assets() {
+        assert_eq!(cache_control_for("assets/a.js"), "public, max-age=31536000, immutable");
+        assert_eq!(cache_control_for("favicon.svg"), "no-cache");
     }
 
     #[tokio::test]
