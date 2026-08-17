@@ -5,6 +5,7 @@ import { imageUrl, listImageIds, listImages } from "../api/images";
 import { containedLongEdge, pickWidth } from "../util/pickWidth";
 import { createPreloader } from "../util/preloader";
 import { createRowWindow, WINDOW_SIZE } from "../util/rowWindow";
+import { useFullscreen } from "../hooks/useFullscreen";
 import { useSlideshowTimer } from "../hooks/useSlideshowTimer";
 import { useViewerKeys } from "../hooks/useViewerKeys";
 import { buttonStyle } from "../ui";
@@ -46,6 +47,7 @@ export function Viewer() {
   const rootRef = useRef<HTMLDivElement>(null);
 
   useViewerKeys({ enabled: open && !slideshowOpen, rootRef });
+  const fullscreen = useFullscreen(rootRef);
 
   const preloader = useMemo(() => createPreloader(), []);
 
@@ -255,6 +257,21 @@ export function Viewer() {
           >
             ›
           </button>
+          {fullscreen.supported && (
+            <button
+              type="button"
+              aria-label={fullscreen.active ? "フルスクリーンを終了" : "フルスクリーン"}
+              aria-pressed={fullscreen.active}
+              onClick={fullscreen.toggle}
+              style={{
+                ...buttonStyle,
+                flex: 1,
+                background: fullscreen.active ? "var(--accent)" : buttonStyle.background,
+              }}
+            >
+              ⛶
+            </button>
+          )}
         </div>
       )}
 

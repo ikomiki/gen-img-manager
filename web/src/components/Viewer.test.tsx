@@ -204,3 +204,51 @@ describe("ズームモードの切替", () => {
     expect(useViewerStore.getState().scale).toBe(1);
   });
 });
+
+describe("フルスクリーンボタン", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(document, "fullscreenEnabled");
+    Reflect.deleteProperty(document, "fullscreenElement");
+    Reflect.deleteProperty(Element.prototype, "requestFullscreen");
+  });
+
+  function stubSupport(request: () => Promise<void>) {
+    Object.defineProperty(document, "fullscreenEnabled", { configurable: true, value: true });
+    Object.defineProperty(document, "fullscreenElement", { configurable: true, value: null });
+    Object.defineProperty(Element.prototype, "requestFullscreen", {
+      configurable: true,
+      value: request,
+    });
+  }
+
+  it("非対応の環境（iPhone Safari）では出さない", () => {
+    useViewerStore.getState().openAt(0, 5);
+    render(<Viewer />);
+    expect(screen.queryByLabelText("フルスクリーン")).toBeNull();
+  });
+
+  it("対応環境では押すとフルスクリーンを要求する", () => {
+    const request = vi.fn(() => Promise.resolve());
+    stubSupport(request);
+    useViewerStore.getState().openAt(0, 5);
+    render(<Viewer />);
+
+    fireEvent.click(screen.getByLabelText("フルスクリーン"));
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("ブラウザ側で解除されてもラベルが追従する", () => {
+    stubSupport(() => Promise.resolve());
+    useViewerStore.getState().openAt(0, 5);
+    render(<Viewer />);
+
+    Object.defineProperty(document, "fullscreenElement", {
+      configurable: true,
+      value: document.body,
+    });
+    act(() => {
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+    expect(screen.getByLabelText("フルスクリーンを終了")).toBeTruthy();
+  });
+});

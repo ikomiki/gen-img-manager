@@ -1,0 +1,19 @@
+{
+  "name": "gen-img-manager",
+  "short_name": "gen-img",
+  "description": "AI生成画像の閲覧・検索",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#121212",
+  "theme_color": "#121212",
+  "icons": [
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
