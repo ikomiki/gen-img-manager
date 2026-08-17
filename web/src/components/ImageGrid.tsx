@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQueryStore } from "../store/useQueryStore";
+import { useViewerStore } from "../store/useViewerStore";
 import { thumbUrl } from "../api/images";
 import { gridLayout } from "../util/gridLayout";
 import { buttonStyle } from "../ui";
@@ -13,6 +14,7 @@ export function ImageGrid() {
   const loadMore = useQueryStore((s) => s.loadMore);
   const exhausted = useQueryStore((s) => s.exhausted);
   const error = useQueryStore((s) => s.error);
+  const openAt = useViewerStore((s) => s.openAt);
 
   const parentRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
@@ -82,21 +84,34 @@ export function ImageGrid() {
                 gap: GAP,
               }}
             >
-              {rowItems.map((img) => (
-                <img
+              {rowItems.map((img, i) => (
+                <button
                   key={img.id}
-                  src={thumbUrl(img.id)}
-                  alt={img.filename}
-                  loading="lazy"
-                  decoding="async"
+                  type="button"
+                  onClick={() => openAt(start + i, results.length)}
                   style={{
-                    width: "100%",
-                    aspectRatio: "1 / 1",
-                    objectFit: "cover",
+                    padding: 0,
+                    border: "none",
+                    background: "none",
+                    cursor: "pointer",
                     display: "block",
-                    background: "var(--surface)",
+                    lineHeight: 0,
                   }}
-                />
+                >
+                  <img
+                    src={thumbUrl(img.id)}
+                    alt={img.filename}
+                    loading="lazy"
+                    decoding="async"
+                    style={{
+                      width: "100%",
+                      aspectRatio: "1 / 1",
+                      objectFit: "cover",
+                      display: "block",
+                      background: "var(--surface)",
+                    }}
+                  />
+                </button>
               ))}
             </div>
           );
