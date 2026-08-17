@@ -122,4 +122,21 @@ describe("createRowWindow", () => {
     expect(w.get(0)).toBeUndefined();
     expect(onChange).toHaveBeenCalled();
   });
+
+  it("clear より前に始まった取得は、後で解決しても入らない", async () => {
+    let resolvePage: (rows: ImageDto[]) => void = () => {};
+    const fn = () => new Promise<ImageDto[]>((r) => { resolvePage = r; });
+    const onChange = vi.fn();
+    const w = createRowWindow(fn, onChange, 40);
+
+    w.ensure(0);
+    w.clear();
+    onChange.mockClear();
+    resolvePage([row(0)]);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(w.get(0)).toBeUndefined();
+    expect(onChange).not.toHaveBeenCalled();
+  });
 });

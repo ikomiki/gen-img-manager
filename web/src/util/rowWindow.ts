@@ -24,7 +24,7 @@ export interface RowWindow {
  * 必要になった窓だけ取ってくる。
  *
  * `onChange` は行が増えた／捨てられたときに呼ぶ。React 側の再描画の契機で、
- * この モジュール自身は React に依存しない。
+ * このモジュール自身は React に依存しない。
  */
 export function createRowWindow(
   fetchPage: (offset: number, limit: number) => Promise<ImageDto[]>,
@@ -33,6 +33,7 @@ export function createRowWindow(
 ): RowWindow {
   const rows = new Map<number, ImageDto>();
   const inflight = new Set<number>();
+  let generation = 0;
 
   return {
     get: (index) => rows.get(index),
@@ -42,8 +43,12 @@ export function createRowWindow(
       const offset = windowOffsetFor(index, size);
       if (inflight.has(offset)) return;
       inflight.add(offset);
+      const gen = generation;
       void fetchPage(offset, size)
         .then((page) => {
+          // clear() はクエリが変わったときに呼ばれる。前のクエリの行を書き戻すと、
+          // 別の画像のファイル名を出してしまう。
+          if (gen !== generation) return;
           page.forEach((r, i) => rows.set(offset + i, r));
           onChange();
         })
@@ -57,6 +62,7 @@ export function createRowWindow(
     },
 
     clear: () => {
+      generation += 1;
       rows.clear();
       inflight.clear();
       onChange();
