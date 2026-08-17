@@ -38,9 +38,12 @@ fn extract_hostname(header: &str) -> &str {
     let h = header.trim();
 
     if let Some(rest) = h.strip_prefix('[') {
-        // 角括弧が閉じていない場合は壊れた入力として丸ごと返す（どの許可条件にも
-        // 一致せず拒否される）。
-        return rest.split(']').next().unwrap_or(h);
+        // 閉じ括弧が無いのは壊れた入力。中身を取り出すと IPv6 リテラルとして
+        // 許可されてしまうので、丸ごと返してどの許可条件にも一致させない。
+        return match rest.split_once(']') {
+            Some((inner, _port)) => inner,
+            None => h,
+        };
     }
 
     // 角括弧無しの IPv6 リテラル（複数コロンを含む）を先に処理しておく。
@@ -138,5 +141,18 @@ mod tests {
         // "local" を部分文字列に含むが ".local" で終わらない名前は拒否されること。
         assert!(!host_allowed(Some("notlocal.example.com"), &[]));
         assert!(!host_allowed(Some("notlocal.example.com:5180"), &[]));
+    }
+
+    #[test]
+    fn unclosed_bracket_is_rejected() {
+        // 角括弧が閉じていない Host は壊れた入力。中身が IPv6 に見えても許可しない。
+        assert!(!host_allowed(Some("[::1"), &[]));
+        assert!(!host_allowed(Some("[192.168.0.1"), &[]));
+    }
+
+    #[test]
+    fn bracketed_ipv6_still_works() {
+        assert!(host_allowed(Some("[fe80::1]:5180"), &[]));
+        assert!(host_allowed(Some("[::1]"), &[]));
     }
 }
