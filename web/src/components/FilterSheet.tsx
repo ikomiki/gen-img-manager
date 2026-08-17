@@ -7,7 +7,7 @@ import {
   type RatingValue,
 } from "@gim/shared/ratingFilter";
 import { useQueryStore } from "../store/useQueryStore";
-import { Sheet } from "./Sheet";
+import { Sheet, buttonStyle } from "./Sheet";
 
 interface Props {
   open: boolean;
@@ -168,16 +168,6 @@ const inputStyle: React.CSSProperties = {
   borderRadius: 8,
   color: "var(--text)",
   font: "inherit",
-};
-
-const buttonStyle: React.CSSProperties = {
-  minHeight: "var(--tap)",
-  background: "var(--surface-raised)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  color: "var(--text)",
-  font: "inherit",
-  cursor: "pointer",
 };
 
 function chipStyle(active: boolean): React.CSSProperties {

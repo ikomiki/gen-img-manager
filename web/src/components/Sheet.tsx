@@ -69,3 +69,13 @@ export function Sheet({ open, title, onClose, children }: Props) {
     </div>
   );
 }
+
+export const buttonStyle: React.CSSProperties = {
+  minHeight: "var(--tap)",
+  background: "var(--surface-raised)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  color: "var(--text)",
+  font: "inherit",
+  cursor: "pointer",
+};
