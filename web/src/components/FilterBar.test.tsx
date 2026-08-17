@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { FilterBar } from "./FilterBar";
 import { useQueryStore } from "../store/useQueryStore";
+import { useViewerStore } from "../store/useViewerStore";
 import * as imagesApi from "../api/images";
 
 beforeEach(() => {
@@ -87,5 +88,44 @@ describe("FilterBar", () => {
     useQueryStore.setState({ loading: false });
     render(<FilterBar onOpenFilter={() => {}} onOpenDirectories={() => {}} />);
     expect(screen.getByRole("progressbar").style.height).toBe("0px");
+  });
+
+  it("/ でクエリ入力へフォーカスする", () => {
+    render(<FilterBar onOpenFilter={() => {}} onOpenDirectories={() => {}} />);
+    const input = screen.getByPlaceholderText("検索");
+    expect(document.activeElement).not.toBe(input);
+
+    fireEvent.keyDown(document, { key: "/" });
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("入力中の / は横取りしない", () => {
+    render(<FilterBar onOpenFilter={() => {}} onOpenDirectories={() => {}} />);
+    const input = screen.getByPlaceholderText("検索");
+    input.focus();
+
+    // 入力欄にフォーカスがある状態の / は、文字入力としてそのまま通す。
+    const e = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
+    input.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(false);
+  });
+
+  it("ビューアが開いている間は / を横取りしない", () => {
+    useViewerStore.setState({ open: true });
+    render(<FilterBar onOpenFilter={() => {}} onOpenDirectories={() => {}} />);
+    const input = screen.getByPlaceholderText("検索");
+
+    fireEvent.keyDown(document, { key: "/" });
+    expect(document.activeElement).not.toBe(input);
+
+    useViewerStore.setState({ open: false });
+  });
+
+  it("修飾キー付きの / は無視する", () => {
+    render(<FilterBar onOpenFilter={() => {}} onOpenDirectories={() => {}} />);
+    const input = screen.getByPlaceholderText("検索");
+
+    fireEvent.keyDown(document, { key: "/", metaKey: true });
+    expect(document.activeElement).not.toBe(input);
   });
 });

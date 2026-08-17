@@ -6,13 +6,17 @@ import * as imagesApi from "../api/images";
 import { extractField } from "@gim/shared/queryTokens";
 
 beforeEach(() => {
+  vi.useFakeTimers();
   localStorage.clear();
   vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
   vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 0 });
-  useQueryStore.setState({ query: "" });
+  useQueryStore.setState({ query: "", history: [] });
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("FilterSheet", () => {
   it("レーティングを選ぶとクエリ文字列に反映される", () => {
@@ -49,10 +53,28 @@ describe("FilterSheet", () => {
     expect(useQueryStore.getState().query).not.toContain("width:");
   });
 
-  it("適用で検索が走る", async () => {
+  it("レーティングを選ぶと即座に検索が走る", async () => {
     render(<FilterSheet open onClose={() => {}} />);
-    fireEvent.click(screen.getByText("適用"));
+    fireEvent.click(screen.getByLabelText("レーティング 5"));
     await vi.waitFor(() => expect(imagesApi.listImages).toHaveBeenCalled());
+  });
+
+  it("自由入力はすぐには検索せず、少し待ってから走る", async () => {
+    render(<FilterSheet open onClose={() => {}} />);
+    fireEvent.change(screen.getByLabelText("幅"), { target: { value: ">=1024" } });
+
+    expect(imagesApi.listImages).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(imagesApi.listImages).toHaveBeenCalled();
+  });
+
+  it("閉じるときに履歴へ記録する", async () => {
+    const onClose = vi.fn();
+    useQueryStore.setState({ query: "rating:>=5", history: [] });
+    const { rerender } = render(<FilterSheet open onClose={onClose} />);
+
+    rerender(<FilterSheet open={false} onClose={onClose} />);
+    await vi.waitFor(() => expect(useQueryStore.getState().history).toEqual(["rating:>=5"]));
   });
 
   it("クリアはシートの全項目を消すが、フリーワードは残す", () => {

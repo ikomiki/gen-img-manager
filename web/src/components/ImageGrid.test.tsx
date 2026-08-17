@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ImageGrid } from "./ImageGrid";
 import { useQueryStore } from "../store/useQueryStore";
+import { useViewerStore } from "../store/useViewerStore";
 import * as imagesApi from "../api/images";
 import type { ImageDto } from "../api/images";
 
@@ -37,6 +38,7 @@ beforeEach(() => {
   });
   vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
   useQueryStore.setState({ results: [], exhausted: true, error: null });
+  useViewerStore.setState({ open: false, order: [], pos: 0 });
 });
 
 afterEach(() => vi.restoreAllMocks());
@@ -60,5 +62,14 @@ describe("ImageGrid", () => {
     render(<ImageGrid />);
     expect(screen.queryAllByRole("img")).toHaveLength(0);
     expect(screen.getByText(/読み込みに失敗しました/)).toBeTruthy();
+  });
+
+  it("サムネイルを押すとビューアが開く", () => {
+    useQueryStore.setState({ results: rows(3), total: 3, exhausted: true, error: null });
+    render(<ImageGrid />);
+
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    expect(useViewerStore.getState().open).toBe(true);
+    expect(useViewerStore.getState().order[useViewerStore.getState().pos]).toBe(0);
   });
 });
