@@ -1,14 +1,27 @@
-import { useEffect, useState } from "react";
-import { getJson } from "./api/client";
+import { useEffect } from "react";
+import { useQueryStore } from "./store/useQueryStore";
+import { ImageGrid } from "./components/ImageGrid";
 
 export function App() {
-  const [health, setHealth] = useState<string>("...");
+  const init = useQueryStore((s) => s.init);
+  const total = useQueryStore((s) => s.total);
 
   useEffect(() => {
-    getJson<{ schema_version: number; image_count: number }>("/api/health")
-      .then((h) => setHealth(`schema ${h.schema_version} / ${h.image_count} 枚`))
-      .catch((e) => setHealth(`エラー: ${e.message}`));
-  }, []);
+    void init();
+  }, [init]);
 
-  return <p style={{ padding: 16 }}>{health}</p>;
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <header
+        style={{
+          padding: `env(safe-area-inset-top) 12px 8px`,
+          background: "var(--surface)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        <span style={{ color: "var(--text-dim)", fontSize: 13 }}>{total} 枚</span>
+      </header>
+      <ImageGrid />
+    </div>
+  );
 }
