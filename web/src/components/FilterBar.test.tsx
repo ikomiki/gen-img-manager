@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { FilterBar } from "./FilterBar";
 import { useQueryStore } from "../store/useQueryStore";
+import { useViewerStore } from "../store/useViewerStore";
 import * as imagesApi from "../api/images";
 
 beforeEach(() => {
@@ -107,6 +108,17 @@ describe("FilterBar", () => {
     const e = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
     input.dispatchEvent(e);
     expect(e.defaultPrevented).toBe(false);
+  });
+
+  it("ビューアが開いている間は / を横取りしない", () => {
+    useViewerStore.setState({ open: true });
+    render(<FilterBar onOpenFilter={() => {}} onOpenDirectories={() => {}} />);
+    const input = screen.getByPlaceholderText("検索");
+
+    fireEvent.keyDown(document, { key: "/" });
+    expect(document.activeElement).not.toBe(input);
+
+    useViewerStore.setState({ open: false });
   });
 
   it("修飾キー付きの / は無視する", () => {
