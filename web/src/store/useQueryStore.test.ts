@@ -111,15 +111,20 @@ describe("loadMore", () => {
       resolveMore = r;
     });
     vi.spyOn(imagesApi, "listImages")
-      .mockReturnValueOnce(more) // loadMore の分
-      .mockResolvedValueOnce(rows(500, 2)); // runQuery の分
+      .mockReturnValueOnce(more) // 先に呼ばれる loadMore の分
+      .mockResolvedValueOnce(rows(500, 2)); // あとから呼ばれる runQuery の分
     vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 2 });
 
     useQueryStore.setState({ results: rows(1, 200), total: 400 });
+
     const pMore = useQueryStore.getState().loadMore();
     const pRun = useQueryStore.getState().runQuery();
+
+    // runQuery を先に完全に終わらせてから、古い loadMore を解決させる。
+    // これが競合の実際の順序（遅れて返った古い応答が新しい結果を上書きする）。
+    await pRun;
     resolveMore(rows(201, 200));
-    await Promise.all([pMore, pRun]);
+    await pMore;
 
     expect(useQueryStore.getState().results.map((r) => r.id)).toEqual([500, 501]);
   });
