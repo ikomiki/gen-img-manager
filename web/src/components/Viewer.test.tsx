@@ -146,6 +146,21 @@ describe("Viewer", () => {
     vi.useRealTimers();
   });
 
+  it("画像の読み込みが失敗しても、間隔が経てば次へ送る", async () => {
+    vi.useFakeTimers();
+    Element.prototype.setPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+    useViewerStore.getState().openAt(0, 5);
+    useViewerStore.setState({ playing: true, intervalSec: 5 });
+    render(<Viewer />);
+
+    fireEvent.error(screen.getByAltText("f1.png"));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(useViewerStore.getState().pos).toBe(1);
+
+    vi.useRealTimers();
+  });
+
   it("停止中は送らない", async () => {
     vi.useFakeTimers();
     Element.prototype.setPointerCapture = vi.fn();

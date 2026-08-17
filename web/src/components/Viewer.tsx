@@ -29,8 +29,9 @@ export function Viewer() {
   const intervalSec = useViewerStore((s) => s.intervalSec);
 
   const [slideshowOpen, setSlideshowOpen] = useState(false);
-  // 表示中の画像が読み込み終わったか。読み込み前から数え始めると、
-  // 遅い画像が表示時間を削られたり表示前に送られたりする。
+  // 表示中の画像の読み込みが決着した（成功・失敗）か。読み込み前から数え始めると、
+  // 遅い画像が表示時間を削られたり表示前に送られたりする。失敗を数えないと、
+  // 消えた画像・オフラインドライブのタイムアウトでスライドショーが永久に止まる。
   const [loadedPos, setLoadedPos] = useState<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -152,7 +153,7 @@ export function Viewer() {
         alt={image.filename}
         onTap={toggleChrome}
         onSwipe={(a) => go(a === "next" ? 1 : -1)}
-        onLoaded={() => setLoadedPos(pos)}
+        onSettled={() => setLoadedPos(pos)}
       />
 
       {chromeVisible && (

@@ -9,8 +9,8 @@ interface Props {
   onTap: () => void;
   /** 拡大していないときの1本指の横方向の払い。 */
   onSwipe: (action: Exclude<SwipeAction, "none">) => void;
-  /** 画像の読み込みが終わった。スライドショーの計時開始に使う。 */
-  onLoaded?: () => void;
+  /** 画像の読み込みが決着した（成功・失敗どちらも）。スライドショーの計時開始に使う。 */
+  onSettled?: () => void;
 }
 
 interface Point {
@@ -18,7 +18,7 @@ interface Point {
   y: number;
 }
 
-export function ZoomableImage({ src, alt, onTap, onSwipe, onLoaded }: Props) {
+export function ZoomableImage({ src, alt, onTap, onSwipe, onSettled }: Props) {
   const scale = useViewerStore((s) => s.scale);
   const setScale = useViewerStore((s) => s.setScale);
 
@@ -157,7 +157,9 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onLoaded }: Props) {
         src={src}
         alt={alt}
         decoding="async"
-        onLoad={onLoaded}
+        onLoad={onSettled}
+        // 404/503 等で読み込みが失敗しても計時を進めないと、壊れた画像でスライドショーが止まる。
+        onError={onSettled}
         draggable={false}
         style={{
           maxWidth: "100%",
