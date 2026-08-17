@@ -20,8 +20,12 @@ pub async fn thumb(
 ) -> Result<Response, ApiError> {
     let info = media_info(&state, id)?;
     let thumb = info.thumb_path.ok_or(ApiError::NotFound)?;
-    let (bytes, mtime) = fileserve::read_with_timeout(PathBuf::from(&thumb)).await?;
+    let mtime = fileserve::read_meta_with_timeout(PathBuf::from(&thumb)).await?;
     let etag = fileserve::etag_of(&thumb, mtime, None);
+    if let Some(res) = fileserve::not_modified(&etag, &headers) {
+        return Ok(res);
+    }
+    let (bytes, _mtime) = fileserve::read_with_timeout(PathBuf::from(&thumb)).await?;
     Ok(fileserve::respond(bytes, "image/webp", &etag, &headers))
 }
 
@@ -39,21 +43,31 @@ pub async fn image(
     let info = media_info(&state, id)?;
     let src = PathBuf::from(&info.path);
 
-    if let Some(requested) = params.w {
-        if requested < 1 {
+    let snapped = match params.w {
+        Some(requested) if requested < 1 => {
             return Err(ApiError::BadRequest("w は 1 以上です".to_string()));
         }
-        let width = crate::resize::snap_width(requested);
-        let mtime = fileserve::read_meta_with_timeout(src.clone()).await?;
+        Some(requested) => Some(crate::resize::snap_width(requested)),
+        None => None,
+    };
+
+    let mtime = fileserve::read_meta_with_timeout(src.clone()).await?;
+    // 原画像が狭くて原寸へフォールバックする場合でも、読む前に判定するので
+    // フォールバックするかはこの時点では分からない。`?w=` の有無だけで
+    // ETag の width を決める（同じバイト列でも別 URL なので別 ETag で正しい）。
+    let etag = fileserve::etag_of(&info.path, mtime, snapped);
+    if let Some(res) = fileserve::not_modified(&etag, &headers) {
+        return Ok(res);
+    }
+
+    if let Some(width) = snapped {
         if let Some(bytes) = crate::resize::get_or_create(&state, &src, mtime, width).await? {
-            let etag = fileserve::etag_of(&info.path, mtime, Some(width));
             return Ok(fileserve::respond(bytes, "image/webp", &etag, &headers));
         }
         // 原画像の方が狭い場合はそのまま返す。
     }
 
-    let (bytes, mtime) = fileserve::read_with_timeout(src).await?;
-    let etag = fileserve::etag_of(&info.path, mtime, None);
+    let (bytes, _mtime) = fileserve::read_with_timeout(src).await?;
     let ct = fileserve::content_type_for(&info.format);
     Ok(fileserve::respond(bytes, ct, &etag, &headers))
 }

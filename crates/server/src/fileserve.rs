@@ -81,25 +81,35 @@ pub fn content_type_for(format: &str) -> &'static str {
     }
 }
 
-/// ETag が一致すれば 304、そうでなければ本体を返す。
-/// キーが内容で決まるので immutable で永続キャッシュしてよい。
-pub fn respond(bytes: Vec<u8>, content_type: &str, etag: &str, headers: &HeaderMap) -> Response {
+fn cache_control_header() -> (header::HeaderName, String) {
+    (
+        header::CACHE_CONTROL,
+        "public, max-age=31536000, immutable".to_string(),
+    )
+}
+
+/// ETag が一致すれば 304 のレスポンスを返す。バイト列を読む前に呼べるので、
+/// 再訪のたびに原画像やキャッシュを丸ごと読む・生成するコストを避けられる。
+pub fn not_modified(etag: &str, headers: &HeaderMap) -> Option<Response> {
     let matches = headers
         .get(header::IF_NONE_MATCH)
         .and_then(|v| v.to_str().ok())
         .is_some_and(|v| v.split(',').any(|t| t.trim() == etag));
 
-    let common = [
-        (header::ETAG, etag.to_string()),
-        (
-            header::CACHE_CONTROL,
-            "public, max-age=31536000, immutable".to_string(),
-        ),
-    ];
-
-    if matches {
-        return (StatusCode::NOT_MODIFIED, common).into_response();
+    if !matches {
+        return None;
     }
+    let common = [(header::ETAG, etag.to_string()), cache_control_header()];
+    Some((StatusCode::NOT_MODIFIED, common).into_response())
+}
+
+/// ETag が一致すれば 304、そうでなければ本体を返す。
+/// キーが内容で決まるので immutable で永続キャッシュしてよい。
+pub fn respond(bytes: Vec<u8>, content_type: &str, etag: &str, headers: &HeaderMap) -> Response {
+    if let Some(res) = not_modified(etag, headers) {
+        return res;
+    }
+    let common = [(header::ETAG, etag.to_string()), cache_control_header()];
     (
         StatusCode::OK,
         common,
