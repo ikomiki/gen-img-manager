@@ -76,4 +76,16 @@ describe("FilterBar", () => {
     fireEvent.keyDown(input, { key: "Escape" });
     expect(screen.queryByText("forest")).toBeNull();
   });
+
+  it("loading 中は読み込み中の帯が高さを持つ", () => {
+    useQueryStore.setState({ loading: true });
+    render(<FilterBar onOpenFilter={() => {}} onOpenDirectories={() => {}} />);
+    expect(screen.getByRole("progressbar").style.height).toBe("2px");
+  });
+
+  it("loading でなければ帯は消える", () => {
+    useQueryStore.setState({ loading: false });
+    render(<FilterBar onOpenFilter={() => {}} onOpenDirectories={() => {}} />);
+    expect(screen.getByRole("progressbar").style.height).toBe("0px");
+  });
 });

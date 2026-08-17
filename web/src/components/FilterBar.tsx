@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { historyNav } from "@gim/shared/historyNav";
-import { matchHistory } from "@gim/shared/historyMatch";
+import { historyNav, openItems } from "@gim/shared/historyNav";
 import type { SortKey, SortDir } from "@gim/shared/types";
 import { useQueryStore } from "../store/useQueryStore";
 import { HistoryList } from "./HistoryList";
+import { buttonStyle, inputStyle } from "../ui";
 
 interface Props {
   onOpenFilter: () => void;
@@ -29,9 +29,8 @@ export function FilterBar({ onOpenFilter, onOpenDirectories }: Props) {
   const sort = useQueryStore((s) => s.sort);
   const dir = useQueryStore((s) => s.dir);
   const setSort = useQueryStore((s) => s.setSort);
+  const loading = useQueryStore((s) => s.loading);
   const [nav, setNav] = useState<NavState>(CLOSED);
-
-  const candidates = (q: string) => (q.trim() === "" ? history : matchHistory(q, history));
 
   const pick = (q: string) => {
     setQuery(q);
@@ -78,26 +77,20 @@ export function FilterBar({ onOpenFilter, onOpenDirectories }: Props) {
           type="search"
           inputMode="search"
           enterKeyHint="search"
+          aria-label="検索"
           value={query}
           placeholder="検索"
           onChange={(e) => {
             const v = e.target.value;
             setQuery(v);
-            setNav({ open: true, index: -1, items: candidates(v), draft: v });
+            setNav({ open: true, index: -1, items: openItems(v, history), draft: v });
           }}
-          onFocus={() => setNav({ open: true, index: -1, items: candidates(query), draft: query })}
+          onFocus={() =>
+            setNav({ open: true, index: -1, items: openItems(query, history), draft: query })
+          }
           onBlur={() => setNav(CLOSED)}
           onKeyDown={onKeyDown}
-          style={{
-            flex: 1,
-            minHeight: "var(--tap)",
-            padding: "0 12px",
-            background: "var(--surface-raised)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            color: "var(--text)",
-            font: "inherit",
-          }}
+          style={{ ...inputStyle, flex: 1 }}
         />
         <button type="button" onClick={onOpenFilter} style={barButton}>
           絞り込み
@@ -137,21 +130,20 @@ export function FilterBar({ onOpenFilter, onOpenDirectories }: Props) {
           <option value="filename:asc">名前 昇順</option>
           <option value="filename:desc">名前 降順</option>
           <option value="modified:desc">更新が新しい順</option>
+          <option value="modified:asc">更新が古い順</option>
         </select>
       </div>
+      <div
+        role="progressbar"
+        aria-label="読み込み中"
+        style={{
+          height: loading ? 2 : 0,
+          background: "var(--accent)",
+        }}
+      />
       {nav.open && <HistoryList items={nav.items} selected={nav.index} onPick={pick} />}
     </div>
   );
 }
 
-const barButton: React.CSSProperties = {
-  minHeight: "var(--tap)",
-  minWidth: "var(--tap)",
-  padding: "0 12px",
-  background: "var(--surface-raised)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  color: "var(--text)",
-  font: "inherit",
-  cursor: "pointer",
-};
+const barButton: React.CSSProperties = { ...buttonStyle, minWidth: "var(--tap)", padding: "0 12px" };

@@ -20,8 +20,8 @@ export interface NavResult {
   draft: string;
 }
 
-/** 矢印で開く時にリストへ出す候補。入力が空なら全履歴、そうでなければマッチ候補。 */
-function openItems(query: string, history: string[]): string[] {
+/** 候補の算出。入力が空なら全履歴、そうでなければマッチ候補。フォーカス／入力経路と矢印キー経路の両方から使う。 */
+export function openItems(query: string, history: string[]): string[] {
   return query.trim() === "" ? history : matchHistory(query, history);
 }
 
