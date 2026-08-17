@@ -4,6 +4,7 @@ import { Viewer } from "./Viewer";
 import { useViewerStore } from "../store/useViewerStore";
 import { useQueryStore } from "../store/useQueryStore";
 import * as imagesApi from "../api/images";
+import { loadPrefs } from "../storage";
 
 function rows(from: number, count: number) {
   return Array.from({ length: count }, (_, i) => ({
@@ -37,6 +38,7 @@ beforeEach(() => {
     intervalSec: 5,
     loop: true,
     shuffle: false,
+    zoomMode: "shrink",
   });
 });
 
@@ -176,5 +178,29 @@ describe("Viewer", () => {
     expect(useViewerStore.getState().pos).toBe(0);
 
     vi.useRealTimers();
+  });
+});
+
+describe("ズームモードの切替", () => {
+  it("ボタンで切り替わり、localStorage に残る", () => {
+    useViewerStore.getState().openAt(0, 5);
+    render(<Viewer />);
+
+    fireEvent.click(screen.getByLabelText("画面にあわせる（縮小のみ）"));
+    expect(useViewerStore.getState().zoomMode).toBe("always");
+    expect(loadPrefs().viewer.zoomMode).toBe("always");
+
+    fireEvent.click(screen.getByLabelText("常に画面にあわせる"));
+    expect(useViewerStore.getState().zoomMode).toBe("shrink");
+    expect(loadPrefs().viewer.zoomMode).toBe("shrink");
+  });
+
+  it("切り替えると拡大は解ける（基準の大きさが変わるため）", () => {
+    useViewerStore.getState().openAt(0, 5);
+    useViewerStore.setState({ scale: 4 });
+    render(<Viewer />);
+
+    fireEvent.click(screen.getByLabelText("画面にあわせる（縮小のみ）"));
+    expect(useViewerStore.getState().scale).toBe(1);
   });
 });

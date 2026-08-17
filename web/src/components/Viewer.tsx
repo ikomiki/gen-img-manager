@@ -31,6 +31,8 @@ export function Viewer() {
   const syncLength = useViewerStore((s) => s.syncLength);
   const playing = useViewerStore((s) => s.playing);
   const pause = useViewerStore((s) => s.pause);
+  const zoomMode = useViewerStore((s) => s.zoomMode);
+  const toggleZoomMode = useViewerStore((s) => s.toggleZoomMode);
 
   const results = useQueryStore((s) => s.results);
   const exhausted = useQueryStore((s) => s.exhausted);
@@ -216,6 +218,19 @@ export function Viewer() {
             borderTop: "1px solid var(--border)",
           }}
         >
+          <button
+            type="button"
+            aria-label={zoomMode === "always" ? "常に画面にあわせる" : "画面にあわせる（縮小のみ）"}
+            aria-pressed={zoomMode === "always"}
+            onClick={toggleZoomMode}
+            style={{
+              ...buttonStyle,
+              flex: 1,
+              background: zoomMode === "always" ? "var(--accent)" : buttonStyle.background,
+            }}
+          >
+            ⤢
+          </button>
           <button
             type="button"
             aria-label="前へ"

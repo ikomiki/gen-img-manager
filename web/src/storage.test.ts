@@ -130,4 +130,26 @@ describe("loadPrefs（検証つき）", () => {
     savePrefs({ slideshow: { intervalSec: 30, loop: false, shuffle: true } });
     expect(loadPrefs().slideshow).toEqual({ intervalSec: 30, loop: false, shuffle: true });
   });
+
+  it("ズームモードを読み書きできる", () => {
+    savePrefs({ viewer: { zoomMode: "always" } });
+    expect(loadPrefs().viewer.zoomMode).toBe("always");
+  });
+});
+
+describe("ズームモードの検証", () => {
+  it("既定は縮小のみ", () => {
+    expect(DEFAULT_PREFS.viewer.zoomMode).toBe("shrink");
+  });
+
+  it("知らない値は既定値へ落とす", () => {
+    expect(sanitizePrefs({ viewer: { zoomMode: "cover" } }).viewer.zoomMode).toBe("shrink");
+    expect(sanitizePrefs({ viewer: { zoomMode: 1 } }).viewer.zoomMode).toBe("shrink");
+    expect(sanitizePrefs({ viewer: "always" }).viewer.zoomMode).toBe("shrink");
+  });
+
+  it("正しい値はそのまま通す", () => {
+    expect(sanitizePrefs({ viewer: { zoomMode: "always" } }).viewer.zoomMode).toBe("always");
+    expect(sanitizePrefs({ viewer: { zoomMode: "shrink" } }).viewer.zoomMode).toBe("shrink");
+  });
 });

@@ -4,7 +4,7 @@ import { ZoomableImage } from "./ZoomableImage";
 import { useViewerStore } from "../store/useViewerStore";
 
 beforeEach(() => {
-  useViewerStore.setState({ scale: 1 });
+  useViewerStore.setState({ scale: 1, zoomMode: "shrink" });
   // jsdom は Pointer Capture を実装していない。
   Element.prototype.setPointerCapture = vi.fn();
   Element.prototype.releasePointerCapture = vi.fn();
@@ -247,5 +247,60 @@ describe("拡大中のパンの範囲", () => {
       useViewerStore.setState({ scale: 2 });
     });
     expect(img.style.transform).toContain("translate(195px, 0px)");
+  });
+});
+
+describe("ズームモード", () => {
+  const stubbed: HTMLElement[] = [];
+
+  function stubRect(el: HTMLElement, width: number, height: number) {
+    Object.defineProperty(el, "getBoundingClientRect", {
+      configurable: true,
+      value: () =>
+        ({ width, height, x: 0, y: 0, top: 0, left: 0, right: width, bottom: height }) as DOMRect,
+    });
+    stubbed.push(el);
+  }
+
+  afterEach(() => {
+    for (const el of stubbed) Reflect.deleteProperty(el, "getBoundingClientRect");
+    stubbed.length = 0;
+  });
+
+  it("shrink は等倍を超えて拡大しない指定になる", () => {
+    useViewerStore.setState({ zoomMode: "shrink" });
+    renderImage();
+    const img = screen.getByAltText("a.png");
+    expect(img.style.maxWidth).toBe("100%");
+    expect(img.style.maxHeight).toBe("100%");
+    expect(img.style.width).toBe("");
+  });
+
+  it("always は表示領域いっぱいへ広げる指定になる", () => {
+    useViewerStore.setState({ zoomMode: "always" });
+    renderImage();
+    const img = screen.getByAltText("a.png");
+    expect(img.style.width).toBe("100%");
+    expect(img.style.height).toBe("100%");
+    expect(img.style.objectFit).toBe("contain");
+    expect(img.style.maxWidth).toBe("");
+  });
+
+  it("always のパンは要素の矩形ではなく絵の大きさで止まる", () => {
+    useViewerStore.setState({ zoomMode: "always", scale: 3 });
+    const { el } = renderImage();
+    const img = screen.getByAltText("a.png") as HTMLImageElement;
+    // always では要素が表示領域 390x800 いっぱいになり、3倍で 1170x2400。
+    stubRect(img, 1170, 2400);
+    stubRect(el, 390, 800);
+    // 絵は 1024x768 なので、その矩形へ contain で収めると 1170x877.5 しか描かれない。
+    Object.defineProperty(img, "naturalWidth", { configurable: true, value: 1024 });
+    Object.defineProperty(img, "naturalHeight", { configurable: true, value: 768 });
+
+    fireEvent.pointerDown(el, { pointerId: 1, clientX: 100, clientY: 100 });
+    fireEvent.pointerMove(el, { pointerId: 1, clientX: 100, clientY: 1099 });
+
+    // 絵で見た上限は (877.5 - 800) / 2 = 38.75。要素で見た (2400 - 800) / 2 = 800 ではない。
+    expect(img.style.transform).toContain("translate(0px, 38.75px)");
   });
 });

@@ -6,6 +6,16 @@ export interface SlideshowPrefs {
   shuffle: boolean;
 }
 
+/**
+ * `shrink` は等倍を超えて拡大しない（小さい画像は小さいまま中央に置く）。
+ * `always` は小さい画像も表示領域に収まるまで拡大する。
+ */
+export type ZoomMode = "shrink" | "always";
+
+export interface ViewerPrefs {
+  zoomMode: ZoomMode;
+}
+
 export interface Prefs {
   query: string;
   sort: SortKey;
@@ -14,6 +24,7 @@ export interface Prefs {
   dirs: number[] | null;
   history: string[];
   slideshow: SlideshowPrefs;
+  viewer: ViewerPrefs;
 }
 
 /** 自由入力にすると 0 秒や負値の検証が要るうえ、スマホでの入力が面倒。 */
@@ -21,6 +32,7 @@ export const INTERVAL_CHOICES: readonly number[] = [3, 5, 10, 30];
 
 const SORT_KEYS: readonly string[] = ["filename", "created", "modified"];
 const SORT_DIRS: readonly string[] = ["asc", "desc"];
+const ZOOM_MODES: readonly string[] = ["shrink", "always"];
 
 export const DEFAULT_PREFS: Prefs = {
   query: "",
@@ -29,6 +41,7 @@ export const DEFAULT_PREFS: Prefs = {
   dirs: null,
   history: [],
   slideshow: { intervalSec: 5, loop: true, shuffle: false },
+  viewer: { zoomMode: "shrink" },
 };
 
 export const HISTORY_MAX = 50;
@@ -80,6 +93,13 @@ export function sanitizePrefs(raw: unknown): Prefs {
       intervalSec,
       loop: asBool(s.loop, DEFAULT_PREFS.slideshow.loop),
       shuffle: asBool(s.shuffle, DEFAULT_PREFS.slideshow.shuffle),
+    },
+    viewer: {
+      zoomMode: asOneOf<ZoomMode>(
+        asRecord(r.viewer).zoomMode,
+        ZOOM_MODES,
+        DEFAULT_PREFS.viewer.zoomMode,
+      ),
     },
   };
 }

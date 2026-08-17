@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { clampPan, distance, isTap, pinchScale, swipeAction, type SwipeAction } from "../util/gesture";
+import {
+  clampPan,
+  containedSize,
+  distance,
+  isTap,
+  pinchScale,
+  swipeAction,
+  type SwipeAction,
+} from "../util/gesture";
 import { useViewerStore } from "../store/useViewerStore";
 
 interface Props {
@@ -21,6 +29,7 @@ interface Point {
 export function ZoomableImage({ src, alt, onTap, onSwipe, onSettled }: Props) {
   const scale = useViewerStore((s) => s.scale);
   const setScale = useViewerStore((s) => s.setScale);
+  const zoomMode = useViewerStore((s) => s.zoomMode);
 
   const [offset, setOffset] = useState<Point>({ x: 0, y: 0 });
 
@@ -42,18 +51,29 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onSettled }: Props) {
    * 寸法は `getBoundingClientRect` の実測値を使う。`offsetWidth` / `offsetHeight` は
    * 整数へ丸められるため、倍率を掛けると端に 1px 弱の余白が残る。
    * rect は transform 適用後なので、拡大後のサイズがそのまま得られる（translate は幅高に影響しない）。
+   *
+   * rect は要素の矩形であって絵の大きさではない。`always` では要素が表示領域いっぱいに
+   * なるので、`containedSize` で絵の大きさへ直してから上限を出す。
    */
   const clamp = (next: Point): Point => {
-    const img = imgRef.current?.getBoundingClientRect();
+    const el = imgRef.current;
+    const img = el?.getBoundingClientRect();
     const area = areaRef.current?.getBoundingClientRect();
-    return clampPan(next, img?.width ?? 0, img?.height ?? 0, area?.width ?? 0, area?.height ?? 0);
+    const drawn = containedSize(
+      el?.naturalWidth ?? 0,
+      el?.naturalHeight ?? 0,
+      img?.width ?? 0,
+      img?.height ?? 0,
+    );
+    return clampPan(next, drawn.w, drawn.h, area?.width ?? 0, area?.height ?? 0);
   };
 
   // 倍率が下がると上限も縮むので、それまでの位置がはみ出したままになる。
   // 等倍では上限が 0 になるため、拡大を解いたときの中央への復帰もここで済む。
+  // ズームモードの切替でも基準の大きさが変わるので、同じ手当てが要る。
   useEffect(() => {
     setOffset((o) => clamp(o));
-  }, [scale]);
+  }, [scale, zoomMode]);
 
   // 別の画像に切り替わったら位置を戻す。
   useEffect(() => {
@@ -182,8 +202,11 @@ export function ZoomableImage({ src, alt, onTap, onSwipe, onSettled }: Props) {
         onError={onSettled}
         draggable={false}
         style={{
-          maxWidth: "100%",
-          maxHeight: "100%",
+          // shrink は等倍が上限なので max-* で足りる。always は要素を表示領域いっぱいに
+          // 広げ、object-fit: contain に縦横比を保った拡大をさせる。
+          ...(zoomMode === "always"
+            ? { width: "100%", height: "100%" }
+            : { maxWidth: "100%", maxHeight: "100%" }),
           objectFit: "contain",
           display: "block",
           transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
