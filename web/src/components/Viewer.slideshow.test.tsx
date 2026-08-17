@@ -105,4 +105,21 @@ describe("全件ID の取得", () => {
     expect(useViewerStore.getState().idsSeq).toBe(1);
     expect(imagesApi.listImages).not.toHaveBeenCalled();
   });
+
+  it("閉じて開き直しても再生範囲は全件のまま", async () => {
+    vi.mocked(imagesApi.listImageIds).mockResolvedValue(
+      Array.from({ length: 50 }, (_, i) => i + 1),
+    );
+    act(() => useViewerStore.getState().openAt(0, 3));
+    render(<Viewer />);
+    await act(async () => {});
+    expect(useViewerStore.getState().order.length).toBe(50);
+
+    act(() => useViewerStore.getState().close());
+    // ImageGrid は読み込み済みの件数で開く。
+    act(() => useViewerStore.getState().openAt(0, 3));
+    await act(async () => {});
+
+    expect(useViewerStore.getState().order.length).toBe(50);
+  });
 });

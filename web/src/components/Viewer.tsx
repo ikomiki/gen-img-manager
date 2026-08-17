@@ -63,7 +63,9 @@ export function Viewer() {
 
   // クエリが変わると sort 順インデックスの意味が変わるので、行キャッシュも ids も無効。
   // ids を残したままにすると、取り直しが終わるまで古い ID で別の画像を出してしまう。
-  // このフックを ids 取得より前に置くこと（同じ seq で二重に走らせないため）。
+  // このフックを行取得（rowWindow.ensure）の effect より前に置くのは、同じフラッシュ内で
+  // 行キャッシュを先に捨てておくことで、捨てられる世代のために /api/images を
+  // 1本余分に使わずに済むため。
   useEffect(() => {
     rowWindow.clear();
     invalidateIds();
@@ -85,6 +87,15 @@ export function Viewer() {
       alive = false;
     };
   }, [open, idsSeq, seq, setIds]);
+
+  // 同じクエリで開き直したとき、openAt が order を results の長さで作り直している。
+  // ids はそのまま使えるので、取り直さずに並びだけ全件へ広げる。syncLength に
+  // 広げさせないのは、増分追加だと先頭200件とそれ以降で偏った並びになるため。
+  useEffect(() => {
+    if (!open || idsSeq !== seq || ids.length === 0) return;
+    if (order.length === ids.length) return;
+    setIds(ids, seq);
+  }, [open, ids, idsSeq, seq, order.length, setIds]);
 
   // 全件ID があればそれが再生対象。無い間は読み込み済みの範囲。
   const playlistLength = ids.length > 0 ? ids.length : results.length;
