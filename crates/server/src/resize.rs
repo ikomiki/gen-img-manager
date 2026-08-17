@@ -44,6 +44,14 @@ pub async fn get_or_create(
         return Ok(Some(bytes));
     }
 
+    // キャッシュヒット後ではなくここで取る。ヒットするだけのリクエストまで
+    // 直列化してしまうと、キャッシュが効いている間の同時アクセス性が落ちる。
+    let _permit = state
+        .resize_slots
+        .acquire()
+        .await
+        .map_err(|e| ApiError::Internal(format!("{e}")))?;
+
     let src = src.to_path_buf();
     let cache_dir = state.cache_dir.clone();
     let out = tokio::task::spawn_blocking(move || encode_resized(&src, width, &cache_dir, &key))
@@ -75,16 +83,17 @@ fn encode_resized(
     cache_dir: &Path,
     key: &str,
 ) -> Result<Option<Vec<u8>>, ApiError> {
-    // ヘッダだけ読んで幅を判定する。原画像の方が狭い経路（低解像度ライブラリでは
+    // ヘッダだけ読んで長辺を判定する。原画像の方が狭い経路（低解像度ライブラリでは
     // 主要経路になる）でフルデコードを走らせないため。
-    let (src_width, _) = image::image_dimensions(src).map_err(image_open_err)?;
-    if src_width <= width {
+    let (src_w, src_h) = image::image_dimensions(src).map_err(image_open_err)?;
+    if src_w.max(src_h) <= width {
         return Ok(None);
     }
 
     let img = image::open(src).map_err(image_open_err)?;
-    let height = ((img.height() as u64 * width as u64) / img.width() as u64).max(1) as u32;
-    let resized = img.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
+    // `w` は長辺の上限であって幅ではない。幅基準だと縦長画像（AI生成でよく見る
+    // 832x1216 等）で縮小が効かず、常に原寸を返してしまう。
+    let resized = img.resize(width, width, image::imageops::FilterType::Lanczos3);
 
     let rgb = resized.to_rgb8();
     let encoder = webp::Encoder::from_rgb(rgb.as_raw(), rgb.width(), rgb.height());
@@ -94,10 +103,13 @@ fn encode_resized(
     // 連番も混ぜているのは、PID だけでは同一プロセス内の並行リクエストで同名になるため。
     let seq = TMP_SEQ.fetch_add(1, Ordering::Relaxed);
     let tmp = cache_dir.join(format!("{key}.{}.{seq}.tmp", std::process::id()));
-    std::fs::write(&tmp, &bytes)
-        .map_err(|e| ApiError::Internal(format!("キャッシュを書けません: {e}")))?;
+    if let Err(e) = std::fs::write(&tmp, &bytes) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(ApiError::Internal(format!("キャッシュを書けません: {e}")));
+    }
     if let Err(e) = std::fs::rename(&tmp, cache_dir.join(key)) {
         eprintln!("キャッシュファイルの rename に失敗しました: {e}");
+        let _ = std::fs::remove_file(&tmp);
     }
 
     Ok(Some(bytes))
@@ -162,7 +174,9 @@ mod tests {
         let cached = state.cache_dir.join(&key);
         assert!(cached.exists(), "キャッシュファイルが作られていない");
 
-        // 2回目はキャッシュから返る。中身が一致することで確認する。
+        // 元画像を消してもキャッシュから返ることで、キャッシュ経路を通ったと確認する
+        // （エンコードが決定的なため、単純な内容比較だけでは再エンコードと区別できない）。
+        std::fs::remove_file(&src).unwrap();
         let second = get_or_create(&state, &src, 42, 1280)
             .await
             .unwrap()
@@ -188,9 +202,25 @@ mod tests {
 
         let bytes = get_or_create(&state, &src, 7, 640).await.unwrap().unwrap();
         let decoded = image::load_from_memory(&bytes).unwrap();
-        assert_eq!(decoded.width(), 640);
+        assert_eq!(decoded.width(), 640, "長辺（幅）を640に収める");
         assert_eq!(
             decoded.height(),
+            213,
+            "アスペクト比を保つ (1000 * 640 / 3000)"
+        );
+    }
+
+    #[tokio::test]
+    async fn tall_image_is_resized_by_long_edge_not_width() {
+        let (state, tmp) = test_state();
+        let src = tmp.path().join("tall.png");
+        write_png(&src, 1000, 3000);
+
+        let bytes = get_or_create(&state, &src, 7, 640).await.unwrap().unwrap();
+        let decoded = image::load_from_memory(&bytes).unwrap();
+        assert_eq!(decoded.height(), 640, "長辺（高さ）を640に収める");
+        assert_eq!(
+            decoded.width(),
             213,
             "アスペクト比を保つ (1000 * 640 / 3000)"
         );

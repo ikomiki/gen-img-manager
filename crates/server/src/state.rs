@@ -9,14 +9,21 @@ pub struct AppState {
     pub cache_dir: PathBuf,
     /// リサイズ生成の累計回数。キャッシュ容量の点検頻度を決めるのに使う。
     pub generated: Arc<AtomicU64>,
+    /// フルデコード＋Lanczos3リサイズの同時実行数を制限する。認証なしでLANに
+    /// 公開するため、並列リクエストだけで全コアとメモリを持っていかれないようにする。
+    pub resize_slots: Arc<tokio::sync::Semaphore>,
 }
 
 impl AppState {
     pub fn new(data_dir: PathBuf) -> Self {
+        let parallelism = std::thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4);
         Self {
             db_path: data_dir.join("library.db"),
             cache_dir: data_dir.join("web-cache"),
             generated: Arc::new(AtomicU64::new(0)),
+            resize_slots: Arc::new(tokio::sync::Semaphore::new(parallelism)),
         }
     }
 
