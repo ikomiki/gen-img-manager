@@ -15,6 +15,12 @@ pub struct Args {
     /// library.db と thumbnails/ を含むディレクトリ
     #[arg(long)]
     pub data_dir: Option<PathBuf>,
+
+    /// DNSリバインディング対策で許可する追加のホスト名（複数回指定可）。
+    /// IPアドレスリテラル・localhost・.local で終わる名前は常に許可されるので、
+    /// それ以外の名前（社内DNSの独自名など）でアクセスしたい場合に指定する。
+    #[arg(long)]
+    pub allow_host: Vec<String>,
 }
 
 /// macOS のアプリデータディレクトリ。Tauri の identifier と一致させる必要がある。

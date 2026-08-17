@@ -15,10 +15,7 @@ async fn not_found() -> impl IntoResponse {
 }
 
 async fn method_not_allowed() -> impl IntoResponse {
-    (
-        axum::http::StatusCode::METHOD_NOT_ALLOWED,
-        axum::Json(serde_json::json!({ "error": "このメソッドは使えません" })),
-    )
+    ApiError::MethodNotAllowed
 }
 
 pub fn router(state: AppState) -> Router {
@@ -32,6 +29,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/image/{id}", get(media::image))
         .method_not_allowed_fallback(method_not_allowed)
         .fallback(not_found)
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            crate::hostcheck::host_guard,
+        ))
         .layer(axum::middleware::from_fn(crate::logging::access_log))
         .with_state(state)
 }
@@ -72,5 +73,17 @@ mod tests {
         let (state, _tmp) = test_state();
         let res = crate::test_support::request_raw(state, "POST", "/api/images").await;
         assert_json_error(res, 405).await;
+    }
+
+    #[tokio::test]
+    async fn disallowed_host_header_returns_json_403() {
+        let (state, _tmp) = test_state();
+        let res = crate::test_support::get_raw_with_headers(
+            state,
+            "/api/health",
+            &[("Host", "evil.example.com:5180")],
+        )
+        .await;
+        assert_json_error(res, 403).await;
     }
 }
