@@ -138,16 +138,21 @@ export function FilterSheet({ open, onClose }: Props) {
       </Field>
 
       <Field label="作成日（以降）">
-        <input
-          aria-label="作成日"
-          type="date"
-          value={(extractField(query, "created") ?? "").replace(/^>=/, "")}
-          onChange={(e) => {
-            setQuery(upsertField(query, "created", e.target.value === "" ? null : `>=${e.target.value}`));
-            void runQuery();
-          }}
-          style={{ ...inputStyle, width: "100%" }}
-        />
+        <div>
+          <input
+            aria-label="作成日"
+            type="date"
+            value={(extractField(query, "created") ?? "").replace(/^>=/, "")}
+            onChange={(e) => {
+              setQuery(upsertField(query, "created", e.target.value === "" ? null : `>=${e.target.value}`));
+              void runQuery();
+            }}
+            style={{ ...inputStyle, width: "100%" }}
+          />
+          <p style={{ margin: "4px 0 0", color: "var(--text-dim)", fontSize: 12 }}>
+            指定した日の 0:00 以降。その日も含みます。
+          </p>
+        </div>
       </Field>
 
       <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
