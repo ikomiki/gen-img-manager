@@ -98,11 +98,14 @@ export function ImageGrid() {
                     lineHeight: 0,
                   }}
                 >
+                  {/* decoding="async" は付けない。「後のフレームで出してよい」と許可すると、
+                      デコード完了後の再描画要求が落ちてセルが背景色のまま残ることがある
+                      （complete=true / naturalWidth>0 なのに絵が出ない）。スクロールで
+                      作り直されるまで直らないので、歯抜けとして見える。 */}
                   <img
                     src={thumbUrl(img.id)}
                     alt={img.filename}
                     loading="lazy"
-                    decoding="async"
                     style={{
                       width: "100%",
                       aspectRatio: "1 / 1",

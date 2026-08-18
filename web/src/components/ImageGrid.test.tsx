@@ -50,6 +50,14 @@ describe("ImageGrid", () => {
     expect(screen.getAllByRole("img")).toHaveLength(3);
   });
 
+  it("サムネイルに decoding を指定しない（描画が落ちて歯抜けになる）", () => {
+    useQueryStore.setState({ results: rows(3), exhausted: true, error: null });
+    render(<ImageGrid />);
+    for (const im of screen.getAllByRole("img")) {
+      expect(im.getAttribute("decoding")).toBeNull();
+    }
+  });
+
   it("error があっても results が空でなければグリッドが残る", () => {
     useQueryStore.setState({ results: rows(3), exhausted: true, error: "network error" });
     render(<ImageGrid />);
