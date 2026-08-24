@@ -16,8 +16,9 @@ AI 生成画像（Stable Diffusion WebUI / ComfyUI など）をローカルで�
 - **ビューア**: 全体フィット / 等倍 / Fill / 任意倍率ズーム、メタデータパネル、ゴミ箱への移動
 - **スライドショー**: 別ウィンドウで再生。間隔・ループ・ランダム・フルスクリーン対応
 - **オフライン耐性**: 切断されたネットワークドライブで UI が固まらないよう到達性をタイムアウト判定
+- **Web ビューア**: LAN 内のブラウザからライブラリを閲覧できる読み取り専用サーバ（`gim-server`）。詳細は [docs/web-viewer.md](docs/web-viewer.md) を参照
 
-エンドユーザー向けの操作説明は **[docs/usage.html](docs/usage.html)** を参照してください（ブラウザで開けます）。
+エンドユーザー向けの操作説明は **[docs/usage.html](docs/usage.html)**（デスクトップ版）・**[docs/web-viewer-usage.html](docs/web-viewer-usage.html)**（Web ビューア）を参照してください（ブラウザで開けます）。
 
 ## 検索クエリの例
 
