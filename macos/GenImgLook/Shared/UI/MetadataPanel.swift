@@ -4,7 +4,9 @@ import SwiftUI
 /// gen-img-manager の `src/components/MetadataPanel.tsx` と同じ並び・挙動。
 struct MetadataPanel: View {
     let meta: ImageMetadata
-    @State private var maximized: String?
+    /// 画像を切り替えても最大化を保つため、状態はウィンドウ側が持つ。
+    /// 切り替え先に該当ブロックが無ければ通常表示にし、ある画像に戻ると再び最大化する
+    @Binding var maximized: String?
 
     private struct Block: Identifiable {
         let id: String

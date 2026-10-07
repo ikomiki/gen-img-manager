@@ -4,6 +4,7 @@ import SwiftUI
 struct PreviewView: View {
     let image: NSImage
     let meta: ImageMetadata?
+    @Binding var maximized: String?
 
     @AppStorage("sidePanelVisible") private var panelVisible = true
 
@@ -15,7 +16,7 @@ struct PreviewView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             if panelVisible, let meta {
                 Divider()
-                MetadataPanel(meta: meta).frame(width: 320)
+                MetadataPanel(meta: meta, maximized: $maximized).frame(width: 320)
             }
         }
     }
