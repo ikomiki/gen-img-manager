@@ -66,3 +66,26 @@ cargo run -p gim-server -- --port 5180
 
 - [web-viewer-usage.html](./web-viewer-usage.html) — エンドユーザー向け使い方（起動・操作・検索・スライドショー・トラブルシューティング）
 - [../CLAUDE.md](../CLAUDE.md) — リポジトリ全体のアーキテクチャ概要
+
+## Docker での公開
+
+`Dockerfile`（マルチステージ: web ビルド → `gim-server` ビルド → `debian:bookworm-slim` 実行）と `docker-compose.yml` をリポジトリ直下に置いています。公開ポートは既定 **25180**（コンテナ内は 5180）。
+
+```bash
+cp .env.example .env     # パスと UID を自分の環境に合わせる
+docker compose up -d --build
+# http://<ホストのIP>:25180/
+```
+
+### .env
+
+| 変数 | 内容 |
+| --- | --- |
+| `GIM_DATA_DIR` | `library.db` と `thumbnails/` があるディレクトリ。同じ絶対パスでコンテナにマウントされる |
+| `GIM_IMAGES_DIR` | 登録済み画像ディレクトリを含む親ディレクトリ。読み取り専用でマウントされる |
+| `GIM_WEB_PORT` | ホスト側の公開ポート（既定 25180） |
+| `GIM_UID` / `GIM_GID` | 実行ユーザー。`GIM_DATA_DIR` を書ける値（`id -u` / `id -g`）にする |
+
+`thumbnails/` と原画像のパスは `library.db` に**絶対パスで記録される**ため、コンテナ内でもホストと同じ絶対パスに見えている必要があります。そのためデータ・画像とも `source` と `target` を同じパスにしています。画像ディレクトリが複数ツリーに散らばっている場合は、`docker-compose.yml` の `volumes` に同じ要領で追加してください。
+
+コンテナは非 root で動き、原画像は読み取り専用、`no-new-privileges` 付き、`/api/health` による HEALTHCHECK 付きです。認証は無いままなので、インターネットへ直接公開しないでください。
