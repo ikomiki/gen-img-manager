@@ -17,4 +17,10 @@ enum KeyCommand: Equatable {
         default: return nil
         }
     }
+
+    /// 右パネルのテキストを範囲選択中は、矢印・Home・End を選択操作に譲る。Esc は常に閉じる。
+    func applies(whenTextSelected textSelected: Bool) -> Bool {
+        if case .move = self { return !textSelected }
+        return true
+    }
 }

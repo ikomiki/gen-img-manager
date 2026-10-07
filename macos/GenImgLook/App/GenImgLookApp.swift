@@ -32,7 +32,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, let window = event.window,
                   let model = self.models[ObjectIdentifier(window)],
-                  let command = KeyCommand(keyCode: event.keyCode, modifiers: event.modifierFlags)
+                  let command = KeyCommand(keyCode: event.keyCode, modifiers: event.modifierFlags),
+                  // フォーカスの有無で判定すると、テキストを一度クリックした後は矢印で切り替えられなくなる
+                  command.applies(whenTextSelected: ((window.firstResponder as? NSTextView)?.selectedRange().length ?? 0) > 0)
             else { return event }
             switch command {
             case .move(let move): model.list?.move(move)

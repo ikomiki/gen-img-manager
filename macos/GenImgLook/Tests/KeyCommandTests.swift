@@ -30,4 +30,10 @@ final class KeyCommandTests: XCTestCase {
     func testSpaceDoesNothing() {
         XCTAssertNil(KeyCommand(keyCode: 49, modifiers: []))
     }
+
+    func testMovesYieldToSelectedTextButCloseDoesNot() {
+        XCTAssertFalse(KeyCommand.move(.next).applies(whenTextSelected: true))
+        XCTAssertTrue(KeyCommand.move(.next).applies(whenTextSelected: false))
+        XCTAssertTrue(KeyCommand.close.applies(whenTextSelected: true))
+    }
 }
