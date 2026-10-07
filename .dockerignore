@@ -1,0 +1,12 @@
+.git
+target
+src-tauri/target
+node_modules
+**/node_modules
+dist
+**/dist
+.superpowers
+.vscode
+docs
+*.md
+.env
