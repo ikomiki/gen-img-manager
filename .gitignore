@@ -17,3 +17,6 @@ Thumbs.db
 
 # Tauri auto-generated ACL schemas (regenerated on build)
 src-tauri/gen/schemas/
+
+# Docker compose のローカル設定
+.env

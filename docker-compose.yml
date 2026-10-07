@@ -1,0 +1,25 @@
+name: gen-img-manager
+
+services:
+  web:
+    build: .
+    image: gen-img-manager-web
+    restart: unless-stopped
+    # 既定ポートと衝突しにくい値を割り当てる。GIM_WEB_PORT で変更できる。
+    ports:
+      - "${GIM_WEB_PORT:-25180}:5180"
+    # library.db の所有者と同じ UID にしないと web-cache/ を書けない（Linux ホスト）。
+    user: "${GIM_UID:-10001}:${GIM_GID:-10001}"
+    volumes:
+      # thumbnails/ と原画像は DB に絶対パスで記録されるため、ホストと同じパスにマウントする。
+      - type: bind
+        source: ${GIM_DATA_DIR}
+        target: ${GIM_DATA_DIR}
+      - type: bind
+        source: ${GIM_IMAGES_DIR}
+        target: ${GIM_IMAGES_DIR}
+        read_only: true
+    # 社内 DNS 名でアクセスする場合は --allow-host <名前> を足す。
+    command: ["--host", "0.0.0.0", "--port", "5180", "--data-dir", "${GIM_DATA_DIR}"]
+    security_opt:
+      - no-new-privileges:true
