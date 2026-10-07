@@ -21,7 +21,7 @@ struct GenImgLookApp: App {
 /// Finder から同時に開かれた複数ファイルは application(_:open:) に一括で届くため、
 /// 1回の呼び出しを1ウィンドウにまとめる（DocumentGroup では1ファイル1ウィンドウになる）。
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var windows: [NSWindow] = []
     private var models: [ObjectIdentifier: ViewerModel] = [:]
     private var cascadePoint = NSPoint.zero
@@ -79,24 +79,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         cascadePoint = window.cascadeTopLeft(from: cascadePoint)
         windows.append(window)
         models[ObjectIdentifier(window)] = model
-        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] note in
-            MainActor.assumeIsolated {
-                guard let closed = note.object as? NSWindow else { return }
-                self?.windows.removeAll { $0 === closed }
-                self?.models[ObjectIdentifier(closed)] = nil
-            }
-        }
+        window.delegate = self
         trackTitle(window, model)
         window.makeKeyAndOrderFront(nil)
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        guard let closed = notification.object as? NSWindow else { return }
+        windows.removeAll { $0 === closed }
+        models[ObjectIdentifier(closed)] = nil
     }
 
     /// navigationTitle のブリッジはウィンドウによって反映されず "Untitled" のままになることがあったため、直接設定する
     private func trackTitle(_ window: NSWindow, _ model: ViewerModel) {
         withObservationTracking {
             window.title = model.list?.current.lastPathComponent ?? "GenImgLook"
-        } onChange: { [weak self, weak window] in
+        } onChange: { [weak self, weak window, weak model] in
+            // 閉じたウィンドウのモデルを追跡の登録が握り続けないよう、弱参照で再登録する
             Task { @MainActor in
-                if let window { self?.trackTitle(window, model) }
+                if let window, let model { self?.trackTitle(window, model) }
             }
         }
     }
