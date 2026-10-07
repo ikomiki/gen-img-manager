@@ -4,66 +4,98 @@ import UniformTypeIdentifiers
 
 @main
 struct GenImgLookApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+
     var body: some Scene {
-        DocumentGroup(viewing: PNGDocument.self) { file in
-            if let url = file.fileURL {
-                ViewerView(url: url)
-            } else {
-                Text("開けません")
+        // ウィンドウは AppDelegate が作る。メニューを載せるためだけのシーン
+        Settings { EmptyView() }
+            .commands {
+                CommandGroup(replacing: .appSettings) {}
+                CommandGroup(replacing: .newItem) {
+                    Button("開く…") { appDelegate.showOpenPanel() }.keyboardShortcut("o")
+                }
             }
-        }
     }
 }
 
-/// 表示は URL から直接読む（サイドカー XMP の探索に URL が要るため）。ドキュメントは開く操作の受け口だけを担う。
-struct PNGDocument: FileDocument {
-    static var readableContentTypes: [UTType] { [.png] }
-    init(configuration: ReadConfiguration) throws {}
-    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        throw CocoaError(.featureUnsupported)
+/// Finder から同時に開かれた複数ファイルは application(_:open:) に一括で届くため、
+/// 1回の呼び出しを1ウィンドウにまとめる（DocumentGroup では1ファイル1ウィンドウになる）。
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var windows: [NSWindow] = []
+    private var models: [ObjectIdentifier: ViewerModel] = [:]
+    private var cascadePoint = NSPoint.zero
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // SwiftUI の keyboardShortcut(_, modifiers: []) は矢印キー等で Shift 付きでも発火するため、
+        // キー判定は KeyCommand で修飾キーの完全一致を見る
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, let window = event.window,
+                  let model = self.models[ObjectIdentifier(window)],
+                  let command = KeyCommand(keyCode: event.keyCode, modifiers: event.modifierFlags)
+            else { return event }
+            switch command {
+            case .move(let move): model.list?.move(move)
+            case .close: window.performClose(nil)
+            }
+            return nil
+        }
+        // ファイル付き起動では application(_:open:) が先に呼ばれ、ウィンドウが既にある
+        if windows.isEmpty { openWindow(nil) }
     }
-}
 
-struct ViewerView: View {
-    let url: URL
-    private let image: NSImage?
-    private let meta: ImageMetadata?
-    @AppStorage("sidePanelVisible") private var panelVisible = true
-
-    init(url: URL) {
-        self.url = url
-        image = NSImage(contentsOf: url)
-        meta = ImageMetadata.load(url: url)
+    func application(_ application: NSApplication, open urls: [URL]) {
+        if let list = FileList(urls) {
+            openWindow(list)
+        } else if windows.isEmpty {
+            openWindow(nil)
+        }
     }
 
-    var body: some View {
-        Group {
-            if let image {
-                PreviewView(image: image, meta: meta)
-            } else {
-                Text("開けません").frame(maxWidth: .infinity, maxHeight: .infinity)
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { openWindow(nil) }
+        return true
+    }
+
+    func showOpenPanel() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.png]
+        guard panel.runModal() == .OK, let list = FileList(panel.urls) else { return }
+        openWindow(list)
+    }
+
+    func openWindow(_ list: FileList?) {
+        let model = ViewerModel(list: list)
+        let host = NSHostingController(rootView: ViewerView(model: model, openPanel: { [weak self] in self?.showOpenPanel() }))
+        host.sceneBridgingOptions = [.toolbars]
+        let window = NSWindow(contentViewController: host)
+        window.styleMask.insert(.fullSizeContentView)
+        window.setContentSize(NSSize(width: 1100, height: 720))
+        window.isReleasedWhenClosed = false
+        cascadePoint = window.cascadeTopLeft(from: cascadePoint)
+        windows.append(window)
+        models[ObjectIdentifier(window)] = model
+        NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window, queue: .main) { [weak self] note in
+            MainActor.assumeIsolated {
+                guard let closed = note.object as? NSWindow else { return }
+                self?.windows.removeAll { $0 === closed }
+                self?.models[ObjectIdentifier(closed)] = nil
             }
         }
-        .frame(minWidth: 700, minHeight: 450)
-        .toolbar {
-            ShareLink(item: url)
-            Button("プレビューで開く", systemImage: "eye") {
-                NSWorkspace.shared.open(
-                    [url],
-                    withApplicationAt: URL(fileURLWithPath: "/System/Applications/Preview.app"),
-                    configuration: NSWorkspace.OpenConfiguration()
-                )
+        trackTitle(window, model)
+        window.makeKeyAndOrderFront(nil)
+    }
+
+    /// navigationTitle のブリッジはウィンドウによって反映されず "Untitled" のままになることがあったため、直接設定する
+    private func trackTitle(_ window: NSWindow, _ model: ViewerModel) {
+        withObservationTracking {
+            window.title = model.list?.current.lastPathComponent ?? "GenImgLook"
+        } onChange: { [weak self, weak window] in
+            Task { @MainActor in
+                if let window { self?.trackTitle(window, model) }
             }
-            Button("サイドパネル", systemImage: "sidebar.right") { panelVisible.toggle() }
-        }
-        .background {
-            // Quick Look と同じ閉じ方。modifiers: [] は完全一致なので Shift+Space 等は奪わない
-            Group {
-                Button("") { NSApp.keyWindow?.performClose(nil) }.keyboardShortcut(.space, modifiers: [])
-                Button("") { NSApp.keyWindow?.performClose(nil) }.keyboardShortcut(.cancelAction)
-            }
-            .opacity(0)
-            .accessibilityHidden(true)
         }
     }
 }

@@ -31,7 +31,7 @@ targets:
   GenImgLookTests:
     type: bundle.unit-test
     platform: macOS
-    sources: [Tests, Shared/Parsing]
+    sources: [Tests, Shared/Parsing, Shared/Model]
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
