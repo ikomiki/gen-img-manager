@@ -16,6 +16,7 @@ Finder から AI 生成 PNG を開いたとき、画像と一緒にプロンプ�
 
 1. `public.png` 向けの自作 Preview 拡張が、Finder のスペースキー押下で OS 組み込みのプレビューより優先されるか。
 2. 有効な署名 ID が無い環境で、ad-hoc 署名（Sign to Run Locally）のまま `pluginkit` に登録され、動作するか。
+3. Quick Look パネル内の SwiftUI ボタンがクリックに反応し、`NSPasteboard` へのコピーが効くか。
 
 結果ごとの対応:
 
@@ -24,6 +25,7 @@ Finder から AI 生成 PNG を開いたとき、画像と一緒にプロンプ�
 | 両方 OK | 本設計どおり実装する |
 | 1 が NG | 拡張は `qlmanage -p` 等での明示呼び出し用とし、ビューアアプリを主役にする（作るものは変えない） |
 | 2 が NG | Personal Team 証明書を使うかどうかをユーザーと相談する |
+| 3 が NG | 拡張はパネル表示のみとし、コピーはテキスト選択＋Cmd+C に頼る。それも効かなければユーザーと相談する |
 
 スパイクのコードは残さない。
 
@@ -76,7 +78,7 @@ gen-img-manager の `MetadataPanel.tsx` と同じ並びにする。
 
 1. ファイル名
 2. サイズ（`W × H`）/ ツール（`a1111` / `comfyui` / `unknown`）/ モデル / サンプラー / Steps / CFG / Seed。値が無い行は表示しない。
-3. レーティング: `★N`（表示のみ）。rating が取れないときは行ごと表示しない。
+3. レーティング: `★N`（表示のみ）。rating が取れない、または 0 のときは行ごと表示しない。
 4. テキストブロック:
    - Prompt（positive があるとき）
    - Negative（negative があるとき）
@@ -97,7 +99,7 @@ gen-img-manager の `MetadataPanel.tsx` と同じ並びにする。
 
 - IHDR から幅と高さを取る。
 - tEXt（Latin-1）、zTXt（zlib 圧縮・Latin-1）、iTXt（UTF-8、圧縮フラグ付き）を読み、キーワードから本文への辞書を作る。
-- zlib の展開には `Compression` フレームワーク（`COMPRESSION_ZLIB`。zlib ヘッダ2バイトを除いた raw deflate を渡す）を使う。
+- zlib の展開には `NSData.decompressed(using: .zlib)` を使う（raw deflate を受け取るので、zlib ヘッダ2バイトと末尾の Adler-32 4バイトを除いて渡す）。
 - IEND または IDAT 以降は読まない。
 
 ### ツールの判定
