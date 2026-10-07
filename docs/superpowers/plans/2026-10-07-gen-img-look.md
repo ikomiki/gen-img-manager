@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Finder の Quick Look と単体ビューアアプリで、AI 生成 PNG の画像とメタデータ（Prompt / Negative / モデル等・XMP レーティング）を表示し、Prompt / Negative をコピーできるようにする。
+**Goal:** Quick Look 風に使える単体ビューアアプリで、AI 生成 PNG の画像とメタデータ（Prompt / Negative / モデル等・XMP レーティング）を表示し、Prompt / Negative をコピーできるようにする。
 
-**Architecture:** `macos/GenImgLook/` に xcodegen で生成する Xcode プロジェクトを置く。ホストアプリ（単体ビューア兼用）と Quick Look Preview 拡張の2ターゲットが、`Shared/`（パーサ群と SwiftUI ビュー）を共有する。パーサは gen-img-manager の Rust 実装（`src-tauri/src/parser/`）と同じ規則で Swift に再実装する。
+**Architecture:** `macos/GenImgLook/` に xcodegen で生成する Xcode プロジェクトを置く。アプリターゲットとテストターゲットが `Shared/Parsing/`（パーサ群）を共有する。PNG では自作の Quick Look 拡張が OS 標準に負けることをスパイクで確認したため、拡張は作らない。パーサは gen-img-manager の Rust 実装（`src-tauri/src/parser/`）と同じ規則で Swift に再実装する。
 
-**Tech Stack:** Swift 5 / SwiftUI / AppKit / QuickLookUI / XCTest / xcodegen / Xcode 27（macOS 14.0 以上がターゲット）
+**Tech Stack:** Swift 5 / SwiftUI / AppKit / XCTest / xcodegen / Xcode 27（macOS 14.0 以上がターゲット）
 
 **Spec:** `docs/superpowers/specs/2026-10-07-gen-img-look-design.md`
 
@@ -15,7 +15,7 @@
 - 対象は PNG（`public.png`）のみ。
 - 個人利用。ad-hoc 署名（`CODE_SIGN_IDENTITY: "-"`）。公証・App Store 対応はしない。
 - gen-img-manager 本体（`src/`、`src-tauri/`、`crates/`、`packages/`）は変更しない。
-- 外部 Swift パッケージは追加しない（Foundation / SwiftUI / AppKit / QuickLookUI のみ）。
+- 外部 Swift パッケージは追加しない（Foundation / SwiftUI / AppKit のみ）。
 - 生成物 `macos/GenImgLook/GenImgLook.xcodeproj` と `macos/GenImgLook/build/` はコミットしない。
 - コードコメントは非自明な WHY だけを書く（WHAT・変更履歴・タスク ID は書かない）。
 - コミットメッセージ: type/scope は英語、要約・本文は日本語。末尾に `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>` を付ける。
@@ -33,7 +33,7 @@
 
 ```
 macos/GenImgLook/
-  project.yml                         xcodegen 定義（3ターゲット）
+  project.yml                         xcodegen 定義（アプリ・テストの2ターゲット）
   README.md                           ビルド・インストール手順
   Shared/Parsing/A1111Parser.swift    A1111 parameters → A1111Fields
   Shared/Parsing/ComfyParser.swift    ComfyUI prompt JSON → テキスト
@@ -42,8 +42,7 @@ macos/GenImgLook/
   Shared/Parsing/ImageMetadata.swift  上記を統合したモデル
   Shared/UI/MetadataPanel.swift       右サイドパネル
   Shared/UI/PreviewView.swift         画像＋パネルのレイアウト
-  App/GenImgLookApp.swift             DocumentGroup・ツールバー
-  Preview/PreviewViewController.swift QLPreviewingController
+  App/GenImgLookApp.swift             DocumentGroup・ツールバー・Space/Esc で閉じる
   Tests/A1111ParserTests.swift
   Tests/ComfyParserTests.swift
   Tests/PNGTextTests.swift
@@ -52,7 +51,7 @@ macos/GenImgLook/
   Tests/PNGBuilder.swift              テスト用に PNG バイト列を組み立てる
 ```
 
-`Info.plist` とエンタイトルメントは xcodegen が `project.yml` の `info` / `entitlements` から生成する（生成先 `App/Info.plist` などもコミット対象にする。xcodegen は毎回上書きする）。
+`Info.plist` は xcodegen が `project.yml` の `info` から生成する（生成先 `App/Info.plist` もコミット対象にする。xcodegen は毎回上書きする）。
 
 共通コマンド（`macos/GenImgLook/` で実行）:
 
@@ -64,135 +63,9 @@ xcodebuild -project GenImgLook.xcodeproj -scheme GenImgLook -configuration Relea
 
 ---
 
-### Task 0: スパイク — Quick Look 拡張の優先・ad-hoc 署名・操作性を検証（使い捨て）
+### Task 0: スパイク — 完了
 
-**Files:** すべて scratchpad 配下に作る。リポジトリにはコミットしない。
-
-**Interfaces:**
-- Consumes: なし
-- Produces: 検証結果3点（優先されるか / ad-hoc 署名で登録できるか / ボタン＋コピーが効くか）。結果はユーザーに報告し、spec の対応表に従って続行可否を確定する。
-
-- [ ] **Step 1: 最小プロジェクトを作る**
-
-`$SCRATCH/spike/project.yml`（`$SCRATCH` は scratchpad ディレクトリ）:
-
-```yaml
-name: Spike
-options:
-  bundleIdPrefix: local.genimgspike
-  deploymentTarget:
-    macOS: "14.0"
-settings:
-  base:
-    CODE_SIGN_IDENTITY: "-"
-    CODE_SIGN_STYLE: Manual
-    ENABLE_HARDENED_RUNTIME: NO
-targets:
-  Spike:
-    type: application
-    platform: macOS
-    sources: [App]
-    info:
-      path: App/Info.plist
-    dependencies:
-      - target: SpikePreview
-  SpikePreview:
-    type: app-extension
-    platform: macOS
-    sources: [Preview]
-    info:
-      path: Preview/Info.plist
-      properties:
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.quicklook.preview
-          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PreviewViewController
-          NSExtensionAttributes:
-            QLSupportedContentTypes: [public.png]
-            QLSupportsSearchableItems: false
-    entitlements:
-      path: Preview/SpikePreview.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.files.user-selected.read-only: true
-```
-
-`$SCRATCH/spike/App/SpikeApp.swift`:
-
-```swift
-import SwiftUI
-
-@main
-struct SpikeApp: App {
-    var body: some Scene {
-        WindowGroup { Text("Spike host") }
-    }
-}
-```
-
-`$SCRATCH/spike/Preview/PreviewViewController.swift`:
-
-```swift
-import Cocoa
-import QuickLookUI
-import SwiftUI
-
-final class PreviewViewController: NSViewController, QLPreviewingController {
-    override func loadView() { view = NSView() }
-
-    func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping (Error?) -> Void) {
-        let host = NSHostingView(rootView: VStack {
-            Text("Hello from SpikePreview: \(url.lastPathComponent)").font(.largeTitle)
-            Button("コピー") {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString("spike-copied", forType: .string)
-            }
-        }.frame(minWidth: 600, minHeight: 400))
-        host.frame = view.bounds
-        host.autoresizingMask = [.width, .height]
-        view.addSubview(host)
-        preferredContentSize = NSSize(width: 600, height: 400)
-        handler(nil)
-    }
-}
-```
-
-- [ ] **Step 2: ビルドしてインストールする**
-
-```bash
-cd $SCRATCH/spike && xcodegen generate
-xcodebuild -project Spike.xcodeproj -scheme Spike -configuration Release -derivedDataPath build build
-mkdir -p ~/Applications && rm -rf ~/Applications/Spike.app
-cp -R build/Build/Products/Release/Spike.app ~/Applications/
-open ~/Applications/Spike.app
-pluginkit -m -v -p com.apple.quicklook.preview | grep -i spike
-qlmanage -r && qlmanage -r cache
-```
-
-Expected: `pluginkit` の出力に `local.genimgspike.SpikePreview` が出る（行頭 `+` は有効を示す）。出なければ検証 2 は NG。`pluginkit -e use -i local.genimgspike.SpikePreview` で有効化を試し、結果を記録する。
-
-- [ ] **Step 3: 明示呼び出しで表示を確認する**
-
-```bash
-qlmanage -p <任意の PNG のパス>
-```
-
-Expected: 「Hello from SpikePreview」が表示される。
-
-- [ ] **Step 4: ユーザーに Finder での確認を依頼する**
-
-ユーザーに次を依頼して結果を受け取る:
-1. Finder で PNG を選択してスペースキーを押し、「Hello from SpikePreview」が出るか（検証 1）。
-2. 「コピー」ボタンを押し、テキストエディタに貼り付けると `spike-copied` になるか（検証 3）。
-
-- [ ] **Step 5: 後片付けと報告**
-
-```bash
-pluginkit -e ignore -i local.genimgspike.SpikePreview
-rm -rf ~/Applications/Spike.app
-qlmanage -r
-```
-
-3点の結果をユーザーに報告し、spec の対応表に従って続行方法を確定する。NG がある場合は Task 1 以降に進む前にユーザーの判断を待つ。
+結果: ad-hoc 署名の拡張は `pluginkit` に登録・有効化（`+`）できたが、Finder のスペースキーでは OS 標準のプレビューが表示された。ユーザー判断により、拡張は作らず、ビューアアプリに Space / Esc で閉じる操作を足す方式に変更した。スパイクの成果物は削除済み。
 
 ---
 
@@ -203,7 +76,6 @@ qlmanage -r
 - Create: `macos/GenImgLook/Shared/Parsing/A1111Parser.swift`
 - Create: `macos/GenImgLook/Tests/A1111ParserTests.swift`
 - Create: `macos/GenImgLook/App/GenImgLookApp.swift`（ビルドを通すための仮実装。Task 7 で置き換える）
-- Create: `macos/GenImgLook/Preview/PreviewViewController.swift`（ビルドを通すための仮実装。Task 8 で置き換える）
 - Modify: `.gitignore`（末尾に追記）
 
 **Interfaces:**
@@ -217,7 +89,7 @@ qlmanage -r
   }
   enum A1111Parser { static func parse(_ raw: String) -> A1111Fields }
   ```
-  `project.yml` のターゲット名は `GenImgLook` / `GenImgLookPreview` / `GenImgLookTests`。テストターゲットは `Tests/` と `Shared/Parsing/` を直接コンパイルするので、テストコードは `@testable import` を使わない。
+  `project.yml` のターゲット名は `GenImgLook` / `GenImgLookTests`。テストターゲットは `Tests/` と `Shared/Parsing/` を直接コンパイルするので、テストコードは `@testable import` を使わない。
 
 - [ ] **Step 1: `project.yml` を書く**
 
@@ -250,38 +122,15 @@ targets:
             CFBundleTypeRole: Viewer
             LSHandlerRank: Alternate
             LSItemContentTypes: [public.png]
-    dependencies:
-      - target: GenImgLookPreview
     scheme:
       testTargets: [GenImgLookTests]
-  GenImgLookPreview:
-    type: app-extension
-    platform: macOS
-    sources: [Preview, Shared]
-    info:
-      path: Preview/Info.plist
-      properties:
-        CFBundleDisplayName: GenImgLook Preview
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.quicklook.preview
-          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PreviewViewController
-          NSExtensionAttributes:
-            QLSupportedContentTypes: [public.png]
-            QLSupportsSearchableItems: false
-    entitlements:
-      path: Preview/GenImgLookPreview.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.files.user-selected.read-only: true
-        # 隣接するサイドカー XMP はプレビュー対象ファイルではないため、サンドボックス例外が要る
-        com.apple.security.temporary-exception.files.absolute-path.read-only: ["/"]
   GenImgLookTests:
     type: bundle.unit-test
     platform: macOS
     sources: [Tests, Shared/Parsing]
 ```
 
-ホストアプリはサンドボックス化しない（App Store 配布しないため。サイドカー XMP を読むのに例外を足さずに済む）。
+アプリはサンドボックス化しない（App Store 配布しないため。サイドカー XMP をそのまま読める）。
 
 - [ ] **Step 2: ビルド用の仮実装と `.gitignore` を追加する**
 
@@ -294,21 +143,6 @@ import SwiftUI
 struct GenImgLookApp: App {
     var body: some Scene {
         WindowGroup { Text("GenImgLook") }
-    }
-}
-```
-
-`macos/GenImgLook/Preview/PreviewViewController.swift`:
-
-```swift
-import Cocoa
-import QuickLookUI
-
-final class PreviewViewController: NSViewController, QLPreviewingController {
-    override func loadView() { view = NSView() }
-
-    func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping (Error?) -> Void) {
-        handler(nil)
     }
 }
 ```
@@ -468,7 +302,7 @@ git commit -m "feat(look): GenImgLook の Xcode プロジェクト雛形と A111
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
-`git status` で `GenImgLook.xcodeproj` と `build/` が含まれていないことを確認する。xcodegen が生成した `App/Info.plist`・`Preview/Info.plist`・`Preview/GenImgLookPreview.entitlements` はコミットする。
+`git status` で `GenImgLook.xcodeproj` と `build/` が含まれていないことを確認する。xcodegen が生成した `App/Info.plist` はコミットする。
 
 ---
 
@@ -1150,12 +984,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
   ```swift
   struct MetadataPanel: View { init(meta: ImageMetadata) }
   struct PreviewView: View {
-      init(image: NSImage, meta: ImageMetadata?, showsInlineToggle: Bool)
+      init(image: NSImage, meta: ImageMetadata?)
   }
   ```
-  `PreviewView` はパネルの開閉状態を `@AppStorage("sidePanelVisible")`（既定 `true`）で持つ。`showsInlineToggle == true`（拡張用）のときはパネル上端の「›」と、閉じたときの画像右端「‹」を表示する。アプリはツールバーから同じキーを切り替える。
+  `PreviewView` はパネルの開閉状態を `@AppStorage("sidePanelVisible")`（既定 `true`）で読む。アプリのツールバーが同じキーを切り替える。
 
-UI はユニットテストしない（spec の方針）。Task 7・8 で動作確認する。
+UI はユニットテストしない（spec の方針）。Task 7 で動作確認する。
 
 - [ ] **Step 1: MetadataPanel を書く**
 
@@ -1260,8 +1094,6 @@ import SwiftUI
 struct PreviewView: View {
     let image: NSImage
     let meta: ImageMetadata?
-    /// Quick Look パネルにはツールバーを足せないため、拡張ではパネル内に開閉ボタンを置く
-    let showsInlineToggle: Bool
 
     @AppStorage("sidePanelVisible") private var panelVisible = true
 
@@ -1271,20 +1103,9 @@ struct PreviewView: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay(alignment: .trailing) {
-                    if showsInlineToggle && !panelVisible {
-                        Button("‹") { panelVisible = true }.padding(8)
-                    }
-                }
             if panelVisible, let meta {
                 Divider()
-                VStack(spacing: 0) {
-                    if showsInlineToggle {
-                        HStack { Spacer(); Button("›") { panelVisible = false } }.padding([.top, .horizontal], 8)
-                    }
-                    MetadataPanel(meta: meta)
-                }
-                .frame(width: 320)
+                MetadataPanel(meta: meta).frame(width: 320)
             }
         }
     }
@@ -1294,7 +1115,7 @@ struct PreviewView: View {
 - [ ] **Step 3: ビルドが通ることを確認する**
 
 Run: `cd macos/GenImgLook && xcodegen generate && xcodebuild -project GenImgLook.xcodeproj -scheme GenImgLook -destination 'platform=macOS' -derivedDataPath build test`
-Expected: `** TEST SUCCEEDED **`（UI は未使用だがアプリ・拡張ターゲットのコンパイルが通る）
+Expected: `** TEST SUCCEEDED **`（UI は未使用だがアプリターゲットのコンパイルが通る）
 
 - [ ] **Step 4: コミットする**
 
@@ -1311,9 +1132,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `macos/GenImgLook/App/GenImgLookApp.swift`（Task 1 の仮実装を全置換）
+- Create: `macos/GenImgLook/README.md`
 
 **Interfaces:**
-- Consumes: `PreviewView(image:meta:showsInlineToggle:)`、`ImageMetadata.load(url:)`
+- Consumes: `PreviewView(image:meta:)`、`ImageMetadata.load(url:)`
 - Produces: PNG を開ける `GenImgLook.app`
 
 - [ ] **Step 1: 実装する**
@@ -1362,7 +1184,7 @@ struct ViewerView: View {
     var body: some View {
         Group {
             if let image {
-                PreviewView(image: image, meta: meta, showsInlineToggle: false)
+                PreviewView(image: image, meta: meta)
             } else {
                 Text("開けません").frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -1379,86 +1201,27 @@ struct ViewerView: View {
             }
             Button("サイドパネル", systemImage: "sidebar.right") { panelVisible.toggle() }
         }
-    }
-}
-```
-
-- [ ] **Step 2: ビルドとテスト**
-
-Run: `cd macos/GenImgLook && xcodegen generate && xcodebuild -project GenImgLook.xcodeproj -scheme GenImgLook -destination 'platform=macOS' -derivedDataPath build test`
-Expected: `** TEST SUCCEEDED **`
-
-- [ ] **Step 3: 手動で確認する**
-
-```bash
-cd macos/GenImgLook
-xcodebuild -project GenImgLook.xcodeproj -scheme GenImgLook -configuration Release -derivedDataPath build build
-open -a build/Build/Products/Release/GenImgLook.app <A1111 生成の PNG>
-```
-
-確認項目（ユーザーにも依頼する）:
-- タイトルバーにファイル名が出る。
-- 右パネルに Prompt / Negative / モデル等が出る。「コピー」で貼り付けられる。「最大化」「戻す」が効く。
-- ツールバーの共有・プレビューで開く・サイドパネル開閉が効く。アプリを再起動してもパネルの開閉状態が保たれる。
-- メタデータの無い PNG で「メタデータなし」が出る。
-
-- [ ] **Step 4: コミットする**
-
-```bash
-git add macos/GenImgLook
-git commit -m "feat(look): PNG ビューアアプリ（共有・プレビューで開く・パネル開閉）を実装
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
-
----
-
-### Task 8: Quick Look 拡張と README
-
-**Files:**
-- Modify: `macos/GenImgLook/Preview/PreviewViewController.swift`（Task 1 の仮実装を全置換）
-- Create: `macos/GenImgLook/README.md`
-
-**Interfaces:**
-- Consumes: `PreviewView(image:meta:showsInlineToggle:)`、`ImageMetadata.load(url:)`
-- Produces: Finder の Quick Look で動く `GenImgLookPreview.appex`
-
-- [ ] **Step 1: 実装する**
-
-`macos/GenImgLook/Preview/PreviewViewController.swift`:
-
-```swift
-import Cocoa
-import QuickLookUI
-import SwiftUI
-
-final class PreviewViewController: NSViewController, QLPreviewingController {
-    override func loadView() { view = NSView() }
-
-    func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping (Error?) -> Void) {
-        // 画像を表示できないときはエラーを返し、OS 標準のプレビューに任せる
-        guard let image = NSImage(contentsOf: url) else {
-            handler(CocoaError(.fileReadCorruptFile))
-            return
+        .background {
+            // Quick Look と同じ閉じ方。modifiers: [] は完全一致なので Shift+Space 等は奪わない
+            Group {
+                Button("") { NSApp.keyWindow?.performClose(nil) }.keyboardShortcut(.space, modifiers: [])
+                Button("") { NSApp.keyWindow?.performClose(nil) }.keyboardShortcut(.cancelAction)
+            }
+            .opacity(0)
+            .accessibilityHidden(true)
         }
-        let host = NSHostingView(rootView: PreviewView(image: image, meta: ImageMetadata.load(url: url), showsInlineToggle: true))
-        host.frame = view.bounds
-        host.autoresizingMask = [.width, .height]
-        view.addSubview(host)
-        preferredContentSize = NSSize(width: 1100, height: 750)
-        handler(nil)
     }
 }
 ```
 
-- [ ] **Step 2: README を書く**
+- [ ] **Step 1b: README を書く**
 
 `macos/GenImgLook/README.md`:
 
 ````markdown
 # GenImgLook
 
-AI 生成 PNG の画像とメタデータ（Prompt / Negative / モデル等・XMP レーティング）を表示する macOS アプリと Quick Look 拡張です。Prompt / Negative をコピーできます。
+AI 生成 PNG の画像とメタデータ（Prompt / Negative / モデル等・XMP レーティング）を表示する、Quick Look 風の macOS ビューアアプリです。Prompt / Negative をコピーできます。
 
 ## 必要なもの
 
@@ -1480,51 +1243,52 @@ xcodebuild -project GenImgLook.xcodeproj -scheme GenImgLook -configuration Relea
 mkdir -p ~/Applications
 rm -rf ~/Applications/GenImgLook.app
 cp -R build/Build/Products/Release/GenImgLook.app ~/Applications/
-open ~/Applications/GenImgLook.app   # 初回起動で Quick Look 拡張が登録される
-qlmanage -r && qlmanage -r cache
 ```
 
-登録の確認:
+Finder で PNG を右クリック →「このアプリケーションで開く」→ GenImgLook で開きます。「情報を見る」の「このアプリケーションで開く」で既定にもできます。
 
-```bash
-pluginkit -m -v -p com.apple.quicklook.preview | grep GenImgLook
-```
-
-Finder で PNG を選んでスペースキーを押すと表示されます。`qlmanage -p <file.png>` でも確認できます。
+macOS 標準の Quick Look は PNG を自前で表示するため、Quick Look 拡張は提供していません。
 
 ## 使い方
 
 - 右のサイドパネルにファイル名・サイズ・ツール・モデル・サンプラー・Steps・CFG・Seed・レーティングを表示します。
 - Prompt / Negative（Prompt が無い場合は Parameters）の「コピー」でクリップボードにコピーし、「最大化」でパネル全体に表示します。
 - レーティングは `画像.png.xmp`、無ければ `画像.xmp` の `xmp:Rating` から読みます（表示のみ）。
-- パネルは、アプリではツールバー、Quick Look ではパネル上端の「›」と画像右端の「‹」で開閉します。開閉状態は記憶されます。
+- パネルはツールバーのボタンで開閉します。開閉状態は記憶されます。
+- Space または Esc でウィンドウを閉じます。
+- ツールバーから共有、「プレビューで開く」ができます。
 
 ## 制限
 
 - 対象は PNG のみです。
 - ad-hoc 署名のローカルビルドを前提にしています。他の Mac への配布は想定していません。
-- Quick Look 拡張は、サイドカー XMP を読むためにサンドボックス例外（読み取り専用）を使っています。
 ````
 
-- [ ] **Step 3: ビルドとテスト**
+- [ ] **Step 2: ビルドとテスト**
 
 Run: `cd macos/GenImgLook && xcodegen generate && xcodebuild -project GenImgLook.xcodeproj -scheme GenImgLook -destination 'platform=macOS' -derivedDataPath build test`
 Expected: `** TEST SUCCEEDED **`
 
-- [ ] **Step 4: インストールして手動で確認する**
+- [ ] **Step 3: 手動で確認する**
 
-README の「インストール」手順を実行し、`pluginkit` の出力に `local.genimgmanager.GenImgLook.GenImgLookPreview` が出ることを確認する。`qlmanage -p <A1111 の PNG>` で画像とパネルが出ることを確認する。
+```bash
+cd macos/GenImgLook
+xcodebuild -project GenImgLook.xcodeproj -scheme GenImgLook -configuration Release -derivedDataPath build build
+open -a build/Build/Products/Release/GenImgLook.app <A1111 生成の PNG>
+```
 
-ユーザーに Finder での確認を依頼する:
-- スペースキーで画像とサイドパネルが出る。タイトルバーにファイル名、共有、「プレビューで開く」が出る（OS 標準）。
-- 「コピー」「最大化」「›」「‹」が効く。Quick Look を開き直しても開閉状態が保たれる。
-- `.xmp` のある画像でレーティングが出る。
+確認項目（ユーザーにも依頼する）:
+- タイトルバーにファイル名が出る。
+- 右パネルに Prompt / Negative / モデル等が出る。「コピー」で貼り付けられる。「最大化」「戻す」が効く。
+- ツールバーの共有・プレビューで開く・サイドパネル開閉が効く。アプリを再起動してもパネルの開閉状態が保たれる。
+- Space・Esc でウィンドウが閉じる。Shift+Space では閉じない。
+- メタデータの無い PNG で「メタデータなし」が出る。
 
-- [ ] **Step 5: コミットする**
+- [ ] **Step 4: コミットする**
 
 ```bash
 git add macos/GenImgLook
-git commit -m "feat(look): Quick Look 拡張で画像とメタデータパネルを表示する
+git commit -m "feat(look): PNG ビューアアプリ（共有・プレビューで開く・パネル開閉・Space/Esc で閉じる）を実装
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
