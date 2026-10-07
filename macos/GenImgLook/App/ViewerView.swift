@@ -6,6 +6,7 @@ import SwiftUI
 @Observable
 final class ViewerModel {
     var list: FileList?
+    var maximizedBlock: String?
     init(list: FileList?) { self.list = list }
 }
 
@@ -77,7 +78,7 @@ struct ViewerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let loaded {
             if let image = loaded.image {
-                PreviewView(image: image, meta: loaded.meta).id(loaded.url)
+                PreviewView(image: image, meta: loaded.meta, maximized: $model.maximizedBlock).id(loaded.url)
             } else {
                 Text("開けません").frame(maxWidth: .infinity, maxHeight: .infinity)
             }
