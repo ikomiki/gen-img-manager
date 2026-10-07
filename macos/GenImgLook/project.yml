@@ -1,0 +1,37 @@
+name: GenImgLook
+options:
+  bundleIdPrefix: local.genimgmanager
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    ENABLE_HARDENED_RUNTIME: NO
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  GenImgLook:
+    type: application
+    platform: macOS
+    sources: [App, Shared]
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: GenImgLook
+        LSApplicationCategoryType: public.app-category.graphics-design
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: PNG Image
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [public.png]
+    scheme:
+      testTargets: [GenImgLookTests]
+  GenImgLookTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources: [Tests, Shared/Parsing]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
