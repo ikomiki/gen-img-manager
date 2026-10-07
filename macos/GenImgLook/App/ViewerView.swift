@@ -57,6 +57,10 @@ struct ViewerView: View {
         }
         .task(id: list?.current) {
             guard let url = list?.current else { return }
+            // キーを押し続けて次々に切り替わる間は読み込みを始めない。Task.detached は .task の
+            // キャンセルを引き継がず、NAS では読み込みが積み上がるため、待ってから開始する
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
             // NAS 上のファイルでも UI を止めないよう、デコードと解析をメインスレッド外で行う
             let result = await Task.detached { (NSImage(contentsOf: url), ImageMetadata.load(url: url)) }.value
             if list?.current == url { loaded = Loaded(url: url, image: result.0, meta: result.1) }

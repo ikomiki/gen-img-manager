@@ -10,7 +10,10 @@ struct FileList: Equatable {
 
     init?(_ candidates: [URL]) {
         // Finder がアプリへ渡す順は選択順とは限らないため、ファイル名の自然順に揃える
-        let pngs = candidates.filter(Self.isPNGFile).sorted {
+        // 同じファイルが重なるとサイドバー（List の id）が重複するため、パスで一意にする
+        var seen = Set<String>()
+        let unique = candidates.map(\.standardizedFileURL).filter { seen.insert($0.path).inserted }
+        let pngs = unique.filter(Self.isPNGFile).sorted {
             $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
         }
         guard !pngs.isEmpty else { return nil }

@@ -58,4 +58,10 @@ final class FileListTests: XCTestCase {
         list.select(dir.appendingPathComponent("other.png"))
         XCTAssertEqual(list.index, 1)
     }
+
+    func testDropsDuplicates() throws {
+        let a = try file("a.png")
+        let list = FileList([a, try file("b.png"), a, URL(fileURLWithPath: a.path)])
+        XCTAssertEqual(names(list), ["a.png", "b.png"])
+    }
 }
