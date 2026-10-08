@@ -44,7 +44,7 @@ cargo run -p gim-server -- --port 5180
 | --- | --- | --- |
 | GET | `/api/health` | ヘルスチェック |
 | GET | `/api/directories` | 登録ディレクトリ一覧 |
-| GET | `/api/images` | 画像一覧（検索・並び替え） |
+| GET | `/api/images` | 画像一覧（検索・並び替え）。`ids=1,2,3` を付けると検索条件を無視してその ID の行だけを返す（ビューアがシャッフル再生の先読み分をまとめて取るのに使用） |
 | GET | `/api/images/count` | 検索結果件数 |
 | GET | `/api/images/ids` | 検索結果の ID 列（スライドショーの再生順に使用） |
 | GET | `/api/thumb/{id}` | サムネイル画像 |
