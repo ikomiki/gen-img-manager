@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryStore } from "../store/useQueryStore";
 import { useViewerStore } from "../store/useViewerStore";
-import { imageUrl, listImageIds, listImages } from "../api/images";
+import { imageUrl, listImageIds, listImagesByIds } from "../api/images";
 import { containedLongEdge, pickWidth } from "../util/pickWidth";
 import { createPreloader } from "../util/preloader";
-import { createRowWindow, WINDOW_SIZE } from "../util/rowWindow";
+import { createRowCache, ROW_BATCH } from "../util/rowCache";
 import { useFullscreen } from "../hooks/useFullscreen";
 import { useSlideshowTimer } from "../hooks/useSlideshowTimer";
 import { useViewerKeys } from "../hooks/useViewerKeys";
@@ -51,28 +51,17 @@ export function Viewer() {
 
   const preloader = useMemo(() => createPreloader(), []);
 
-  const rowWindow = useMemo(
-    () =>
-      createRowWindow(
-        (offset, limit) => {
-          const { query, sort, dir, dirs } = useQueryStore.getState();
-          return listImages({ q: query, sort, dir, dirs, limit, offset });
-        },
-        () => setRowsVersion((v) => v + 1),
-        WINDOW_SIZE,
-      ),
-    [],
-  );
+  const rowCache = useMemo(() => createRowCache(listImagesByIds, () => setRowsVersion((v) => v + 1)), []);
 
   // クエリが変わると sort 順インデックスの意味が変わるので、行キャッシュも ids も無効。
   // ids を残したままにすると、取り直しが終わるまで古い ID で別の画像を出してしまう。
-  // このフックを行取得（rowWindow.ensure）の effect より前に置くのは、同じフラッシュ内で
+  // このフックを行取得（rowCache.ensure）の effect より前に置くのは、同じフラッシュ内で
   // 行キャッシュを先に捨てておくことで、捨てられる世代のために /api/images を
   // 1本余分に使わずに済むため。
   useEffect(() => {
-    rowWindow.clear();
+    rowCache.clear();
     invalidateIds();
-  }, [seq, rowWindow, invalidateIds]);
+  }, [seq, rowCache, invalidateIds]);
 
   // 開いたら検索結果全体のID列を取る。シャッフルを全件へ広げるのはこれが要る。
   useEffect(() => {
@@ -113,23 +102,31 @@ export function Viewer() {
   }, [open, exhausted, ids.length, pos, order.length, loadMore]);
 
   const sortedIndex = order[pos];
-  const row =
-    sortedIndex === undefined ? undefined : (results[sortedIndex] ?? rowWindow.get(sortedIndex));
   const id = sortedIndex === undefined ? undefined : (ids[sortedIndex] ?? results[sortedIndex]?.id);
+  const row =
+    sortedIndex === undefined || id === undefined
+      ? undefined
+      : (results[sortedIndex] ?? rowCache.get(id));
   // 計時の条件に使うので、早期 return より前で決めておく。
   const src = id === undefined ? null : imageUrl(id, widthFor(row));
 
-  // 表示中と先読み分の行を取りにいく。results にある位置は取りにいかない
-  // （行キャッシュは results とは別なので、確認しないと同じ行を二重に取る）。
+  // 表示中と先読み分の行が欠けていたら、再生順の先 ROW_BATCH 枚ぶんをまとめて取る。
+  // results にある位置は取りにいかない（行キャッシュは results とは別なので、
+  // 確認しないと同じ行を二重に取る）。
   useEffect(() => {
     if (!open) return;
-    const ensure = (si: number | undefined) => {
-      if (si === undefined || results[si]) return;
-      rowWindow.ensure(si);
-    };
-    ensure(sortedIndex);
-    for (let i = 1; i <= PRELOAD_AHEAD; i++) ensure(order[pos + i]);
-  }, [open, sortedIndex, order, pos, results, rowWindow]);
+    const wanted: number[] = [];
+    let near = 0;
+    for (let i = 0; i < ROW_BATCH; i++) {
+      const si = order[pos + i];
+      if (si === undefined || results[si]) continue;
+      const nid = ids[si];
+      if (nid === undefined) continue;
+      wanted.push(nid);
+      if (i <= PRELOAD_AHEAD) near = wanted.length;
+    }
+    rowCache.ensure(wanted, near);
+  }, [open, order, pos, ids, results, rowCache]);
 
   // 画像の先読み。表示中と同じ幅を要求しないと別のキャッシュエントリになって無駄になる。
   useEffect(() => {
@@ -139,10 +136,10 @@ export function Viewer() {
       if (si === undefined) continue;
       const nid = ids[si] ?? results[si]?.id;
       if (nid === undefined) continue;
-      const r = results[si] ?? rowWindow.get(si);
+      const r = results[si] ?? rowCache.get(nid);
       preloader.preload(imageUrl(nid, widthFor(r)));
     }
-  }, [open, order, pos, ids, results, preloader, rowWindow, rowsVersion]);
+  }, [open, order, pos, ids, results, preloader, rowCache, rowsVersion]);
 
   // 「どの位置が読み終わったか」ではなく「どの画像が読み終わったか」で数える。
   // order を作り直すと（全件ID の到着・シャッフル切替）表示中の画像は同じまま pos だけが
