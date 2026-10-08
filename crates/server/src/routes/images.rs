@@ -1,4 +1,4 @@
-use crate::dirscope::parse_dirs;
+use crate::dirscope::{parse_dirs, parse_id_list};
 use crate::error::ApiError;
 use crate::extract::ApiQuery;
 use crate::state::AppState;
@@ -20,6 +20,8 @@ pub struct ListParams {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
     pub dirs: Option<String>,
+    /// 指定すると q/sort/offset を無視し、この ID の行だけを返す（順序は不定）。
+    pub ids: Option<String>,
 }
 
 impl ListParams {
@@ -56,6 +58,11 @@ pub async fn list(
     ApiQuery(params): ApiQuery<ListParams>,
 ) -> Result<Json<Vec<crate::dto::ImageDto>>, ApiError> {
     let conn = state.conn()?;
+    if let Some(raw) = params.ids.as_deref() {
+        let ids = parse_id_list(raw, "ids", MAX_LIMIT as usize).map_err(ApiError::BadRequest)?;
+        let rows = image_query::images_by_ids(&conn, &ids)?;
+        return Ok(Json(rows.into_iter().map(Into::into).collect()));
+    }
     let rows = image_query::query_images(
         &conn,
         &params.q,
@@ -125,6 +132,23 @@ mod tests {
         let arr = body.as_array().unwrap();
         assert_eq!(arr.len(), 1);
         assert_eq!(arr[0]["filename"], "c.png");
+    }
+
+    #[tokio::test]
+    async fn list_by_ids_returns_only_those_rows() {
+        let (state, _tmp) = test_state();
+        let body = get_json(state.clone(), "/api/images?ids=3,1,999&q=forest").await;
+        let mut names: Vec<_> = body
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["filename"].as_str().unwrap().to_string())
+            .collect();
+        names.sort();
+        assert_eq!(names, ["a.png", "c.png"]);
+
+        let res = get_raw(state, "/api/images?ids=1,x").await;
+        assert_eq!(res.status(), 400);
     }
 
     #[tokio::test]
