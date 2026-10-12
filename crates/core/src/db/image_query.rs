@@ -200,6 +200,19 @@ pub fn list_ids(
     rows.collect()
 }
 
+/// 指定 ID の画像行を返す。順序は不定で、存在しない ID は黙って落とす。
+/// web ビューアがシャッフル再生中に、次に出す数十枚の行だけをまとめて引くために使う。
+pub fn images_by_ids(conn: &Connection, ids: &[i64]) -> rusqlite::Result<Vec<ImageRow>> {
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let placeholders = vec!["?"; ids.len()].join(", ");
+    let sql = format!("SELECT {SELECT_COLS} FROM images WHERE id IN ({placeholders})");
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(params_from_iter(ids.iter().map(|i| Value::Integer(*i))), row_to_image)?;
+    rows.collect()
+}
+
 /// 1画像の全メタデータを取得する。無ければ None。
 pub fn get_detail(conn: &Connection, id: i64) -> rusqlite::Result<Option<ImageDetail>> {
     let sql = format!("SELECT {DETAIL_COLS} FROM images WHERE id = ?1");
@@ -490,5 +503,16 @@ mod tests {
         assert_eq!(ids.len(), 2);
         let none = list_ids(&c, "forest", &DirScope::Ids(vec![]), SortKey::Filename, SortDir::Asc).unwrap();
         assert!(none.is_empty());
+    }
+
+    #[test]
+    fn images_by_ids_returns_requested_rows_and_skips_unknown() {
+        let c = conn();
+        seed(&c);
+        let rows = images_by_ids(&c, &[3, 1, 999]).unwrap();
+        let mut names: Vec<_> = rows.iter().map(|r| r.filename.as_str()).collect();
+        names.sort();
+        assert_eq!(names, ["a.png", "c.png"]);
+        assert!(images_by_ids(&c, &[]).unwrap().is_empty());
     }
 }

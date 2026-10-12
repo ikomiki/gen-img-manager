@@ -24,6 +24,7 @@ beforeEach(() => {
   localStorage.clear();
   vi.spyOn(imagesApi, "listImageIds").mockResolvedValue([]);
   vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
+  vi.spyOn(imagesApi, "listImagesByIds").mockResolvedValue([]);
   vi.spyOn(imagesApi, "countImages").mockResolvedValue({ total: 0 });
   useQueryStore.setState({ results: rows(1, 5), total: 5, exhausted: true, loading: false });
   useViewerStore.setState({

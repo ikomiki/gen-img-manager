@@ -23,8 +23,8 @@ function row(id: number): ImageDto {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.spyOn(imagesApi, "listImageIds").mockResolvedValue([1, 2, 3]);
-  // 3件すべて results にあるので窓取得は走らないはず。走ったら気づけるように監視する。
-  vi.spyOn(imagesApi, "listImages").mockResolvedValue([]);
+  // 3件すべて results にあるので行取得は走らないはず。走ったら気づけるように監視する。
+  vi.spyOn(imagesApi, "listImagesByIds").mockResolvedValue([]);
   useQueryStore.setState({ results: [row(1), row(2), row(3)], total: 3, exhausted: true, seq: 1 });
   useViewerStore.setState({
     open: false,
@@ -115,7 +115,7 @@ describe("スライドショーの計時", () => {
 });
 
 describe("全件ID の取得", () => {
-  it("開いたときに一度だけ取り、results にある行は窓取得しない", async () => {
+  it("開いたときに一度だけ取り、results にある行は取りにいかない", async () => {
     act(() => useViewerStore.getState().openAt(0, 3));
     render(<Viewer />);
     await act(async () => {});
@@ -123,7 +123,7 @@ describe("全件ID の取得", () => {
     expect(imagesApi.listImageIds).toHaveBeenCalledTimes(1);
     expect(useViewerStore.getState().ids).toEqual([1, 2, 3]);
     expect(useViewerStore.getState().idsSeq).toBe(1);
-    expect(imagesApi.listImages).not.toHaveBeenCalled();
+    expect(imagesApi.listImagesByIds).not.toHaveBeenCalled();
   });
 
   it("閉じて開き直しても再生範囲は全件のまま", async () => {
@@ -147,11 +147,7 @@ describe("全件ID の取得", () => {
     vi.mocked(imagesApi.listImageIds).mockResolvedValue(
       Array.from({ length: 100 }, (_, i) => i + 1),
     );
-    vi.mocked(imagesApi.listImages).mockImplementation(async (p) => {
-      const offset = p.offset ?? 0;
-      const limit = p.limit ?? 0;
-      return Array.from({ length: limit }, (_, i) => row(offset + i + 1));
-    });
+    vi.mocked(imagesApi.listImagesByIds).mockImplementation(async (ids) => ids.map(row));
     useQueryStore.setState({ results: [row(1)], total: 1, exhausted: true, seq: 1 });
 
     act(() => useViewerStore.getState().openAt(0, 1));
@@ -160,18 +156,51 @@ describe("全件ID の取得", () => {
     await act(async () => {});
     expect(useViewerStore.getState().ids.length).toBe(100);
 
-    // shuffle:false なら order[pos] === pos。40 以上まで送って未読み込みの窓に入る。
+    // shuffle:false なら order[pos] === pos。40 以上まで送って先読み済みの範囲を越える。
     act(() => {
       for (let i = 0; i < 40; i++) useViewerStore.getState().go(1);
     });
-    // 窓（offset:40, limit:40）の取得が終わるのを待つ。
     await act(async () => {});
 
-    expect(imagesApi.listImages).toHaveBeenCalledWith(
-      expect.objectContaining({ offset: 40, limit: 40 }),
-    );
+    expect(imagesApi.listImagesByIds).toHaveBeenCalledWith(expect.arrayContaining([41]));
     const img = document.querySelector("img");
     expect(img?.getAttribute("src")).toContain("/api/image/41");
     expect(screen.getByText("41.png")).toBeTruthy();
+  });
+
+  it("シャッフル再生でも行の取得は数十枚に 1 回で済む", async () => {
+    vi.mocked(imagesApi.listImageIds).mockResolvedValue(
+      Array.from({ length: 1000 }, (_, i) => i + 1),
+    );
+    vi.mocked(imagesApi.listImagesByIds).mockImplementation(async (ids) => ids.map(row));
+    useQueryStore.setState({ results: [row(1)], total: 1, exhausted: true, seq: 1 });
+    useViewerStore.setState({ shuffle: true });
+
+    act(() => useViewerStore.getState().openAt(0, 1));
+    render(<Viewer />);
+    await act(async () => {});
+    expect(useViewerStore.getState().order.length).toBe(1000);
+    // 表示位置を先頭へ揃えて、以降の送り回数と取得回数の関係を決定的にする。
+    // ジャンプ自体で 1 回取るので、その後から数える。
+    act(() => useViewerStore.setState({ pos: 0 }));
+    await act(async () => {});
+    const mock = vi.mocked(imagesApi.listImagesByIds).mock;
+    expect(mock.calls.at(-1)?.[0]).toHaveLength(40);
+    mock.calls.length = 0;
+
+    // 先読み分（40 枚）を使い切るまでは取りにいかない。
+    for (let i = 0; i < 30; i++) {
+      act(() => useViewerStore.getState().go(1));
+      await act(async () => {});
+    }
+    expect(mock.calls).toHaveLength(0);
+
+    // 使い切る手前で次の 40 枚ぶんをまとめて取る。
+    for (let i = 0; i < 10; i++) {
+      act(() => useViewerStore.getState().go(1));
+      await act(async () => {});
+    }
+    expect(mock.calls).toHaveLength(1);
+    expect(screen.getByText(`${useViewerStore.getState().ids[useViewerStore.getState().order[40]]}.png`)).toBeTruthy();
   });
 });

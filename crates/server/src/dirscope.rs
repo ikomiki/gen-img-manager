@@ -13,19 +13,24 @@ pub fn parse_dirs(raw: Option<&str>) -> Result<DirScope, String> {
     if raw.is_empty() {
         return Ok(DirScope::Ids(Vec::new()));
     }
+    Ok(DirScope::Ids(parse_id_list(raw, "dirs", MAX_DIR_IDS)?))
+}
+
+/// `1,2,3` 形式の ID 列をパースする。`label` はエラー文に出すパラメータ名。
+pub fn parse_id_list(raw: &str, label: &str, max: usize) -> Result<Vec<i64>, String> {
     let parts: Vec<&str> = raw.split(',').collect();
-    if parts.len() > MAX_DIR_IDS {
-        return Err(format!("dirs が多すぎます (最大 {MAX_DIR_IDS} 件)"));
+    if parts.len() > max {
+        return Err(format!("{label} が多すぎます (最大 {max} 件)"));
     }
     let mut ids = Vec::with_capacity(parts.len());
     for p in parts {
         let n: i64 = p
             .trim()
             .parse()
-            .map_err(|_| format!("dirs に数値でない値があります: {p:?}"))?;
+            .map_err(|_| format!("{label} に数値でない値があります: {p:?}"))?;
         ids.push(n);
     }
-    Ok(DirScope::Ids(ids))
+    Ok(ids)
 }
 
 #[cfg(test)]

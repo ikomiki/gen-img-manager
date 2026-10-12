@@ -36,6 +36,10 @@ function toQuery(p: ListParams): Record<string, string | undefined> {
 
 export const listImages = (p: ListParams) => getJson<ImageDto[]>("/api/images", toQuery(p));
 
+/** 指定 ID の行だけを取る。順序は不定。 */
+export const listImagesByIds = (ids: number[]) =>
+  getJson<ImageDto[]>("/api/images", { ids: ids.join(",") });
+
 export const countImages = (p: ListParams) =>
   getJson<{ total: number }>("/api/images/count", toQuery(p));
 
