@@ -14,6 +14,10 @@ export type ZoomMode = "shrink" | "always";
 
 export interface ViewerPrefs {
   zoomMode: ZoomMode;
+  /** 情報パネルを開いているか。 */
+  infoOpen: boolean;
+  /** プロンプトを整形して表示・コピーするか（空行・カンマだけの行・前後空白を除去）。 */
+  normalizePrompt: boolean;
 }
 
 export interface Prefs {
@@ -41,7 +45,7 @@ export const DEFAULT_PREFS: Prefs = {
   dirs: null,
   history: [],
   slideshow: { intervalSec: 5, loop: true, shuffle: false },
-  viewer: { zoomMode: "shrink" },
+  viewer: { zoomMode: "shrink", infoOpen: false, normalizePrompt: false },
 };
 
 export const HISTORY_MAX = 50;
@@ -79,6 +83,7 @@ function asOneOf<T extends string>(v: unknown, allowed: readonly string[], fallb
 export function sanitizePrefs(raw: unknown): Prefs {
   const r = asRecord(raw);
   const s = asRecord(r.slideshow);
+  const v = asRecord(r.viewer);
   const intervalSec = typeof s.intervalSec === "number" && INTERVAL_CHOICES.includes(s.intervalSec)
     ? s.intervalSec
     : DEFAULT_PREFS.slideshow.intervalSec;
@@ -95,11 +100,9 @@ export function sanitizePrefs(raw: unknown): Prefs {
       shuffle: asBool(s.shuffle, DEFAULT_PREFS.slideshow.shuffle),
     },
     viewer: {
-      zoomMode: asOneOf<ZoomMode>(
-        asRecord(r.viewer).zoomMode,
-        ZOOM_MODES,
-        DEFAULT_PREFS.viewer.zoomMode,
-      ),
+      zoomMode: asOneOf<ZoomMode>(v.zoomMode, ZOOM_MODES, DEFAULT_PREFS.viewer.zoomMode),
+      infoOpen: asBool(v.infoOpen, DEFAULT_PREFS.viewer.infoOpen),
+      normalizePrompt: asBool(v.normalizePrompt, DEFAULT_PREFS.viewer.normalizePrompt),
     },
   };
 }

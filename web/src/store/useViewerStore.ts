@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { buildOrder, mulberry32, step } from "@gim/shared/playlist";
 import { loadPrefs, savePrefs, type ZoomMode } from "../storage";
+import type { InfoBlockKey } from "../util/infoBlocks";
 
 interface ViewerState {
   open: boolean;
@@ -12,6 +13,14 @@ interface ViewerState {
   zoomMode: ZoomMode;
   /** 上下のバーを出すか。画像をタップするたびに切り替わる。 */
   chromeVisible: boolean;
+  /** 情報パネルを開いているか。バーを隠している間は見えないが、この値は保つ。 */
+  infoOpen: boolean;
+  normalizePrompt: boolean;
+  /**
+   * 最大化しているテキストブロック。画像を送っても保ち、そのブロックが無い画像では
+   * 通常表示に戻して見せるだけで解除はしない。
+   */
+  maximizedBlock: InfoBlockKey | null;
   playing: boolean;
   intervalSec: number;
   loop: boolean;
@@ -32,11 +41,20 @@ interface ViewerState {
   setScale: (s: number) => void;
   toggleZoomMode: () => void;
   toggleChrome: () => void;
+  toggleInfo: () => void;
+  toggleNormalize: () => void;
+  setMaximizedBlock: (key: InfoBlockKey | null) => void;
   play: () => void;
   pause: () => void;
   setIntervalSec: (sec: number) => void;
   setLoop: (v: boolean) => void;
   setShuffle: (v: boolean, seed?: number) => void;
+}
+
+function saveViewerPrefs(s: Pick<ViewerState, "zoomMode" | "infoOpen" | "normalizePrompt">) {
+  savePrefs({
+    viewer: { zoomMode: s.zoomMode, infoOpen: s.infoOpen, normalizePrompt: s.normalizePrompt },
+  });
 }
 
 function makeOrder(length: number, shuffle: boolean, seed: number): number[] {
@@ -50,6 +68,9 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   scale: 1,
   zoomMode: "shrink",
   chromeVisible: true,
+  infoOpen: false,
+  normalizePrompt: false,
+  maximizedBlock: null,
   playing: false,
   intervalSec: 5,
   loop: true,
@@ -64,6 +85,8 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
       loop: slideshow.loop,
       shuffle: slideshow.shuffle,
       zoomMode: viewer.zoomMode,
+      infoOpen: viewer.infoOpen,
+      normalizePrompt: viewer.normalizePrompt,
     });
   },
 
@@ -135,10 +158,22 @@ export const useViewerStore = create<ViewerState>((set, get) => ({
   toggleZoomMode: () => {
     const zoomMode: ZoomMode = get().zoomMode === "shrink" ? "always" : "shrink";
     set({ zoomMode, scale: 1 });
-    savePrefs({ viewer: { zoomMode } });
+    saveViewerPrefs(get());
   },
 
   toggleChrome: () => set({ chromeVisible: !get().chromeVisible }),
+
+  toggleInfo: () => {
+    set({ infoOpen: !get().infoOpen });
+    saveViewerPrefs(get());
+  },
+
+  toggleNormalize: () => {
+    set({ normalizePrompt: !get().normalizePrompt });
+    saveViewerPrefs(get());
+  },
+
+  setMaximizedBlock: (key) => set({ maximizedBlock: key }),
 
   play: () => set({ playing: true }),
 

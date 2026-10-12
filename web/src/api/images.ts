@@ -49,3 +49,23 @@ export const thumbUrl = (id: number) => `/api/thumb/${id}`;
 
 export const imageUrl = (id: number, w?: number) =>
   w === undefined ? `/api/image/${id}` : `/api/image/${id}?w=${w}`;
+
+/** サーバの ImageDetailDto。情報パネルが表示する列だけ。 */
+export interface ImageDetailDto {
+  id: number;
+  filename: string;
+  width: number;
+  height: number;
+  rating: number | null;
+  source_tool: string;
+  model: string | null;
+  sampler: string | null;
+  steps: number | null;
+  cfg: number | null;
+  seed: number | null;
+  positive: string | null;
+  negative: string | null;
+  raw_parameters: string | null;
+}
+
+export const getImageDetail = (id: number) => getJson<ImageDetailDto>(`/api/images/${id}`);
