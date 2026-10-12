@@ -132,8 +132,19 @@ describe("loadPrefs（検証つき）", () => {
   });
 
   it("ズームモードを読み書きできる", () => {
-    savePrefs({ viewer: { zoomMode: "always" } });
+    savePrefs({ viewer: { ...DEFAULT_PREFS.viewer, zoomMode: "always" } });
     expect(loadPrefs().viewer.zoomMode).toBe("always");
+  });
+
+  it("情報パネルの開閉と整形を読み書きできる", () => {
+    savePrefs({ viewer: { zoomMode: "shrink", infoOpen: true, normalizePrompt: true } });
+    expect(loadPrefs().viewer).toEqual({ zoomMode: "shrink", infoOpen: true, normalizePrompt: true });
+  });
+
+  it("情報パネルの設定が真偽値でなければ既定値へ落ちる", () => {
+    const p = sanitizePrefs({ viewer: { infoOpen: "yes", normalizePrompt: 1 } });
+    expect(p.viewer.infoOpen).toBe(false);
+    expect(p.viewer.normalizePrompt).toBe(false);
   });
 });
 

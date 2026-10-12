@@ -9,6 +9,10 @@ beforeEach(() => {
     pos: 0,
     scale: 1,
     chromeVisible: true,
+    infoOpen: false,
+    normalizePrompt: false,
+    maximizedBlock: null,
+    zoomMode: "shrink",
     playing: false,
     intervalSec: 5,
     loop: true,
@@ -269,5 +273,34 @@ describe("go", () => {
 
     expect(useViewerStore.getState().pos).toBe(4);
     expect(useViewerStore.getState().playing).toBe(false);
+  });
+});
+
+describe("情報パネル", () => {
+  it("開閉と整形は保存され、ズームモードの保存で消えない", () => {
+    useViewerStore.getState().toggleInfo();
+    useViewerStore.getState().toggleNormalize();
+    useViewerStore.getState().toggleZoomMode();
+    const saved = JSON.parse(localStorage.getItem("gim.web.prefs")!);
+    expect(saved.viewer).toEqual({ zoomMode: "always", infoOpen: true, normalizePrompt: true });
+  });
+
+  it("画像を送っても、閉じて開き直しても開閉と最大化を保つ", () => {
+    useViewerStore.getState().openAt(0, 5);
+    useViewerStore.getState().toggleInfo();
+    useViewerStore.getState().setMaximizedBlock("negative");
+    useViewerStore.getState().go(1);
+    useViewerStore.getState().close();
+    useViewerStore.getState().openAt(2, 5);
+    const s = useViewerStore.getState();
+    expect(s.infoOpen).toBe(true);
+    expect(s.maximizedBlock).toBe("negative");
+  });
+
+  it("最大化は保存しない", () => {
+    useViewerStore.getState().setMaximizedBlock("prompt");
+    useViewerStore.getState().toggleInfo();
+    const saved = JSON.parse(localStorage.getItem("gim.web.prefs")!);
+    expect("maximizedBlock" in saved.viewer).toBe(false);
   });
 });
