@@ -1,6 +1,6 @@
 use crate::dirscope::parse_dirs;
 use crate::error::ApiError;
-use crate::extract::ApiQuery;
+use crate::extract::{ApiPath, ApiQuery};
 use crate::state::AppState;
 use axum::extract::State;
 use axum::Json;
@@ -95,6 +95,15 @@ pub async fn ids(
         params.sort_dir(),
     )?;
     Ok(Json(ids))
+}
+
+pub async fn detail(
+    State(state): State<AppState>,
+    ApiPath(id): ApiPath<i64>,
+) -> Result<Json<crate::dto::ImageDetailDto>, ApiError> {
+    let conn = state.conn()?;
+    let d = image_query::get_detail(&conn, id)?.ok_or(ApiError::NotFound)?;
+    Ok(Json(d.into()))
 }
 
 #[cfg(test)]
@@ -195,5 +204,22 @@ mod tests {
         ] {
             assert!(first.get(key).is_some(), "{key} が欠けている");
         }
+    }
+
+    #[tokio::test]
+    async fn detail_returns_prompt_without_paths() {
+        let (state, _tmp) = test_state();
+        let body = get_json(state, "/api/images/1").await;
+        assert_eq!(body["filename"], "a.png");
+        assert_eq!(body["positive"], "forest cabin");
+        for key in ["path", "thumb_path", "comfy_workflow"] {
+            assert!(body.get(key).is_none(), "{key} を返してはいけない");
+        }
+    }
+
+    #[tokio::test]
+    async fn detail_of_missing_id_is_404() {
+        let (state, _tmp) = test_state();
+        assert_eq!(get_raw(state, "/api/images/999").await.status(), 404);
     }
 }
