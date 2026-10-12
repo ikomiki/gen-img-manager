@@ -11,6 +11,7 @@ import { useViewerKeys } from "../hooks/useViewerKeys";
 import { buttonStyle } from "../ui";
 import { ZoomableImage } from "./ZoomableImage";
 import { SlideshowSheet } from "./SlideshowSheet";
+import { InfoPanel } from "./InfoPanel";
 
 /** 末尾からこの枚数以内に来たら次のページを取りにいく（全件ID が取れていないときの退避）。 */
 const LOAD_MORE_MARGIN = 5;
@@ -34,6 +35,8 @@ export function Viewer() {
   const pause = useViewerStore((s) => s.pause);
   const zoomMode = useViewerStore((s) => s.zoomMode);
   const toggleZoomMode = useViewerStore((s) => s.toggleZoomMode);
+  const infoOpen = useViewerStore((s) => s.infoOpen);
+  const toggleInfo = useViewerStore((s) => s.toggleInfo);
 
   const results = useQueryStore((s) => s.results);
   const exhausted = useQueryStore((s) => s.exhausted);
@@ -198,16 +201,33 @@ export function Viewer() {
           >
             {filename}
           </span>
+          <button
+            type="button"
+            aria-label="情報"
+            aria-pressed={infoOpen}
+            onClick={toggleInfo}
+            style={{
+              ...buttonStyle,
+              padding: "0 12px",
+              background: infoOpen ? "var(--accent)" : buttonStyle.background,
+            }}
+          >
+            情報
+          </button>
         </div>
       )}
 
-      <ZoomableImage
-        src={src}
-        alt={filename}
-        onTap={toggleChrome}
-        onSwipe={(a) => go(a === "next" ? 1 : -1)}
-        onSettled={() => setSettledSrc(src)}
-      />
+      <div style={{ flex: 1, minHeight: 0, display: "flex", position: "relative" }}>
+        <ZoomableImage
+          src={src}
+          alt={filename}
+          onTap={toggleChrome}
+          onSwipe={(a) => go(a === "next" ? 1 : -1)}
+          onSettled={() => setSettledSrc(src)}
+        />
+        {/* バーを隠すのは画像だけを見たいときなので、パネルも一緒に隠す（開閉の状態は保つ）。 */}
+        {chromeVisible && infoOpen && id !== undefined && <InfoPanel id={id} />}
+      </div>
 
       {chromeVisible && (
         <div

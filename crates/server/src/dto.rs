@@ -1,6 +1,6 @@
 //! HTTP 応答の型。ファイルシステム上のパスをクライアントへ出さないための境界。
 
-use gim_core::db::image_query::ImageRow;
+use gim_core::db::image_query::{ImageDetail, ImageRow};
 use gim_core::models::Directory;
 use serde::Serialize;
 
@@ -31,6 +31,47 @@ impl From<ImageRow> for ImageDto {
             modified_at: r.modified_at,
             source_tool: r.source_tool,
             model: r.model,
+        }
+    }
+}
+
+/// ビューアの情報パネルが表示する列だけ。path に加えて comfy_workflow も出さないのは、
+/// パネルで使わないうえに大きく、1枚送るたびに転送されるため。
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ImageDetailDto {
+    pub id: i64,
+    pub filename: String,
+    pub width: i64,
+    pub height: i64,
+    pub rating: Option<i64>,
+    pub source_tool: String,
+    pub model: Option<String>,
+    pub sampler: Option<String>,
+    pub steps: Option<i64>,
+    pub cfg: Option<f64>,
+    pub seed: Option<i64>,
+    pub positive: Option<String>,
+    pub negative: Option<String>,
+    pub raw_parameters: Option<String>,
+}
+
+impl From<ImageDetail> for ImageDetailDto {
+    fn from(d: ImageDetail) -> Self {
+        Self {
+            id: d.id,
+            filename: d.filename,
+            width: d.width,
+            height: d.height,
+            rating: d.rating,
+            source_tool: d.source_tool,
+            model: d.model,
+            sampler: d.sampler,
+            steps: d.steps,
+            cfg: d.cfg,
+            seed: d.seed,
+            positive: d.positive,
+            negative: d.negative,
+            raw_parameters: d.raw_parameters,
         }
     }
 }

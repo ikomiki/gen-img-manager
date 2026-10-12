@@ -29,6 +29,7 @@ pub fn api_router(_state: AppState) -> Router<AppState> {
         .route("/images", get(images::list))
         .route("/images/count", get(images::count))
         .route("/images/ids", get(images::ids))
+        .route("/images/{id}", get(images::detail))
         .route("/thumb/{id}", get(media::thumb))
         .route("/image/{id}", get(media::image))
         .method_not_allowed_fallback(method_not_allowed)
