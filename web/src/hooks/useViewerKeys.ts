@@ -16,6 +16,7 @@ export function useViewerKeys({ enabled, rootRef }: Options): void {
   const pause = useViewerStore((s) => s.pause);
   const play = useViewerStore((s) => s.play);
   const close = useViewerStore((s) => s.close);
+  const toggleInfo = useViewerStore((s) => s.toggleInfo);
 
   useEffect(() => {
     if (!enabled) return;
@@ -38,9 +39,12 @@ export function useViewerKeys({ enabled, rootRef }: Options): void {
       } else if (isPlainKey(e, "f")) {
         e.preventDefault();
         toggleFullscreen(rootRef.current);
+      } else if (isPlainKey(e, "i")) {
+        e.preventDefault();
+        toggleInfo();
       }
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [enabled, go, pause, play, close, rootRef]);
+  }, [enabled, go, pause, play, close, toggleInfo, rootRef]);
 }
