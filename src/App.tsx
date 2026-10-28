@@ -81,6 +81,8 @@ function App() {
         void toggleShowCurrentPosition();
       } else if (id === "show_current_rating") {
         void toggleShowCurrentRating();
+      } else if (id === "show_search_info") {
+        useQueryStore.getState().toggleShowSearchInfo();
       } else if (id === "open_analysis") {
         useAnalysisStore.getState().toggleOpen();
       } else if (id.startsWith("zoom_")) {

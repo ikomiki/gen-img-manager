@@ -852,6 +852,26 @@ body,
   pointer-events: none;
 }
 
+/* ビューア: 検索用情報（デバッグ）。左上に生テキストをそのまま出す。 */
+.viewer-overlay-search-info {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  max-width: 60%;
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  z-index: 3;
+  user-select: text;
+}
+
 /* ビューア: レーティング入力モードのキャプション（右上・目立つ背景色） */
 .viewer-rating-caption {
   position: absolute;
