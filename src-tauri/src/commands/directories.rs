@@ -10,11 +10,7 @@ pub fn add_directory(
     path: String,
     recursive: bool,
 ) -> Result<Directory, String> {
-    let label = Path::new(&path)
-        .file_name()
-        .and_then(|s| s.to_str())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| path.clone());
+    let label = default_label(&path);
     let dir = {
         let conn = db.0.lock().map_err(|e| e.to_string())?;
         crate::db::directories::add(&conn, &path, &label, recursive).map_err(|e| e.to_string())?
@@ -22,6 +18,14 @@ pub fn add_directory(
     // 追加ディレクトリ配下の原画像を asset protocol で表示できるよう許可する。
     let _ = app.asset_protocol_scope().allow_directory(Path::new(&path), recursive);
     Ok(dir)
+}
+
+fn default_label(path: &str) -> String {
+    Path::new(path)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| path.to_string())
 }
 
 #[tauri::command]
@@ -40,4 +44,19 @@ pub fn remove_directory(db: State<Db>, id: i64) -> Result<(), String> {
 pub fn set_directory_visible(db: State<Db>, id: i64, visible: bool) -> Result<(), String> {
     let conn = db.0.lock().map_err(|e| e.to_string())?;
     crate::db::directories::set_visible(&conn, id, visible).map_err(|e| e.to_string())
+}
+
+/// 空文字が渡されたらフォルダ名に戻す。確定した表示名を返す。
+#[tauri::command]
+pub fn set_directory_label(db: State<Db>, id: i64, label: String) -> Result<String, String> {
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let trimmed = label.trim();
+    let label = if trimmed.is_empty() {
+        let dir = crate::db::directories::get(&conn, id).map_err(|e| e.to_string())?;
+        default_label(&dir.path)
+    } else {
+        trimmed.to_string()
+    };
+    crate::db::directories::set_label(&conn, id, &label).map_err(|e| e.to_string())?;
+    Ok(label)
 }
