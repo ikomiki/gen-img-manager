@@ -24,6 +24,14 @@ pub fn compile(pq: &ParsedQuery) -> CompiledFilter {
         params.push(Value::Text(exc.clone()));
     }
 
+    for t in &pq.negative_terms {
+        let not = if t.negate { "NOT " } else { "" };
+        clauses.push(format!(
+            "(source_tool = 'comfyui' OR id {not}IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?))"
+        ));
+        params.push(Value::Text(t.expr.clone()));
+    }
+
     for cond in &pq.conds {
         let (frag, ps) = compile_cond(cond);
         clauses.push(frag);
@@ -110,6 +118,19 @@ mod tests {
         assert_eq!(cf.params[0], Value::Text("\"forest\"".to_string()));
         assert_eq!(cf.params[1], Value::Text("\"blurry\"".to_string()));
         assert_eq!(cf.params[2], Value::Integer(4));
+    }
+
+    #[test]
+    fn negative_terms_skip_comfyui() {
+        let cf = compile(&parse("negative:blurry -negative:text"));
+        assert_eq!(
+            cf.where_sql,
+            "missing = 0 \
+             AND (source_tool = 'comfyui' OR id IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?)) \
+             AND (source_tool = 'comfyui' OR id NOT IN (SELECT rowid FROM images_fts WHERE images_fts MATCH ?))"
+        );
+        assert_eq!(cf.params[0], Value::Text("negative : \"blurry\"".to_string()));
+        assert_eq!(cf.params[1], Value::Text("negative : \"text\"".to_string()));
     }
 
     #[test]

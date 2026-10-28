@@ -31,6 +31,7 @@ rating:none,1,2 model:sdxl
 
 対応フィールド: `prompt:` `negative:` `model:` `filename:` `sampler:` `tool:` `rating:` `width:` `height:` `pixels:` `steps:` `seed:` `created:` `modified:`
 演算子: 比較（`>=` `<=` `>` `<`）、範囲（`A..B`）、集合（`1,3,5`）、除外（`-`）、OR、フレーズ（`"..."`）
+ComfyUI 画像はプロンプトの正負を区別せずすべて `prompt:` の対象にするため、`negative:` 条件は ComfyUI 画像には適用されない（条件に関わらずヒットする）。
 
 ## 開発
 
