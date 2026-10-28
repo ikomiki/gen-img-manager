@@ -44,6 +44,9 @@ interface QueryState {
   toggleShowCurrentFilename: () => Promise<void>;
   toggleShowCurrentPosition: () => Promise<void>;
   toggleShowCurrentRating: () => Promise<void>;
+  /** デバッグ: ビューアで検索対象テキスト（FTS列）を表示する。メニューからのみ切替、非永続。 */
+  showSearchInfo: boolean;
+  toggleShowSearchInfo: () => void;
 }
 
 // useQueryStore → useViewerStore の循環 import を避けるため、クエリ総入替時の
@@ -71,6 +74,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   showCurrentFilename: false,
   showCurrentPosition: false,
   showCurrentRating: false,
+  showSearchInfo: false,
   setQuery: (q) => set({ query: q }),
   setSort: (sort, dir) => {
     set({ sort, dir });
@@ -261,4 +265,5 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     await prefsApi.setSetting("show_current_rating", String(next));
     prefsApi.syncCurrentRatingMenu(next).catch((e) => console.error("syncCurrentRatingMenu failed:", e));
   },
+  toggleShowSearchInfo: () => set({ showSearchInfo: !get().showSearchInfo }),
 }));

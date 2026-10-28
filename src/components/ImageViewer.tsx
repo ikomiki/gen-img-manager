@@ -43,6 +43,7 @@ export function ImageViewer() {
   const showCurrentFilename = useQueryStore((s) => s.showCurrentFilename);
   const showCurrentPosition = useQueryStore((s) => s.showCurrentPosition);
   const showCurrentRating = useQueryStore((s) => s.showCurrentRating);
+  const showSearchInfo = useQueryStore((s) => s.showSearchInfo);
   const image = results[index];
 
   const [detail, setDetail] = useState<ImageDetail | null>(null);
@@ -317,6 +318,11 @@ export function ImageViewer() {
           )}
           {ratingMode && (
             <div className="viewer-rating-caption">レーティング入力モード</div>
+          )}
+          {showSearchInfo && detail && (
+            <pre className="viewer-overlay-search-info">
+              {`id: ${detail.id}\nsource_tool: ${detail.source_tool}\nfilename: ${detail.filename}\nmodel: ${detail.model ?? "(null)"}\n\n[positive]\n${detail.positive ?? "(null)"}\n\n[negative]\n${detail.negative ?? "(null)"}\n\n[raw_parameters]\n${detail.raw_parameters ?? "(null)"}`}
+            </pre>
           )}
           <button
             className="viewer-nav next"

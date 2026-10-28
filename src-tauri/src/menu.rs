@@ -52,6 +52,10 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
     )?;
     let open_analysis =
         MenuItem::with_id(app, "open_analysis", "分析", true, Some("CmdOrCtrl+Shift+A"))?;
+    // デバッグ用。メニューからのみ切り替え、永続化もフロントからの同期もしない（起動時は常にOFF）。
+    let show_search_info = CheckMenuItem::with_id(
+        app, "show_search_info", "検索用情報を表示（デバッグ）", true, false, None::<&str>,
+    )?;
 
     let rating_submenu = SubmenuBuilder::new(app, "レーティング")
         .item(&rating_mode)
@@ -86,6 +90,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
         .item(&show_current_rating)
         .separator()
         .item(&open_analysis)
+        .separator()
+        .item(&show_search_info)
         .separator()
         .item(&fullscreen)
         .build()?;
