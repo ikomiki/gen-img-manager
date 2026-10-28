@@ -23,27 +23,30 @@ struct ScanDone {
 }
 
 /// 1ディレクトリをバックグラウンドでスキャンし、進捗を `scan-progress`、完了を `scan-done` で通知する。
+/// `force` が真なら変更検出を無視して全件のメタデータを取り直す。
 #[tauri::command]
-pub fn scan_directory(app: AppHandle, db: State<Db>, id: i64) -> Result<(), String> {
+pub fn scan_directory(app: AppHandle, db: State<Db>, id: i64, force: Option<bool>) -> Result<(), String> {
     let conn_arc = db.0.clone();
     let td = thumb_dir(&app)?;
+    let force = force.unwrap_or(false);
     tauri::async_runtime::spawn(async move {
-        run_scan_ids(&app, conn_arc, &td, &[id], &std::collections::HashSet::new());
+        run_scan_ids(&app, conn_arc, &td, &[id], &std::collections::HashSet::new(), force);
     });
     Ok(())
 }
 
-/// 全ディレクトリをバックグラウンドでスキャンする。
+/// 全ディレクトリをバックグラウンドでスキャンする。`force` の意味は scan_directory と同じ。
 #[tauri::command]
-pub fn scan_all(app: AppHandle, db: State<Db>) -> Result<(), String> {
+pub fn scan_all(app: AppHandle, db: State<Db>, force: Option<bool>) -> Result<(), String> {
     let conn_arc = db.0.clone();
     let td = thumb_dir(&app)?;
+    let force = force.unwrap_or(false);
     tauri::async_runtime::spawn(async move {
         let ids: Vec<i64> = {
             let conn = conn_arc.lock().unwrap_or_else(|e| e.into_inner());
             directories::list(&conn).unwrap_or_default().into_iter().map(|d| d.id).collect()
         };
-        run_scan_ids(&app, conn_arc, &td, &ids, &std::collections::HashSet::new());
+        run_scan_ids(&app, conn_arc, &td, &ids, &std::collections::HashSet::new(), force);
     });
     Ok(())
 }
@@ -62,7 +65,7 @@ pub fn rebuild_directory(app: AppHandle, db: State<Db>, id: i64) -> Result<(), S
                 failed_pre.insert(id);
             }
         }
-        run_scan_ids(&app, conn_arc, &td, &[id], &failed_pre);
+        run_scan_ids(&app, conn_arc, &td, &[id], &failed_pre, false);
     });
     Ok(())
 }
@@ -85,7 +88,7 @@ pub fn rebuild_all(app: AppHandle, db: State<Db>) -> Result<(), String> {
             }
             ids
         };
-        run_scan_ids(&app, conn_arc, &td, &ids, &failed_pre);
+        run_scan_ids(&app, conn_arc, &td, &ids, &failed_pre, false);
     });
     Ok(())
 }
@@ -101,6 +104,7 @@ fn run_scan_ids(
     thumb_dir: &std::path::Path,
     ids: &[i64],
     failed_pre: &std::collections::HashSet<i64>,
+    force: bool,
 ) {
     let now = now_secs();
     // 並列度（settings.scan_concurrency。未設定/不正なら既定値）。スキャン全体で1回読む。
@@ -124,7 +128,7 @@ fn run_scan_ids(
                 let app_cb = app.clone();
                 // scan_directory 内部でフェーズごとにロックを取得/解放するため、
                 // 長い並列フェーズ中はDBロックを保持しない（スキャン中も他操作が可能）。
-                scanner::scan_directory(&conn_arc, &dir, thumb_dir, now, concurrency, move |p| {
+                scanner::scan_directory(&conn_arc, &dir, thumb_dir, now, concurrency, force, move |p| {
                     let _ = app_cb.emit("scan-progress", &p);
                 })
                 .is_ok()
