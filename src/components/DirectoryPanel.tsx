@@ -37,10 +37,12 @@ export function DirectoryPanel() {
   const clearScanProgress = useLibraryStore((s) => s.clearScanProgress);
   const loadDirectories = useLibraryStore((s) => s.loadDirectories);
   const setDirectoryVisible = useLibraryStore((s) => s.setDirectoryVisible);
+  const setDirectoryLabel = useLibraryStore((s) => s.setDirectoryLabel);
   const runQuery = useQueryStore((s) => s.runQuery);
 
   const [pendingDelete, setPendingDelete] = useState<Directory | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
   // バックエンドの進捗/完了イベントを購読。
   useEffect(() => {
@@ -131,6 +133,16 @@ export function DirectoryPanel() {
     }
   };
 
+  const commitLabel = async (d: Directory, value: string) => {
+    setEditingId(null);
+    if (value === d.label) return;
+    try {
+      await setDirectoryLabel(d.id, value);
+    } catch (e) {
+      console.error("表示名の変更に失敗しました:", e);
+    }
+  };
+
   return (
     <aside className="directory-panel">
       <div className="panel-header">
@@ -169,9 +181,33 @@ export function DirectoryPanel() {
               </button>
               <div className="dir-main">
                 <div className="dir-row1">
-                  <span className="dir-label" title={d.path}>
-                    {d.label}
-                  </span>
+                  {editingId === d.id ? (
+                    // 確定は blur に一本化する。Escape は値を戻してから blur させ、未保存の入力を捨てる。
+                    <input
+                      className="dir-label"
+                      autoFocus
+                      defaultValue={d.label}
+                      placeholder="空欄でフォルダ名に戻す"
+                      aria-label="表示名"
+                      onBlur={(e) => void commitLabel(d, e.currentTarget.value)}
+                      onKeyDown={(e) => {
+                        // IME 変換確定の Enter で保存しない。
+                        if (e.key === "Enter" && !e.nativeEvent.isComposing) e.currentTarget.blur();
+                        if (e.key === "Escape") {
+                          e.currentTarget.value = d.label;
+                          e.currentTarget.blur();
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span
+                      className="dir-label"
+                      title={`${d.path}\nダブルクリックで表示名を変更`}
+                      onDoubleClick={() => setEditingId(d.id)}
+                    >
+                      {d.label}
+                    </span>
+                  )}
                   <button className="scan-btn" aria-label="スキャン" title="スキャン" onClick={() => handleScan(d.id)}>
                     ⟳
                   </button>

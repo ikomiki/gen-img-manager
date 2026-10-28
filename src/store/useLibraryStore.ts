@@ -9,6 +9,7 @@ interface LibraryState {
   addDirectory: (path: string, recursive: boolean) => Promise<void>;
   removeDirectory: (id: number) => Promise<void>;
   setDirectoryVisible: (id: number, visible: boolean) => Promise<void>;
+  setDirectoryLabel: (id: number, label: string) => Promise<void>;
   setScanProgress: (p: ScanProgress) => void;
   clearScanProgress: (id: number) => void;
 }
@@ -32,6 +33,14 @@ export const useLibraryStore = create<LibraryState>((set, get) => ({
     set({
       directories: get().directories.map((d) =>
         d.id === id ? { ...d, visible } : d,
+      ),
+    });
+  },
+  setDirectoryLabel: async (id, label) => {
+    const saved = await api.setDirectoryLabel(id, label);
+    set({
+      directories: get().directories.map((d) =>
+        d.id === id ? { ...d, label: saved } : d,
       ),
     });
   },
