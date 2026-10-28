@@ -77,6 +77,14 @@ pub fn set_visible(conn: &Connection, id: i64, visible: bool) -> rusqlite::Resul
     Ok(())
 }
 
+pub fn set_label(conn: &Connection, id: i64, label: &str) -> rusqlite::Result<()> {
+    conn.execute(
+        "UPDATE directories SET label = ?2 WHERE id = ?1",
+        params![id, label],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,6 +152,14 @@ mod tests {
         assert!(!get(&c, d.id).unwrap().visible);
         set_visible(&c, d.id, true).unwrap();
         assert!(get(&c, d.id).unwrap().visible);
+    }
+
+    #[test]
+    fn set_label_persists() {
+        let c = conn();
+        let d = add(&c, "/a/sd", "sd", true).unwrap();
+        set_label(&c, d.id, "NAS の sd").unwrap();
+        assert_eq!(get(&c, d.id).unwrap().label, "NAS の sd");
     }
 
     #[test]

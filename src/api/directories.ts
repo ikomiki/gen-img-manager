@@ -11,3 +11,6 @@ export const removeDirectory = (id: number) =>
 
 export const setDirectoryVisible = (id: number, visible: boolean) =>
   invoke<void>("set_directory_visible", { id, visible });
+
+export const setDirectoryLabel = (id: number, label: string) =>
+  invoke<string>("set_directory_label", { id, label });
