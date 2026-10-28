@@ -190,6 +190,7 @@ pub fn scan_directory<F: Fn(ScanProgress) + Sync>(
     thumb_dir: &Path,
     now: i64,
     concurrency: usize,
+    force: bool,
     on_progress: F,
 ) -> rusqlite::Result<ScanSummary> {
     let root = Path::new(&dir.path);
@@ -219,8 +220,11 @@ pub fn scan_directory<F: Fn(ScanProgress) + Sync>(
         let c = lock_conn(conn);
         images::list_meta_in_directory(&c, dir.id)?
     };
+    // force 時は変更検出を無効化して全件 parse し直す（既存行は upsert で更新され、
+    // rating は COALESCE で保持される）。missing 検出には引き続き existing を使う。
     let prev_map: std::collections::HashMap<String, PrevMeta> = existing
         .iter()
+        .filter(|_| !force)
         .map(|(path, id, size, mtime, missing)| {
             (
                 path.clone(),
@@ -350,15 +354,21 @@ mod tests {
         write_png_with_params(&base.join("a.png"), "a cat\nSteps: 10, Seed: 1");
         write_png_with_params(&base.join("b.png"), "a dog\nSteps: 12, Seed: 2");
 
-        let s1 = scan_directory(&c, &dir, &thumb_dir, 1000, 4, |_| {}).unwrap();
+        let s1 = scan_directory(&c, &dir, &thumb_dir, 1000, 4, false, |_| {}).unwrap();
         assert!(s1.reachable);
         assert_eq!(s1.added_or_updated, 2);
         assert_eq!(count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 2);
 
         // 2回目: 変更なし → 全てスキップ。
-        let s2 = scan_directory(&c, &dir, &thumb_dir, 1001, 4, |_| {}).unwrap();
+        let s2 = scan_directory(&c, &dir, &thumb_dir, 1001, 4, false, |_| {}).unwrap();
         assert_eq!(s2.added_or_updated, 0);
         assert_eq!(s2.skipped, 2);
+
+        // 強制再スキャン: 変更が無くても全件 parse し直し、行数は増えない。
+        let s3 = scan_directory(&c, &dir, &thumb_dir, 1002, 4, true, |_| {}).unwrap();
+        assert_eq!(s3.added_or_updated, 2);
+        assert_eq!(s3.skipped, 0);
+        assert_eq!(count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 2);
 
         // 検索（FTS）が効く。
         let hits: i64 = c.lock().unwrap()
@@ -375,11 +385,11 @@ mod tests {
         let thumb_dir = base.join("thumbs");
         let a = base.join("a.png");
         write_png_with_params(&a, "x\nSteps: 1, Seed: 1");
-        scan_directory(&c, &dir, &thumb_dir, 1000, 4, |_| {}).unwrap();
+        scan_directory(&c, &dir, &thumb_dir, 1000, 4, false, |_| {}).unwrap();
         assert_eq!(count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 1);
 
         std::fs::remove_file(&a).unwrap();
-        let s = scan_directory(&c, &dir, &thumb_dir, 1001, 4, |_| {}).unwrap();
+        let s = scan_directory(&c, &dir, &thumb_dir, 1001, 4, false, |_| {}).unwrap();
         assert_eq!(s.missing, 1);
         // missing は count から除外（行は残る）。
         assert_eq!(count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 0);
@@ -395,7 +405,7 @@ mod tests {
         migrations::run(&conn).unwrap();
         let dir = directories::add(&conn, "/no/such/path/gim_unreachable", "x", true).unwrap();
         let c = Arc::new(Mutex::new(conn));
-        let s = scan_directory(&c, &dir, Path::new("/tmp/thumbs"), 1000, 4, |_| {}).unwrap();
+        let s = scan_directory(&c, &dir, Path::new("/tmp/thumbs"), 1000, 4, false, |_| {}).unwrap();
         assert!(!s.reachable);
         assert!(!directories::get(&c.lock().unwrap(), dir.id).unwrap().is_online);
     }
@@ -451,10 +461,10 @@ mod tests {
         for i in 0..30 {
             write_png_with_params(&base.join(format!("f{i}.png")), &format!("p{i}\nSteps: 1, Seed: {i}"));
         }
-        let s1 = scan_directory(&c, &dir, &thumb_dir, 1000, 8, |_| {}).unwrap();
+        let s1 = scan_directory(&c, &dir, &thumb_dir, 1000, 8, false, |_| {}).unwrap();
         assert_eq!(s1.added_or_updated, 30);
         assert_eq!(count_in_directory(&c.lock().unwrap(), dir.id).unwrap(), 30);
-        let s2 = scan_directory(&c, &dir, &thumb_dir, 1001, 8, |_| {}).unwrap();
+        let s2 = scan_directory(&c, &dir, &thumb_dir, 1001, 8, false, |_| {}).unwrap();
         assert_eq!(s2.added_or_updated, 0);
         assert_eq!(s2.skipped, 30);
         std::fs::remove_dir_all(&base).ok();
@@ -467,7 +477,7 @@ mod tests {
         write_png_with_params(&base.join("a.png"), "x\nSteps: 1, Seed: 1");
         write_png_with_params(&base.join("b.png"), "y\nSteps: 1, Seed: 2");
         let max_processed = std::sync::atomic::AtomicUsize::new(0);
-        scan_directory(&c, &dir, &thumb_dir, 1000, 4, |p| {
+        scan_directory(&c, &dir, &thumb_dir, 1000, 4, false, |p| {
             assert_eq!(p.total, 2);
             max_processed.fetch_max(p.processed, std::sync::atomic::Ordering::Relaxed);
         })
@@ -484,7 +494,7 @@ mod tests {
             &base.join("a.png"),
             "forest, 1girl\nNegative prompt: blurry\nSteps: 10, Seed: 1",
         );
-        scan_directory(&c, &dir, &thumb_dir, 1000, 4, |_| {}).unwrap();
+        scan_directory(&c, &dir, &thumb_dir, 1000, 4, false, |_| {}).unwrap();
 
         let conn = c.lock().unwrap();
         let prompt: i64 = conn

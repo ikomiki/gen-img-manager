@@ -1,5 +1,5 @@
 use chrono::{Local, NaiveDate, TimeZone};
-use super::{Cond, CondOp, ParsedQuery};
+use super::{Cond, CondOp, NegativeTerm, ParsedQuery};
 
 /// クエリフィールド名 -> FTS列名（テキスト系フィールド）。
 fn text_field_column(field: &str) -> Option<&'static str> {
@@ -316,6 +316,7 @@ pub fn parse(input: &str) -> ParsedQuery {
     let mut include = String::new();
     let mut include_or_pending = false;
     let mut excludes: Vec<String> = Vec::new();
+    let mut negative_terms: Vec<NegativeTerm> = Vec::new();
     let mut conds: Vec<Cond> = Vec::new();
 
     let append_include = |buf: &mut String, or_pending: &mut bool, expr: &str| {
@@ -365,7 +366,9 @@ pub fn parse(input: &str) -> ParsedQuery {
                         fts_quote(value)
                     };
                     let expr = format!("{col} : {rhs}");
-                    if negate {
+                    if col == "negative" {
+                        negative_terms.push(NegativeTerm { expr, negate });
+                    } else if negate {
                         excludes.push(expr);
                     } else {
                         append_include(&mut include, &mut include_or_pending, &expr);
@@ -386,6 +389,7 @@ pub fn parse(input: &str) -> ParsedQuery {
     ParsedQuery {
         fts_include: if include.is_empty() { None } else { Some(include) },
         fts_exclude: if excludes.is_empty() { None } else { Some(excludes.join(" OR ")) },
+        negative_terms,
         conds,
     }
 }
@@ -431,7 +435,11 @@ mod tests {
     fn field_exclusion() {
         let pq = parse("-negative:blurry");
         assert_eq!(pq.fts_include, None);
-        assert_eq!(pq.fts_exclude.as_deref(), Some("negative : \"blurry\""));
+        assert_eq!(pq.fts_exclude, None);
+        assert_eq!(
+            pq.negative_terms,
+            vec![NegativeTerm { expr: "negative : \"blurry\"".into(), negate: true }]
+        );
     }
 
     #[test]
@@ -584,7 +592,11 @@ mod tests {
     fn negated_quoted_field_value() {
         let pq = parse("-negative:\"low quality\"");
         assert_eq!(pq.fts_include, None);
-        assert_eq!(pq.fts_exclude.as_deref(), Some("negative : \"low quality\""));
+        assert_eq!(pq.fts_exclude, None);
+        assert_eq!(
+            pq.negative_terms,
+            vec![NegativeTerm { expr: "negative : \"low quality\"".into(), negate: true }]
+        );
     }
 
     #[test]

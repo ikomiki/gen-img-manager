@@ -96,24 +96,24 @@ export function DirectoryPanel() {
     }
   };
 
-  const handleScan = async (id: number) => {
+  const handleScan = async (id: number, force = false) => {
     // ボタン押下と同時に「スキャン中」を表示する（最初の進捗イベントを待たない）。
     setScanProgress({ directory_id: id, processed: 0, total: 0, current: "" });
     try {
-      await scanApi.scanDirectory(id);
+      await scanApi.scanDirectory(id, force);
     } catch (e) {
       console.error("スキャンの開始に失敗しました:", e);
       clearScanProgress(id);
     }
   };
 
-  const handleScanAll = async () => {
+  const handleScanAll = async (force = false) => {
     // 全ディレクトリを即「スキャン中」にする（バックエンドは順次処理）。
     for (const d of directories) {
       setScanProgress({ directory_id: d.id, processed: 0, total: 0, current: "" });
     }
     try {
-      await scanApi.scanAll();
+      await scanApi.scanAll(force);
     } catch (e) {
       console.error("全スキャンの開始に失敗しました:", e);
       for (const d of directories) {
@@ -137,8 +137,15 @@ export function DirectoryPanel() {
         <h2>ディレクトリ</h2>
         <button onClick={handleAdd}>＋ 追加</button>
       </div>
-      <button className="scan-all-btn" onClick={handleScanAll}>
+      <button className="scan-all-btn" onClick={() => handleScanAll()}>
         全スキャン
+      </button>
+      <button
+        className="scan-all-btn"
+        onClick={() => handleScanAll(true)}
+        title="変更の有無に関わらず全画像のメタデータを取り直す（レーティングは保持）"
+      >
+        強制再スキャン
       </button>
       <ul className="directory-list">
         {directories.map((d) => {
@@ -165,8 +172,16 @@ export function DirectoryPanel() {
                   <span className="dir-label" title={d.path}>
                     {d.label}
                   </span>
-                  <button className="scan-btn" aria-label="スキャン" onClick={() => handleScan(d.id)}>
+                  <button className="scan-btn" aria-label="スキャン" title="スキャン" onClick={() => handleScan(d.id)}>
                     ⟳
+                  </button>
+                  <button
+                    className="scan-btn"
+                    aria-label="強制再スキャン"
+                    title="強制再スキャン（全画像のメタデータを取り直す）"
+                    onClick={() => handleScan(d.id, true)}
+                  >
+                    ⟳!
                   </button>
                   <button className="remove-btn" aria-label="削除" onClick={() => handleRemove(d)}>
                     ×

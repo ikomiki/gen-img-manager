@@ -24,11 +24,20 @@ pub struct Cond {
     pub negate: bool,
 }
 
+/// `negative:` 条件の1項。ComfyUI は正負のプロンプトを区別できず negative 列が空なので、
+/// この条件は comfyui 画像には適用しない（FTS式から分離してSQL側で OR する）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct NegativeTerm {
+    pub expr: String, // FTS5 MATCH式（negative : ...）
+    pub negate: bool,
+}
+
 /// パース結果。テキストはFTS式、構造化条件は Cond。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ParsedQuery {
     pub fts_include: Option<String>, // 正のFTS5 MATCH式
     pub fts_exclude: Option<String>, // 除外のFTS5 MATCH式（id NOT IN に使う）
+    pub negative_terms: Vec<NegativeTerm>,
     pub conds: Vec<Cond>,
 }
 
