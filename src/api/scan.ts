@@ -4,3 +4,4 @@ export const scanDirectory = (id: number, force = false) => invoke<void>("scan_d
 export const scanAll = (force = false) => invoke<void>("scan_all", { force });
 export const rebuildDirectory = (id: number) => invoke<void>("rebuild_directory", { id });
 export const rebuildAll = () => invoke<void>("rebuild_all");
+export const dockerServerRunning = () => invoke<boolean>("docker_server_running");

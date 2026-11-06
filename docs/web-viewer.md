@@ -71,6 +71,10 @@ cargo run -p gim-server -- --port 5180
 
 ## Docker での公開
 
+> **macOS / Windows（Docker Desktop）ではデスクトップ版と同時に使わないでください。** Docker Desktop の bind mount は VM 越しのファイル共有のため、SQLite の WAL モードが前提とするファイルロックと `library.db-shm` の共有メモリがホストと共有されません。デスクトップ版が書き込み中（特にスキャン中）にコンテナが `library.db` を開くと、デスクトップ版がクラッシュし、DB が壊れるおそれがあります。これらの環境ではネイティブの `gim-server`（`cargo run -p gim-server -- --port 5180`）を使ってください。Docker での公開はホストとコンテナが同じカーネルを使う Linux ホスト向けです。
+>
+> デスクトップ版はスキャン前に `127.0.0.1:25180` で gim-server が応答するかを確かめ、応答があれば警告します。`GIM_WEB_PORT` で公開ポートを変えている場合は検知されません。
+
 `Dockerfile`（マルチステージ: web ビルド → `gim-server` ビルド → `debian:bookworm-slim` 実行）と `docker-compose.yml` をリポジトリ直下に置いています。公開ポートは既定 **25180**（コンテナ内は 5180）。
 
 ```bash

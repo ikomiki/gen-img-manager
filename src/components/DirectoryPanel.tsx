@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, ask } from "@tauri-apps/plugin-dialog";
 import { listen } from "@tauri-apps/api/event";
 import { useLibraryStore } from "../store/useLibraryStore";
 import { useQueryStore } from "../store/useQueryStore";
@@ -98,7 +98,17 @@ export function DirectoryPanel() {
     }
   };
 
+  // macOS の Docker Desktop は VM 越しの bind mount で SQLite の WAL ロックを共有できず、
+  // コンテナと同時に書き込むとアプリが落ちる。誤検知もあり得るので続行は選べるようにする。
+  const confirmNoDockerServer = async () =>
+    !(await scanApi.dockerServerRunning()) ||
+    ask(
+      "Docker 版 gim-server が動いています。同時に使うとアプリがクラッシュしたり、ライブラリが壊れたりするおそれがあります。\n\n`docker compose down` で止めてからスキャンしてください。",
+      { title: "スキャン前の確認", kind: "warning", okLabel: "続行", cancelLabel: "キャンセル" },
+    );
+
   const handleScan = async (id: number, force = false) => {
+    if (!(await confirmNoDockerServer())) return;
     // ボタン押下と同時に「スキャン中」を表示する（最初の進捗イベントを待たない）。
     setScanProgress({ directory_id: id, processed: 0, total: 0, current: "" });
     try {
@@ -110,6 +120,7 @@ export function DirectoryPanel() {
   };
 
   const handleScanAll = async (force = false) => {
+    if (!(await confirmNoDockerServer())) return;
     // 全ディレクトリを即「スキャン中」にする（バックエンドは順次処理）。
     for (const d of directories) {
       setScanProgress({ directory_id: d.id, processed: 0, total: 0, current: "" });

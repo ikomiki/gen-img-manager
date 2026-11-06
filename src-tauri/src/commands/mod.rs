@@ -3,6 +3,7 @@ pub mod directories;
 pub mod prefs;
 pub mod query;
 pub mod scan;
+pub mod docker_probe;
 pub mod slideshow;
 pub mod view_menu;
 pub mod fs;
