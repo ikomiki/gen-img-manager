@@ -43,3 +43,7 @@ pub fn sync_current_position_menu(menu: State<ViewMenu>, on: bool) {
 pub fn sync_current_rating_menu(menu: State<ViewMenu>, on: bool) {
     menu.sync_current_rating(on);
 }
+#[tauri::command]
+pub fn sync_slideshow_pause_hidden_menu(menu: State<ViewMenu>, on: bool) {
+    menu.sync_slideshow_pause_hidden(on);
+}
