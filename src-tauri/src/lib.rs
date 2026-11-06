@@ -221,6 +221,7 @@ pub fn run() {
             commands::scan::scan_all,
             commands::scan::rebuild_directory,
             commands::scan::rebuild_all,
+            commands::docker_probe::docker_server_running,
             commands::query::query_images,
             commands::query::count_query,
             commands::query::get_image_detail,
