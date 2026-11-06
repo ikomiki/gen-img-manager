@@ -13,6 +13,7 @@ pub struct ViewMenu {
     pub show_filename: CheckMenuItem<Wry>,
     pub slideshow_windowed: CheckMenuItem<Wry>,
     pub slideshow_fullscreen: CheckMenuItem<Wry>,
+    pub slideshow_pause_hidden: CheckMenuItem<Wry>,
     pub rating_mode: CheckMenuItem<Wry>,
     pub unrated_only: CheckMenuItem<Wry>,
     pub xmp_auto: CheckMenuItem<Wry>,
@@ -33,6 +34,9 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
         CheckMenuItem::with_id(app, "slideshow_windowed", "ウィンドウ全体", true, true, None::<&str>)?;
     let slideshow_fullscreen =
         CheckMenuItem::with_id(app, "slideshow_fullscreen", "フルスクリーン", true, false, None::<&str>)?;
+    let slideshow_pause_hidden = CheckMenuItem::with_id(
+        app, "slideshow_pause_hidden", "非表示中は進行を止める", true, true, None::<&str>,
+    )?;
 
     let rating_mode =
         CheckMenuItem::with_id(app, "rating_mode", "レーティング入力モード", true, false, None::<&str>)?;
@@ -74,6 +78,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
     let slideshow_submenu = SubmenuBuilder::new(app, "スライドショー")
         .item(&slideshow_windowed)
         .item(&slideshow_fullscreen)
+        .separator()
+        .item(&slideshow_pause_hidden)
         .build()?;
 
     // 標準「フルスクリーン」（ウィンドウ全画面・Ctrl+Cmd+F）を表示メニューの最下部へ結合する。
@@ -165,6 +171,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<(Menu<Wry>, ViewMenu)> {
             show_filename,
             slideshow_windowed,
             slideshow_fullscreen,
+            slideshow_pause_hidden,
             rating_mode,
             unrated_only,
             xmp_auto,
@@ -226,5 +233,8 @@ impl ViewMenu {
     }
     pub fn sync_current_rating(&self, on: bool) {
         let _ = self.show_current_rating.set_checked(on);
+    }
+    pub fn sync_slideshow_pause_hidden(&self, on: bool) {
+        let _ = self.slideshow_pause_hidden.set_checked(on);
     }
 }
