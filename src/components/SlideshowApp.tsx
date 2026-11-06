@@ -30,6 +30,8 @@ export function SlideshowApp() {
   const [showPosition, setShowPosition] = useState(false);
   const [showRating, setShowRating] = useState(false);
   const [xmpAuto, setXmpAuto] = useState(false);
+  const [pauseHidden, setPauseHidden] = useState(true);
+  const [hidden, setHidden] = useState(document.hidden);
 
   // 最新値を副作用から参照するための ref ミラー。
   const posRef = useRef(0);
@@ -56,7 +58,7 @@ export function SlideshowApp() {
   // 初期化: スナップショットと設定を読み込み、再生順序を組む。
   useEffect(() => {
     void (async () => {
-      const [payload, iv, lp, rnd, sf, sp, sr, xa] = await Promise.all([
+      const [payload, iv, lp, rnd, sf, sp, sr, xa, ph] = await Promise.all([
         getSlideshowPayload(),
         getSetting("slideshow_interval"),
         getSetting("slideshow_loop"),
@@ -65,6 +67,7 @@ export function SlideshowApp() {
         getSetting("show_current_position"),
         getSetting("show_current_rating"),
         getSetting("xmp_auto"),
+        getSetting("slideshow_pause_hidden"),
       ]);
       const sec = iv ? Math.max(1, Number(iv) || 5) : 5;
       const lpOn = lp === null ? true : lp !== "false";
@@ -76,6 +79,7 @@ export function SlideshowApp() {
       setShowPosition(sp === "true");
       setShowRating(sr === "true");
       setXmpAuto(xa === "true");
+      setPauseHidden(ph !== "false");
 
       const p = payload?.paths ?? [];
       const startImg = Math.min(payload?.start_index ?? 0, Math.max(p.length - 1, 0));
@@ -114,12 +118,18 @@ export function SlideshowApp() {
     setPos(r.pos);
   }, []);
 
+  useEffect(() => {
+    const onVis = () => setHidden(document.hidden);
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
   // 自動再生タイマー。rAF 駆動 + keep-alive 描画でイベント処理を妨げない
   // （設計理由は useSlideTimer のコメント参照）。表示中の画像の読み込み完了
   // （onImgLoad → markLoaded）から間隔を数える。
   const onElapsed = useCallback(() => advance(1), [advance]);
   const { keepAliveRef, markLoaded } = useSlideTimer(
-    ready && playing && order.length > 0,
+    ready && playing && order.length > 0 && !(pauseHidden && hidden),
     intervalSec * 1000,
     pos,
     onElapsed,
@@ -263,6 +273,7 @@ export function SlideshowApp() {
       else if (e.payload === "show_current_filename") setShowFilename((v) => !v);
       else if (e.payload === "show_current_position") setShowPosition((v) => !v);
       else if (e.payload === "show_current_rating") setShowRating((v) => !v);
+      else if (e.payload === "slideshow_pause_hidden") setPauseHidden((v) => !v);
     });
     return () => {
       un.then((f) => f());

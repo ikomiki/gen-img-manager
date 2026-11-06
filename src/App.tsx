@@ -26,6 +26,7 @@ function App() {
   const toggleShowCurrentFilename = useQueryStore((s) => s.toggleShowCurrentFilename);
   const toggleShowCurrentPosition = useQueryStore((s) => s.toggleShowCurrentPosition);
   const toggleShowCurrentRating = useQueryStore((s) => s.toggleShowCurrentRating);
+  const toggleSlideshowPauseHidden = useQueryStore((s) => s.toggleSlideshowPauseHidden);
   const dirCollapsed = useQueryStore((s) => s.dirCollapsed);
   const toggleDirCollapsed = useQueryStore((s) => s.toggleDirCollapsed);
   const helpOpen = useQueryStore((s) => s.helpOpen);
@@ -81,6 +82,8 @@ function App() {
         void toggleShowCurrentPosition();
       } else if (id === "show_current_rating") {
         void toggleShowCurrentRating();
+      } else if (id === "slideshow_pause_hidden") {
+        void toggleSlideshowPauseHidden();
       } else if (id === "show_search_info") {
         useQueryStore.getState().toggleShowSearchInfo();
       } else if (id === "open_analysis") {
@@ -93,7 +96,7 @@ function App() {
     return () => {
       un.then((f) => f());
     };
-  }, [toggleShowFilename, setZoomMode, toggleRatingMode, toggleUnratedOnly, toggleXmpAutoExport, toggleShowCurrentFilename, toggleShowCurrentPosition, toggleShowCurrentRating]);
+  }, [toggleShowFilename, setZoomMode, toggleRatingMode, toggleUnratedOnly, toggleXmpAutoExport, toggleShowCurrentFilename, toggleShowCurrentPosition, toggleShowCurrentRating, toggleSlideshowPauseHidden]);
 
   // グローバルキー: B で左パネル折りたたみ、? でヘルプ、Esc でヘルプを閉じる。
   // ビューア表示中は B/? を無効化する（ImageGridPanel と同様）。

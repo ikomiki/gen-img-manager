@@ -21,3 +21,5 @@ export const syncCurrentPositionMenu = (on: boolean) =>
   invoke<void>("sync_current_position_menu", { on });
 export const syncCurrentRatingMenu = (on: boolean) =>
   invoke<void>("sync_current_rating_menu", { on });
+export const syncSlideshowPauseHiddenMenu = (on: boolean) =>
+  invoke<void>("sync_slideshow_pause_hidden_menu", { on });

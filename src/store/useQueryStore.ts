@@ -44,6 +44,8 @@ interface QueryState {
   toggleShowCurrentFilename: () => Promise<void>;
   toggleShowCurrentPosition: () => Promise<void>;
   toggleShowCurrentRating: () => Promise<void>;
+  slideshowPauseHidden: boolean;
+  toggleSlideshowPauseHidden: () => Promise<void>;
   /** デバッグ: ビューアで検索対象テキスト（FTS列）を表示する。メニューからのみ切替、非永続。 */
   showSearchInfo: boolean;
   toggleShowSearchInfo: () => void;
@@ -74,6 +76,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
   showCurrentFilename: false,
   showCurrentPosition: false,
   showCurrentRating: false,
+  slideshowPauseHidden: true,
   showSearchInfo: false,
   setQuery: (q) => set({ query: q }),
   setSort: (sort, dir) => {
@@ -174,7 +177,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     }
   },
   loadSettings: async () => {
-    const [sortRaw, showRaw, queryRaw, dirCollapsedRaw, xmpAutoRaw, unratedOnlyRaw, showCurFnameRaw, showCurPosRaw, showCurRatingRaw] = await Promise.all([
+    const [sortRaw, showRaw, queryRaw, dirCollapsedRaw, xmpAutoRaw, unratedOnlyRaw, showCurFnameRaw, showCurPosRaw, showCurRatingRaw, pauseHiddenRaw] = await Promise.all([
       prefsApi.getSetting("sort"),
       prefsApi.getSetting("show_filename"),
       prefsApi.getSetting("filter_query"),
@@ -184,6 +187,7 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       prefsApi.getSetting("show_current_filename"),
       prefsApi.getSetting("show_current_position"),
       prefsApi.getSetting("show_current_rating"),
+      prefsApi.getSetting("slideshow_pause_hidden"),
     ]);
     if (sortRaw) {
       const [sort, dir] = sortRaw.split(":");
@@ -223,6 +227,11 @@ export const useQueryStore = create<QueryState>((set, get) => ({
       const on = showCurRatingRaw === "true";
       set({ showCurrentRating: on });
       prefsApi.syncCurrentRatingMenu(on).catch(() => {});
+    }
+    if (pauseHiddenRaw !== null) {
+      const on = pauseHiddenRaw !== "false";
+      set({ slideshowPauseHidden: on });
+      prefsApi.syncSlideshowPauseHiddenMenu(on).catch(() => {});
     }
   },
   showToast: (msg) => set({ toast: msg, toastSeq: get().toastSeq + 1 }),
@@ -264,6 +273,12 @@ export const useQueryStore = create<QueryState>((set, get) => ({
     set({ showCurrentRating: next });
     await prefsApi.setSetting("show_current_rating", String(next));
     prefsApi.syncCurrentRatingMenu(next).catch((e) => console.error("syncCurrentRatingMenu failed:", e));
+  },
+  toggleSlideshowPauseHidden: async () => {
+    const next = !get().slideshowPauseHidden;
+    set({ slideshowPauseHidden: next });
+    await prefsApi.setSetting("slideshow_pause_hidden", String(next));
+    prefsApi.syncSlideshowPauseHiddenMenu(next).catch((e) => console.error("syncSlideshowPauseHiddenMenu failed:", e));
   },
   toggleShowSearchInfo: () => set({ showSearchInfo: !get().showSearchInfo }),
 }));
