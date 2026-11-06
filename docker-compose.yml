@@ -11,6 +11,7 @@ services:
     # library.db の所有者と同じ UID にしないと web-cache/ を書けない（Linux ホスト）。
     user: "${GIM_UID:-10001}:${GIM_GID:-10001}"
     volumes:
+      # macOS / Windows の Docker Desktop では SQLite のロックを共有できず、デスクトップ版と同時に使うとクラッシュする（docs/web-viewer.md 参照）。
       # thumbnails/ と原画像は DB に絶対パスで記録されるため、ホストと同じパスにマウントする。
       - type: bind
         source: ${GIM_DATA_DIR}
